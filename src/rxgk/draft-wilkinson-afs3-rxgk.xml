@@ -73,7 +73,7 @@
     </section>
   </section>
 
-  <section anchor="time" title="Time representation">
+  <section anchor="time" title="Time Representation">
     <t>rxgk expresses absolute time as a 64-bit integer. This contains
        the time relative to midnight, or 0 hour, January 1, 1970 UTC,
        represented in increments of 100 nanoseconds, excluding any leap
@@ -87,7 +87,7 @@ typedef hyper rxgkTime;
    </section>
 
 
-  <section anchor="enctype" title="Encryption framework">
+  <section anchor="enctype" title="Encryption Framework">
 
    <t>Bulk data encryption within rxgk is performed using the encryption
       framework defined by <xref target="RFC3961">RFC3961</xref>. Any
@@ -95,7 +95,7 @@ typedef hyper rxgkTime;
       both client and server may be used.
    </t>
 
-    <section anchor="usage" title="Key usage values">
+    <section anchor="usage" title="Key Usage Values">
     <t>In order to avoid using the same key for multiple tasks, key 
        derivation is employed. To avoid any conflicts with other users of
        these keys, key usage numbers are allocated within in the application
@@ -163,7 +163,7 @@ enum RXGK_Level {
   </section>
 
 
-  <section title="Key negotiation">
+  <section title="Key Negotiation">
 
     <t>rxgk uses an independent RX RPC service for key negotiation. The 
        location of this service is application dependent. Within a given
@@ -356,7 +356,7 @@ enum RXGK_Level {
 	 new token, Tn, which has embedded within it Kn, as computed by the
 	 server.</t>
     </section>
-    <section title="Key combination algorithm">
+    <section title="Key Combination Algorithm">
       <t>Assume that the tokens being combined are T0 and T1, with initial keys
 	 K0 and K1. The new initial key for the combined token, Kn is computed
 	 using the KRB-FX-CF2 operation, described in section 5.1 of 
@@ -365,7 +365,7 @@ enum RXGK_Level {
 	 ASCII strings "AFS" and "rxgk" respectively.
       </t>
     </section>
-    <section title="RPC definition">
+    <section title="RPC Definition">
       <t>The combine keys RPC is defined as:</t>
       <artwork>
     CombineTokens(IN opaque token0,
@@ -373,7 +373,7 @@ enum RXGK_Level {
                   OUT opaque new_token) = 2;
       </artwork>
     </section>
-    <section title="Server operation">
+    <section title="Server Operation">
       <t>The server receives both token0 and token1 from the RPC call, and 
          decrypts these tokens using its private key. Providing this decryption
 	 is successful, it now has copies of the initial key (K0) from both
@@ -390,7 +390,7 @@ enum RXGK_Level {
 	 over an rxgk secured connection.</t>
 
     </section>
-    <section title="Client operation">
+    <section title="Client Operation">
       <t>As detailed within the overview, the client calls the CombineTokens 
          RPC using two tokens, T0 and T1, within its possession. It then receives
  	 a new token, Tn from this call. The client can only make use of Tn to
@@ -402,7 +402,7 @@ enum RXGK_Level {
     </section>
   </section>
 
-  <section anchor="class" title="The rxgk security class">
+  <section anchor="class" title="The rxgk Security Class">
 	  <section title="Overview">
 
      <t>When a new connection using rxgk is created by the client, it stores the
@@ -446,7 +446,7 @@ enum RXGK_Level {
       </t>
     </section>
 
-    <section title="Key derivation">
+    <section title="Key Derivation">
 
       <t>In order to avoid the sharing of keys between multiple connections,
          each connection has its own transport key, TK, which is derived
@@ -548,7 +548,7 @@ enum RXGK_Level {
      </t>
    </section>
 
-   <section title="Packet handling">
+   <section title="Packet Handling">
 
      <t>The way in which the rxgk security class handles packets depends upon 
 	the requested security level. As noted earlier, 3 levels are currently
@@ -594,7 +594,7 @@ enum RXGK_Level {
      </t>
 
    </section>
-   <section title="Integrity protection">
+   <section title="Integrity Protection">
    
      <t>The rxgk_auth security level prepends the packet with the same data
 	block as crypt (as detailed above), and then calls the RFC3961 
@@ -617,7 +617,7 @@ enum RXGK_Level {
         used, as it is too small to hold a collision-proof checksum value.</t>
    </section>
 
-   <section title="Authentication only">
+   <section title="Authentication Only">
      <t>When running at the rxgk_clear level, no manipulation of the payload is
         performed by the security class.</t>
    </section>
