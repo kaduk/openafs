@@ -164,7 +164,12 @@ enum RXGK_Level {
      permit the receiving server to identify the corresponding user and session
      key for the incoming connection -- whether that be by decrypting the
      information within the token, or making the token a large random
-     identifier which keys a lookup table on the server.
+     identifier which keys a lookup table on the server, or some other mechanism.
+     It is assumed that such mechanisms will conceptually "encrypt" a token
+     by somehow associating the "encrypted" token with the associated
+     unencrypted data, and will "decrypt" an encrypted token by using
+     that association to find the unencrypted data. As such, this document
+     will use "encrypt" and "decrypt" to refer to these operations on tokens.
      If the token is an encrypted blob, it should be encrypted using the
      key usage RXGK_SERVER_ENC_TOKEN.</t>
 
