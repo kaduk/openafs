@@ -125,9 +125,11 @@ const RXGK_SERVER_ENC_TICKET		= 1036;
  	 to the traditional 'clear' security level.</t>
        <t hangText="Integrity"> (1) Provides integrity protection only. 
 	  Data is protected from modification by an attacker, but not against 
-	  eavesdropping. This corresponds to the traditional 'auth' level.</t>
+	  eavesdropping. This corresponds to the traditional 'auth' security
+	  level.</t>
        <t hangText="Encryption"> (2) Provides both integrity and 
-	  confidentiality protection, corresponding to 'crypt'.</t>
+	  confidentiality protection. This corresponds to the traditional
+	  'crypt' security level.</t>
        <t hangText="Bind"> (3) Connection security is provided by channel
 	  bindings with another layer. This mode of operation is experimental,
 	  and this value is reserved for future expansion.</t>
@@ -170,7 +172,8 @@ enum RXGK_Level {
        application protocol, a client must be able to locate the key
        negotiation service, and that service must be able to create tokens
        which can be read by the application server. The simplest deployment
-       has the service running on every server, on the same transport
+       has the negotiation service running on every application server,
+       on the same transport
        endpoints, but using a separate, dedicated, rx service ID.</t>
 
     <t>The rxgk key negotiation service uses the service ID 34567.</t>
@@ -282,7 +285,7 @@ enum RXGK_Level {
        encounters an error, or the server returns GSS_S_COMPLETE in gss_major_status.
        </t>
 
-    <t>Upon completion, rxgk_info contains the XDR representation of a 
+    <t>Upon successful completion, rxgk_info contains the XDR representation of a 
        RXGK_ClientInfo structure, encrypted using gss_wrap() with
        confidentiality protection. The client should decrypt this structure
        using gss_unwrap().</t>
@@ -628,7 +631,7 @@ enum RXGK_Level {
    </section>   
    <section anchor="security" title="Security Considerations">
      <section title="Abort Packets">
-       <t>RX Abort packets are not protected by the security layer. Therefore
+       <t>RX Abort packets are not protected by the RX security layer. Therefore
 	  caution should be exercised when relying on their results. In
 	  particular, clients MUST NOT use an error from GSSNegotiate or
 	  CombineTokens to determine whether to downgrade to another 
