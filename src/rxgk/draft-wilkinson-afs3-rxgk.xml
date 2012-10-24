@@ -251,7 +251,7 @@ enum RXGK_Level {
        the following parameters:</t>
 
     <list style="hanging" hangIndent="6">
-      <t hangText="clientparms">The client params structure detailed above.
+      <t hangText="client_start">The client params structure detailed above.
         This should remain constant across the negotiation.</t>
       <t hangText="input_token_buffer">The token produced by a call to
 	gss_init_sec_context().</t>
@@ -373,9 +373,9 @@ enum RXGK_Level {
     <section title="RPC Definition">
       <t>The combine keys RPC is defined as:</t>
       <artwork>
-    CombineTokens(IN opaque token0,
-                  IN opaque token1,
-                  OUT opaque new_token) = 2;
+    CombineTokens(IN RXGK_Data token0,
+                  IN RXGK_Data token1,
+                  OUT RXGK_Data new_token) = 2;
       </artwork>
     </section>
     <section title="Server Operation">
@@ -412,8 +412,8 @@ enum RXGK_Level {
 	  <section title="Overview">
 
      <t>When a new connection using rxgk is created by the client,
-        the client stores the
-        current timestamp (as start_time for the rest of this discussion), and 
+        the client stores the current timestamp as an rxgk_Time
+	(start_time for the rest of this discussion), and 
       then uses this, along with other connection information, to derive a 
       transport key from the current user's master key.</t>
 
@@ -505,7 +505,7 @@ enum RXGK_Level {
 <artwork>
     struct RXGK_Response {
         rxgkTime start_time;
-        opaque token&lt;&gt;
+        RXGK_Data token&lt;&gt;
         opaque authenticator&lt;&gt;
     };
 </artwork>
@@ -621,7 +621,8 @@ enum RXGK_Level {
 	many bytes of checksum are contained within the packet. Having split
 	the data into checksum and payload using this information, the 
 	checksum should be verified using the encryption profile's
-	verify_mic() operation with the appropriate key derivation.</t>
+	verify_mic() operation with the appropriate key derivation
+	(RXGK_CLIENT_MIC_PACKET or RXGK_SERVER_MIC_PACKET).</t>
 
      <t>Note that the checksum field within the rx packet header itself is not
         used, as it is too small to hold a collision-proof checksum value.</t>
