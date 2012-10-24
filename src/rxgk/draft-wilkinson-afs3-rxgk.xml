@@ -98,7 +98,7 @@ typedef hyper rxgkTime;
     <section anchor="usage" title="Key Usage Values">
     <t>In order to avoid using the same key for multiple tasks, key 
        derivation is employed. To avoid any conflicts with other users of
-       these keys, key usage numbers are allocated within in the application
+       these keys, key usage numbers are allocated within the application
        space documented in section 4 of <xref target="RFC4120">RFC4120</xref>.
 
 <artwork>
