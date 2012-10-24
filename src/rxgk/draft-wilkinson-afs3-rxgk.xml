@@ -39,9 +39,9 @@
   <section anchor="intro" title="Introduction">
   
      <t>rxgk is a <xref target="RFC2743">GSSAPI</xref> based security class
-     for the rx protocol. It provides
+     for the <xref target="RX">rx</xref> protocol. It provides
      authentication, confidentiality and integrity protection for 
-     <xref target="RX">rx</xref> RPC calls,
+     rx RPC calls,
      using a security context established using any GSSAPI mechanism with 
      <xref target="RFC4401">PRF</xref> support. The External Data
      Representation Standardard,
