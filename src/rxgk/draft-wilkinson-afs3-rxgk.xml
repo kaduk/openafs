@@ -110,11 +110,14 @@ const RXGK_SERVER_MIC_PACKET		= 1029;
 const RXGK_CLIENT_ENC_RESPONSE		= 1030;
 const RXGK_SERVER_ENC_TOKEN		= 1036;
 </artwork>
+
+       The application of these key usage numbers is specified in
+       <xref target="class" />.
 </t>
     </section>
   </section>
 
-  <section title="Security Levels">
+  <section title="Security Levels" anchor="levels">
     <t>rxgk supports the negotiation of a range of different security levels.
        These, along with the protocol constants that represent them during
        key negotiation, are:</t>
@@ -236,7 +239,7 @@ enum RXGK_Level {
 	 maintained by IANA. This list indicates the encryption types that
  	 the client is prepared to support.</t>
       <t hangText="levels:">List of supported rxgk transport encryption
-	 levels.</t>
+	 levels. See <xref target="levels" /> for allowed values.</t>
       <t hangText="lifetime:">The maximum number of seconds that a connection
 	 key should be used before rekeying. A value of 0 indicates that the
 	 connection should not be rekeyed based on its lifetime. This lifetime
@@ -311,7 +314,8 @@ enum RXGK_Level {
       <t hangText="enctype">The encryption type selected by the server.
 	This SHALL be one of the types listed by the client in its StartParams
 	structure.</t>
-      <t hangText="level">The rxgk security level selected by the server.</t>
+      <t hangText="level">The rxgk security level selected by the server, see
+	<xref target="levels" /> for allowed values.</t>
       <t hangText="lifetime">The connection lifetime, in seconds, as determined
 	by the server. The server MAY honor the client's request, but the server
 	MUST choose a value at least as restrictive as the value requested by
@@ -330,7 +334,7 @@ enum RXGK_Level {
 	<xref target="RFC2744" /> over the XDR encoded
 	representation of the StartParams request received by the server.</t>
       <t hangText="token">An rxgk token. This is an opaque blob, as detailed
-	earlier.</t>
+	in <xref target="tokens" />.</t>
       <t hangText="server_nonce">The nonce used by the server to create the K0
 	used within the rxgk token.</t>
      </list>
@@ -436,7 +440,8 @@ enum RXGK_Level {
         the client stores the current timestamp as an rxgk_Time
 	(start_time for the rest of this discussion), and 
       then uses this, along with other connection information, to derive a 
-      transport key from the current user's master key.</t>
+      transport key from the current user's master key
+      (see <xref target="derivation" />).</t>
 
    <t>This key is then used to protect the first message the client sends
    to the server. The server follows the standard RX security
@@ -475,7 +480,7 @@ enum RXGK_Level {
       </t>
     </section>
 
-    <section title="Key Derivation">
+    <section title="Key Derivation" anchor="derivation">
 
       <t>In order to avoid the sharing of keys between multiple connections,
          each connection has its own transport key, TK, which is derived
@@ -534,7 +539,8 @@ enum RXGK_Level {
 
       <list style="hanging" hangIndent="6">
         <t hangText="start_time:">The time since the Unix epoch 
-          (1970-01-01 00:00:00Z), expressed as an rxgkTime.</t>
+          (1970-01-01 00:00:00Z), expressed as an rxgkTime
+          (see <xref target="time" />).</t>
         <t hangText="authenticator:">The XDR encoded representation of 
           an RXGK_Authenticator, encrypted with the transport key, and key usage
           RXGK_CLIENT_ENC_RESPONSE.</t>
@@ -581,10 +587,11 @@ enum RXGK_Level {
    <section title="Packet Handling">
 
      <t>The way in which the rxgk security class handles packets depends upon 
-	the requested security level. As noted earlier, 3 levels are currently
+	the requested security level. As noted in
+	<xref target="levels" />, 3 levels are currently
 	defined -- authentication only, integrity protection and encryption.</t>
 
-<section title="Encryption">
+<section title="Encryption" anchor="encryption">
 
      <t>Using the encryption security level provides both integrity and 
 	confidentiality protection.</t> 
@@ -628,7 +635,8 @@ enum RXGK_Level {
    <section title="Integrity Protection">
    
      <t>The rxgk_auth security level prepends the packet with the same data
-	block as crypt (as detailed above), and then calls the RFC3961 
+	block as crypt (see <xref target="encryption" />),
+	and then calls the RFC3961 
 	get_mic operation over the result, using key usage
 	RXGK_CLIENT_MIC_PACKET for messages from client to server, and 
 	RXGK_SERVER_MIC_PACKET for messages from server to client.
