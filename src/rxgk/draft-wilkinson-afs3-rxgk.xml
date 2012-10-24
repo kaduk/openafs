@@ -152,7 +152,7 @@ enum RXGK_Level {
 
   <t>An rxgk token is an opaque identifier which is specific to a particular
      application's implementation of rxgk. The token is completely opaque to
-     the client, which just transmits it from server to server. The token must 
+     the client, which just transmits it from server to server. The token MUST
      permit the receiving server to identify the corresponding user and session
      key for the incoming connection -- whether that be by decrypting the
      information within the token, or making the token a large random
@@ -169,8 +169,8 @@ enum RXGK_Level {
 
     <t>rxgk uses an independent RX RPC service for key negotiation. The 
        location of this service is application dependent. Within a given
-       application protocol, a client must be able to locate the key
-       negotiation service, and that service must be able to create tokens
+       application protocol, a client MUST be able to locate the key
+       negotiation service, and that service MUST be able to create tokens
        which can be read by the application server. The simplest deployment
        has the negotiation service running on every application server,
        on the same transport
@@ -238,7 +238,7 @@ enum RXGK_Level {
  	 value of 0 indicates that there is no limit on the number of
 	 bytes that may be transmitted. The byte lifetime is advisory -- a
 	 connection that is over its byte lifetime should be permitted to
-	 continue, but clients should attempt to establish a new context
+	 continue, but clients SHOULD attempt to establish a new context
  	 at their earliest convenience.</t>
       <t hangText="clientnonce:">A client-generated string of random bytes,
 	 to be used as input to the key generation.</t>
@@ -299,7 +299,7 @@ enum RXGK_Level {
 	negotiation has failed, and the rest of the values in this structure
 	are undefined.</t>
       <t hangText="enctype">The encryption type selected by the server.
-	This will be one of the types listed by the client in its StartParams
+	This SHALL be one of the types listed by the client in its StartParams
 	structure.</t>
       <t hangText="level">The rxgk security level selected by the server.</t>
       <t hangText="lifetime">The connection lifetime, in seconds, as determined
@@ -322,7 +322,7 @@ enum RXGK_Level {
      <t>Upon receiving the server's response, the client must verify that the
         mic contained within it matches the MIC of the XDR representation of
 	the StartParams structure it sent to the server (this prevents a man
-	in the middle from performing a downgrade attack). It should also 
+	in the middle from performing a downgrade attack). It SHOULD also 
 	verify that the server's selected connection properties match those 
 	it proposed.</t>
 
@@ -563,7 +563,8 @@ enum RXGK_Level {
 	confidentiality protection.</t> 
 
      <t>The existing payload is prefixed with a psuedo header, to produce 
-	the following data for encryption.</t>
+	the following data for encryption. All fields MUST be represented
+	in network byte order for encryption.</t>
 
 <artwork>
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2
@@ -603,7 +604,8 @@ enum RXGK_Level {
 	block as crypt (as detailed above), and then calls the RFC3961 
 	get_mic operation over the result, using key usage
 	RXGK_CLIENT_MIC_PACKET for messages from client to server, and 
-	RXGK_SERVER_MIC_PACKET for messages from server to client.</t>
+	RXGK_SERVER_MIC_PACKET for messages from server to client.
+	All fields MUST be in network byte order for the get_mic operation.</t>
 
      <t>The peer is sent the output from the MIC operation, followed by the
         original payload (excluding the additional header which was added for
