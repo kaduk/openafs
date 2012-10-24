@@ -51,11 +51,11 @@
   <t>Architecturally, rxgk is split into two parts. The rxgk rx security
      class provides strong encryption using previously negotiated ciphers and
      keys. It builds on the Kerberos crypto framework for its encryption 
-     requirements, but is authentication mechanism independent - the class
+     requirements, but is authentication mechanism independent -- the class
      itself does not require the use of either Kerberos, or GSSAPI. The
      security class simply uses a previously negotiated encryption type, and
-     master key. The master key is never directly used, but instead a per
-     connection key is derived for each new secure connection that is
+     master key. The master key is never directly used, but instead a
+     per-connection key is derived for each new secure connection that is
      established.</t>
   
   <t>The second portion of rxgk is a service which permits the negotiation of
@@ -115,19 +115,19 @@ const RXGK_SERVER_ENC_TICKET		= 1036;
 
   <section title="Security Levels">
     <t>rxgk supports the negotiation of a range of different security levels.
-       These, along with the protocol constant that represents them during
+       These, along with the protocol constants that represent them during
        key negotiation, are:</t>
      <list style="hanging" hangIndent="6">
        <t hangText="Authentication only"> (0) Provides only connection 
 	 authentication, without either integrity or confidentiality 
 	 protection. This mode of operation provides higher throughput, but
 	 is vulnerable to man in the middle attacks. This corresponds
- 	 to the traditional 'clear' security level</t>
+ 	 to the traditional 'clear' security level.</t>
        <t hangText="Integrity"> (1) Provides integrity protection only. 
 	  Data is protected from modification by an attacker, but not against 
 	  eavesdropping. This corresponds to the traditional 'auth' level.</t>
        <t hangText="Encryption"> (2) Provides both integrity and 
-	  confidentiality protection, corresponding to 'crypt'</t>
+	  confidentiality protection, corresponding to 'crypt'.</t>
        <t hangText="Bind"> (3) Connection security is provided by channel
 	  bindings with another layer. This mode of operation is experimental,
 	  and this value is reserved for future expansion.</t>
@@ -148,13 +148,13 @@ enum RXGK_Level {
 
   <section anchor="tokens" title="Token Format">
 
-  <t>An rxgk token is an opaque identifier which is specific to an particular
+  <t>An rxgk token is an opaque identifier which is specific to a particular
      application's implementation of rxgk. The token is completely opaque to
      the client, which just transmits it from server to server. The token must 
      permit the receiving server to identify the corresponding user and session
-     key for the incoming connection - whether that be by decrypting the
+     key for the incoming connection -- whether that be by decrypting the
      information within the token, or making the token a large random
-     identifier which keys a lookup hash table on the server.</t>
+     identifier which keys a lookup table on the server.</t>
 
   <t>The token MUST NOT expose the session key on the wire. It MUST be
      sufficiently random that an attacker cannot predict suitable token values
@@ -171,11 +171,11 @@ enum RXGK_Level {
        negotiation service, and that service must be able to create tokens
        which can be read by the application server. The simplest deployment
        has the service running on every server, on the same transport
-       endpoints, but using a separate, dedicated, rx service id.</t>
+       endpoints, but using a separate, dedicated, rx service ID.</t>
 
-    <t>The rxgk key negotiation service uses the service ID 34567</t>
+    <t>The rxgk key negotiation service uses the service ID 34567.</t>
 
-    <t>The key negotiation protocol is defined by the following RPC-L</t>
+    <t>The key negotiation protocol is defined by the following RPC-L:</t>
 
 <artwork>
     typedef int RXGK_Enctypes&lt;&gt;;
@@ -216,7 +216,7 @@ enum RXGK_Level {
 
     <t>The client populates RXGK_StartParams with lists of its preferred
        options. These should be ordered from best to worst, with the 
-       clients favoured option occurring first within the list. The 
+       client's favoured option occurring first within the list. The 
        parameters are: </t>
     <list style="hanging" hangIndent="6">
       <t hangText="enctypes:">List of encryption types from the 
@@ -228,16 +228,16 @@ enum RXGK_Level {
       <t hangText="lifetime:">The maximum number of seconds that a connection
 	 key should be used before rekeying. A value of 0 indicates that the
 	 connection should not be rekeyed based on its lifetime. This lifetime
-         is advisory</t>
+         is advisory.</t>
       <t hangText="bytelife:">The maximum amount of data that can be transferred
 	 over the connection before it should be rekeyed, expressed as
-	 log 2 of the number of bytes. A 
+	 log base 2 of the number of bytes. A 
  	 value of 0 indicates that there is no limit on the number of
-	 bytes that may be transmitted. The byte lifetime is advisory - a
+	 bytes that may be transmitted. The byte lifetime is advisory -- a
 	 connection that is over its byte lifetime should be permitted to
 	 continue, but clients should attempt to establish a new context
  	 at their earliest convenience.</t>
-      <t hangText="clientnonce:">A client generated string of random bytes,
+      <t hangText="clientnonce:">A client-generated string of random bytes,
 	 to be used as input to the key generation.</t>
     </list>
 
@@ -245,26 +245,26 @@ enum RXGK_Level {
        to send to the server. The GSS service name is application dependent.</t>
 
     <t>The client then calls RXGK_GSSNegotiate, as defined above. This takes
-       the following parameters</t>
+       the following parameters:</t>
 
     <list style="hanging" hangIndent="6">
       <t hangText="clientparms">The client params structure detailed above.
-        This should remain constant across the negotiation</t>
+        This should remain constant across the negotiation.</t>
       <t hangText="input_token_buffer">The token produced by a call to
-	gss_init_sec_context</t>
+	gss_init_sec_context().</t>
       <t hangText="opaque_in">An opaque token, which was returned by the 
 	server following a previous call to GSSNegotiate in this negotiation. 
 	If this is the first call, this should be NULL.</t>
       <t hangText="output_token_buffer">The token output by the server's call
-	to gss_accept_sec_context</t>
+	to gss_accept_sec_context().</t>
       <t hangText="opaque_out">An opaque token, which the server may use to
 	preserve state information between multiple calls in the same context
-	negotiate. The client should use this value as opaque_in in its next
+	negotiation. The client should use this value as opaque_in in its next
 	call to GSSNegotiate.</t>
       <t hangText="gss_major_status">The major status code output by the server's
-	      call to gss_accept_sec_context</t>
+	      call to gss_accept_sec_context().</t>
       <t hangText="gss_minor_status">The minor status code returned by
-	      gss_accept_sec_context. Implementors should note that minor status
+	      gss_accept_sec_context(). Implementors should note that minor status
 	      codes are not portable between GSSAPI implementations.</t>
       <t hangText="rxgk_info">If gss_major_status == GSS_S_COMPLETE this contains an
 	encrypted block containing the server's response to the client. See
@@ -273,22 +273,22 @@ enum RXGK_Level {
 
     <t>Upon receiving the server's response, the client checks the 
        contents of gss_major_status. If this is GSS_S_CONTINUE_NEEDED, the client
-       should call gss_init_sec_context again with the token provided by the
+       should call gss_init_sec_context() again with the token provided by the
        server in output_token_buffer, followed by a further call to 
        GSSNegotiate, including the server's previous opaque_out as this call's
-       opaque_in</t>
+       opaque_in.</t>
 
-    <t>This process continues until the either the server, or client,
+    <t>This process continues until the either the server or client,
        encounters an error, or the server returns GSS_S_COMPLETE in gss_major_status.
        </t>
 
     <t>Upon completion, rxgk_info contains the XDR representation of a 
        RXGK_ClientInfo structure, encrypted using gss_wrap() with
        confidentiality protection. The client should decrypt this structure
-       using gss_unwrap.</t>
+       using gss_unwrap().</t>
 
     <t>ClientInfo contains the following server populated
-       fields</t>
+       fields:</t>
 
     <list style="hanging" hangIndent="6">
       <t hangText="errorcode">A policy (rather than connection establishment) 
@@ -297,22 +297,23 @@ enum RXGK_Level {
 	are undefined.</t>
       <t hangText="enctype">The encryption type selected by the server.
 	This will be one of the types listed by the client in its StartParams
-	structure</t>
+	structure.</t>
       <t hangText="level">The rxgk security level selected by the server.</t>
       <t hangText="lifetime">The connection lifetime, in seconds, as determined
 	by the server (this must be less than or equal to the lifetime proposed
-	by the client)</t>
-      <t hangText="bytelife">The maximum amount of data (in log 2 bytes) that
+	by the client).</t>
+      <t hangText="bytelife">The maximum amount of data (as log base 2 of the
+	number of bytes) that
 	may be transfered using this key. This must be less than or equal to
-	the bytelife proposed by the client</t>
+	the bytelife proposed by the client.</t>
       <t hangText="expiration">The time, expressed as an rxgkTime, at which 
-	this token expires</t>
-      <t hangText="mic">The result of calling gss_get_mic over the XDR encoded
+	this token expires.</t>
+      <t hangText="mic">The result of calling gss_get_mic() over the XDR encoded
 	representation of the StartParams request received by the server.</t>
       <t hangText="token">An rxgk token. This is an opaque blob, as detailed
-	earlier</t>
+	earlier.</t>
       <t hangText="server_nonce">The nonce used by the server to create the K0
-	used within the rxgk token</t>
+	used within the rxgk token.</t>
      </list>
 
      <t>Upon receiving the server's response, the client must verify that the
@@ -323,9 +324,9 @@ enum RXGK_Level {
 	it proposed.</t>
 
      <t>The client may then compute K0, by taking the nonce it sent to the
-        server (client_nonce), and the one it has just received (server_nonce),
-        combining them together, and passing them to gss_psuedo_random, with
-        the GSS_C_PRF_KEY_FULL option</t>
+        server (client_nonce) and the one it has just received (server_nonce),
+        combining them together, and passing them to gss_psuedo_random() with
+        the GSS_C_PRF_KEY_FULL option:</t>
 
      <artwork>
 	gss_pseudo_random(gssapi_context, 
@@ -334,13 +335,13 @@ enum RXGK_Level {
 			  K, 
 			  *K0);
      </artwork>
-     <t>|| is the concatenation operation</t>
+     <t>|| is the concatenation operation.</t>
 
      <t>K, the desired output length, is the key generation seed length as
-        specified in the RFC3961 profile of the negotiated enctype</t>
+        specified in the RFC3961 profile of the negotiated enctype.</t>
   </section>
 
-  <section anchor="combine" title="The combine tokens operation">
+  <section anchor="combine" title="Combining Tokens">
     <section title="Overview">
       <t>A client may elect to combine multiple rxgk tokens in its possession
 	 into a single token. This allows an rx connection to be secured using
@@ -349,7 +350,7 @@ enum RXGK_Level {
       </t>
 
       <t>Token combination is performed using the CombineTokens RPC call. The
-	 client has two keys - K0 and K1, and two tokens, T0 and T1. It locally
+	 client has two keys -- K0 and K1, and two tokens, T0 and T1. It locally
 	 combines the two keys using a defined combination algorithm to produce
 	 Kn. It then calls the CombineTokens RPC with T0 and T1, to receive a
 	 new token, Tn, which has embedded within it Kn, as computed by the
@@ -365,7 +366,7 @@ enum RXGK_Level {
       </t>
     </section>
     <section title="RPC definition">
-      <t>The combine keys RPC is defined as</t>
+      <t>The combine keys RPC is defined as:</t>
       <artwork>
     CombineTokens(IN opaque token0,
                   IN opaque token1,
@@ -377,7 +378,7 @@ enum RXGK_Level {
          decrypts these tokens using its private key. Providing this decryption
 	 is successful, it now has copies of the initial key (K0) from both
 	 tokens. It then performs the key combination algorithm detailed above
-	 to obtain a new key, Kn. The server constructs a new token, where each
+	 to obtain the new key, Kn. The server constructs a new token, where each
 	 of the numerical fields are set to the minimum of the values of each
 	 of the original tokens, and the list of identities is the union of 
 	 those in the original tokens. This new token contains the derived key,
@@ -391,13 +392,13 @@ enum RXGK_Level {
     </section>
     <section title="Client operation">
       <t>As detailed within the overview, the client calls the CombineTokens 
-         RPC using two tokens, T0 and T1 within its possession. It then receives
+         RPC using two tokens, T0 and T1, within its possession. It then receives
  	 a new token, Tn from this call. The client can only make use of Tn to
 	 establish an rxgk protected connection if it can derive Kn, which it 
 	 can only do if it already knows K0 and K1.
       </t>
       <t>Clients MUST use an rxgk secured connection for the CombineTokens
-	 operation</t>
+	 operation.</t>
     </section>
   </section>
 
@@ -462,9 +463,9 @@ enum RXGK_Level {
 	                  epoch || cid || start_time || key_number))
 </artwork>
       <t>L is the key generation seed length as specified in the RFC3961
-	 profile</t>
+	 profile.</t>
       <t>epoch, cid and key_number are passed as 32 bit quantities, start_time
-	 is a 64 bit value</t>
+	 is a 64 bit value.</t>
       <t>Note that start_time is selected by the client when it receives the
 	 server's challenge, and shared with the server as part of its 
 	 response. Thus both sides of the negotiation are guaranteed to use
@@ -484,7 +485,7 @@ enum RXGK_Level {
 </artwork>
 
       <list style="hanging" hangIndent="6">
-        <t hangText="nonce:">20 octets of random data</t>
+        <t hangText="nonce:">20 octets of random data.</t>
       </list>
 
     </section>
@@ -503,10 +504,10 @@ enum RXGK_Level {
 </artwork>
 
       <list style="hanging" hangIndent="6">
-        <t hangText="start_time:">the time since the Unix epoch 
-          (1970-01-01 00:00:00Z), expressed as an rxgkTime</t>
-        <t hangText="authenticator:">the XDR encoded representation of 
-          RXGK_Authenticator, encrypted with the transport key, and key usage
+        <t hangText="start_time:">The time since the Unix epoch 
+          (1970-01-01 00:00:00Z), expressed as an rxgkTime.</t>
+        <t hangText="authenticator:">The XDR encoded representation of 
+          an RXGK_Authenticator, encrypted with the transport key, and key usage
           RXGK_CLIENT_ENC_RESPONSE.</t>
       </list>
       <section title="The Authenticator">
@@ -524,15 +525,15 @@ enum RXGK_Level {
 </artwork>
 
         <list style="hanging" hangIndent="6">
-	  <t hangText="nonce:">a copy of the nonce from the challenge</t>
-	  <t hangText="appdata:">an application specific opaque blob</t>
-	  <t hangText="level:">the desired security level for this particular
+	  <t hangText="nonce:">A copy of the nonce from the challenge.</t>
+	  <t hangText="appdata:">An application specific opaque blob.</t>
+	  <t hangText="level:">The desired security level for this particular
 		  connnection. This MUST NOT be less than the security level
 		  originally negotiated.</t>
-          <t hangText="epoch:">the rx connection epoch</t>
-	  <t hangText="cid:">the rx connection ID</t>
-	  <t hangText="maxcalls:">the highest rx call number in use</t>
-          <t hangText="call_numbers:">the set of current rx call numbers</t>
+          <t hangText="epoch:">The rx connection epoch.</t>
+	  <t hangText="cid:">The rx connection ID.</t>
+	  <t hangText="maxcalls:">The highest rx call number in use.</t>
+          <t hangText="call_numbers:">The set of current rx call numbers.</t>
         </list>
       </section>
    </section>
@@ -551,7 +552,7 @@ enum RXGK_Level {
 
      <t>The way in which the rxgk security class handles packets depends upon 
 	the requested security level. As noted earlier, 3 levels are currently
-	defined - authentication only, integrity protection and encryption</t>
+	defined -- authentication only, integrity protection and encryption.</t>
 
 <section title="Encryption">
 
@@ -582,7 +583,7 @@ enum RXGK_Level {
 </artwork>
      <t>The data length is the length of the following data in octets,
 	and is necessary so the receiving end can remove any padding
-	added by the encryption routines
+	added by the encryption routines.
      </t>
 
      <t>This plaintext is encrypted using an RFC3961 style encrypt() 
@@ -613,7 +614,7 @@ enum RXGK_Level {
 	verify_mic() operation with the appropriate key derivation.</t>
 
      <t>Note that the checksum field within the rx packet header itself is not
-        used, as it is too small to hold a collision proof checksum value.</t>
+        used, as it is too small to hold a collision-proof checksum value.</t>
    </section>
 
    <section title="Authentication only">
@@ -683,34 +684,37 @@ enum RXGK_Level {
 	<t>Add a reference to RFC4402, which describes the PRF+ algorithm we
 	   are using.</t>
 	<t>Change references to RXGK_Token to RXGK_Data for clarity, and add
-	   a definition of that type</t>
+	   a definition of that type.</t>
         <t>Rename the 'ticket' member of RXGK_ClientInfo to 'token', for 
 	   consistency, and make it a simple opaque.</t>
         <t>Add a length field to the packet header, so that we can remove
 	   padding.</t>
         <t>Remove versioning in the challenge and the response.</t>
-        <t>Clarify that both bytelife and lifetime are advisory</t>
+        <t>Clarify that both bytelife and lifetime are advisory.</t>
 	<t>Remove the RXGK_CLIENT_COMBINE_ORIG and RXGK_SERVER_COMBINE_NEW
-           key derivations, as these are no longer used</t>
-        <t>Update the reference to draft-ietf-krb-wg-preauth-framework</t>
+           key derivations, as these are no longer used.</t>
+        <t>Update the reference to draft-ietf-krb-wg-preauth-framework.</t>
         <t>Require that CombineTokens be offered over an rxgk authenticated
-	   connection</t>
+	   connection.</t>
 	<t>Pull our time definition out into its own section and define a
-	   type for it</t>
-	<t>Define an enum for the security level, and use that throughout</t>
+	   type for it.</t>
+	<t>Define an enum for the security level, and use that throughout.</t>
       </section>
       <section title="Since 01">
-	      <t>Spell check</t>
-	      <t>Remove a couple of stray references to afs_ types</t>
-	      <t>Update start_time text to clarify that it uses rxgkTime</t>
-	      <t>Make expiration also be an rxgkTime</t>
-	      <t>Add a definition for RXGK_LEVEL_BIND</t>
-	      <t>Add reference to RX</t>
-	      <t>Add reference to XDR</t>
+	      <t>Spell check.</t>
+	      <t>Remove a couple of stray references to afs_ types.</t>
+	      <t>Update start_time text to clarify that it uses rxgkTime.</t>
+	      <t>Make expiration also be an rxgkTime.</t>
+	      <t>Add a definition for RXGK_LEVEL_BIND.</t>
+	      <t>Add reference to RX.</t>
+	      <t>Add reference to XDR.</t>
 	      <t>Rename the gss_status output parameter from the GSSNegotiate RPC
-		      to gss_major_status, and update the supporting text</t>
+		      to gss_major_status, and update the supporting text.</t>
 	      <t>Add a new gss_minor_status output paramter to the GSSNegotiate RPC,
-		      but make clear that it is there for informational use only</t>
+		      but make clear that it is there for informational use only.</t>
+      </section>
+      <section title="Since 02">
+	      <t>Edit for grammar and punctuation.</t>
       </section>
    </section>
 </back>
