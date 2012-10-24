@@ -158,7 +158,7 @@ enum RXGK_Level {
      information within the token, or making the token a large random
      identifier which keys a lookup table on the server.</t>
 
-  <t>The token MUST NOT expose the session key on the wire. It MUST be
+  <t>The token MUST NOT expose the session key on the wire. The token MUST be
      sufficiently random that an attacker cannot predict suitable token values
      by observing other connections. An attacker MUST NOT be able to forge
      tokens which convey a particular session key or identity.</t>
@@ -257,7 +257,7 @@ enum RXGK_Level {
 	gss_init_sec_context().</t>
       <t hangText="opaque_in">An opaque token, which was returned by the 
 	server following a previous call to GSSNegotiate in this negotiation. 
-	If this is the first call, this should be NULL.</t>
+	If this is the first call, opaque_in should be NULL.</t>
       <t hangText="output_token_buffer">The token output by the server's call
 	to gss_accept_sec_context().</t>
       <t hangText="opaque_out">An opaque token, which the server may use to
@@ -275,7 +275,8 @@ enum RXGK_Level {
     </list>
 
     <t>Upon receiving the server's response, the client checks the 
-       contents of gss_major_status. If this is GSS_S_CONTINUE_NEEDED, the client
+       contents of gss_major_status. If
+       gss_major_status == GSS_S_CONTINUE_NEEDED, the client
        should call gss_init_sec_context() again with the token provided by the
        server in output_token_buffer, followed by a further call to 
        GSSNegotiate, including the server's previous opaque_out as this call's
@@ -322,9 +323,9 @@ enum RXGK_Level {
      <t>Upon receiving the server's response, the client must verify that the
         mic contained within it matches the MIC of the XDR representation of
 	the StartParams structure it sent to the server (this prevents a man
-	in the middle from performing a downgrade attack). It SHOULD also 
+	in the middle from performing a downgrade attack). The client SHOULD also 
 	verify that the server's selected connection properties match those 
-	it proposed.</t>
+	proposed by the client.</t>
 
      <t>The client may then compute K0, by taking the nonce it sent to the
         server (client_nonce) and the one it has just received (server_nonce),
@@ -353,7 +354,8 @@ enum RXGK_Level {
       </t>
 
       <t>Token combination is performed using the CombineTokens RPC call. The
-	 client has two keys -- K0 and K1, and two tokens, T0 and T1. It locally
+	 client has two keys -- K0 and K1, and two tokens, T0 and T1.
+	 The client locally
 	 combines the two keys using a defined combination algorithm to produce
 	 Kn. It then calls the CombineTokens RPC with T0 and T1, to receive a
 	 new token, Tn, which has embedded within it Kn, as computed by the
@@ -395,7 +397,8 @@ enum RXGK_Level {
     </section>
     <section title="Client Operation">
       <t>As detailed within the overview, the client calls the CombineTokens 
-         RPC using two tokens, T0 and T1, within its possession. It then receives
+         RPC using two tokens, T0 and T1, within its possession.
+	 The client then receives
  	 a new token, Tn from this call. The client can only make use of Tn to
 	 establish an rxgk protected connection if it can derive Kn, which it 
 	 can only do if it already knows K0 and K1.
@@ -408,7 +411,8 @@ enum RXGK_Level {
   <section anchor="class" title="The rxgk Security Class">
 	  <section title="Overview">
 
-     <t>When a new connection using rxgk is created by the client, it stores the
+     <t>When a new connection using rxgk is created by the client,
+        the client stores the
         current timestamp (as start_time for the rest of this discussion), and 
       then uses this, along with other connection information, to derive a 
       transport key from the current user's master key.</t>
@@ -544,7 +548,8 @@ enum RXGK_Level {
    <section title="Checking the Response">
 
      <t>To check the validity of an rxgk response, the authenticator should
-        be decrypted, the nonce compared with that sent in the challenge, and
+        be decrypted, the nonce from the decrypted authenticator
+        compared with the nonce sent in the RXGK_Challenge, and
         the connection ID and epoch compared with that of the current
         connection. Failure of any of these steps MUST result in the failure
         of the security context.
