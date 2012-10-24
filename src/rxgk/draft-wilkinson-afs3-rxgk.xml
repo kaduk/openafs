@@ -304,12 +304,17 @@ enum RXGK_Level {
 	structure.</t>
       <t hangText="level">The rxgk security level selected by the server.</t>
       <t hangText="lifetime">The connection lifetime, in seconds, as determined
-	by the server (this must be less than or equal to the lifetime proposed
-	by the client).</t>
+	by the server. The server MAY honor the client's request, but the server
+	MUST choose a value at least as restrictive as the value requested by
+	the client. A value of zero indicates that the connection should not be
+	rekeyed based on its lifetime.</t>
       <t hangText="bytelife">The maximum amount of data (as log base 2 of the
 	number of bytes) that
-	may be transfered using this key. This must be less than or equal to
-	the bytelife proposed by the client.</t>
+	may be transfered using this key. The server MAY honor the client's
+	request, but the server MUST choose a value at least as restrictive
+	as the value requested by the client. A value of 0 indicates that the
+	connection should not be rekeyed based on the number of bytes
+	transmitted over the connection.</t>
       <t hangText="expiration">The time, expressed as an rxgkTime, at which 
 	this token expires.</t>
       <t hangText="mic">The result of calling gss_get_mic() over the XDR encoded
