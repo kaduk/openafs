@@ -358,6 +358,12 @@ enum RXGK_Level {
 
      <t>K, the desired output length, is the key generation seed length as
         specified in the RFC3961 profile of the negotiated enctype.</t>
+
+     <t>The gss_pseudo_random() operation is deterministic, ensuring that
+        the client and server generate the same K0.  The gssapi_context
+        parameter is the same context used in the client's
+        gss_init_sec_context() call and the server's
+        gss_accept_sec_context() call.</t>
   </section>
 
   <section anchor="combine" title="Combining Tokens">
