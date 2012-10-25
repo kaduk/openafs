@@ -127,7 +127,7 @@ const RXGK_SERVER_ENC_TOKEN		= 1036;
        <t hangText="Integrity"> (1) Provides integrity protection only. 
 	  Data is protected from modification by an attacker, but not against 
 	  eavesdropping. This corresponds to the traditional 'auth' security
-	  level.</t>
+	  level, authenticating the data payload as well as the Rx connection.</t>
        <t hangText="Encryption"> (2) Provides both integrity and 
 	  confidentiality protection. This corresponds to the traditional
 	  'crypt' security level.</t>
@@ -137,7 +137,11 @@ const RXGK_SERVER_ENC_TOKEN		= 1036;
      </list>
      <t>
      The authentication only, or clear, security level provides faster
-     throughput, at the expense of connection security.
+     throughput, at the expense of connection security.  The 'clear'
+     security level is vulnerable to a man in the middle altering the data
+     passed over the connection, whereas the 'integrity' security level
+     prevents such attacks by sending a cryptographic checksum of the data
+     being transmitted.
 <artwork>
 enum RXGK_Level {
     RXGK_LEVEL_CLEAR = 0;
