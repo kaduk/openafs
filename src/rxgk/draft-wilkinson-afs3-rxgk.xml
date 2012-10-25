@@ -266,7 +266,7 @@ enum RXGK_Level {
 	gss_init_sec_context().</t>
       <t hangText="opaque_in">An opaque token, which was returned by the 
 	server following a previous call to GSSNegotiate in this negotiation. 
-	If this is the first call, opaque_in should be NULL.</t>
+	If this is the first call, opaque_in should be zero-length.</t>
       <t hangText="output_token_buffer">The token output by the server's call
 	to gss_accept_sec_context().</t>
       <t hangText="opaque_out">An opaque token, which the server may use to
