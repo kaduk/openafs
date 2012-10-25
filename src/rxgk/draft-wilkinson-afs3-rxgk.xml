@@ -108,7 +108,7 @@ const RXGK_CLIENT_MIC_PACKET		= 1027;
 const RXGK_SERVER_ENC_PACKET		= 1028;
 const RXGK_SERVER_MIC_PACKET		= 1029;
 const RXGK_CLIENT_ENC_RESPONSE		= 1030;
-const RXGK_SERVER_ENC_TICKET		= 1036;
+const RXGK_SERVER_ENC_TOKEN		= 1036;
 </artwork>
 </t>
     </section>
@@ -157,7 +157,9 @@ enum RXGK_Level {
      permit the receiving server to identify the corresponding user and session
      key for the incoming connection -- whether that be by decrypting the
      information within the token, or making the token a large random
-     identifier which keys a lookup table on the server.</t>
+     identifier which keys a lookup table on the server.
+     If the token is an encrypted blob, it should be encrypted using the
+     key usage RXGK_SERVER_ENC_TOKEN.</t>
 
   <t>The token MUST NOT expose the session key on the wire. The token MUST be
      sufficiently random that an attacker cannot predict suitable token values
