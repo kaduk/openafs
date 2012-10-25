@@ -415,10 +415,14 @@ enum RXGK_Level {
          decrypts these tokens using its private key. Providing this decryption
 	 is successful, it now has copies of the initial key (K0) from both
 	 tokens. It then performs the key combination algorithm detailed above
-	 to obtain the new key, Kn. The server constructs a new token, where each
-	 of the numerical fields are set to the minimum of the values of each
-	 of the original tokens, and the list of identities is the union of 
-	 those in the original tokens. This new token contains the derived key,
+	 to obtain the new key, Kn. The server constructs a new token, as follows.
+	 The enctype, level, and expiration are each set to the minimum of the
+	 two values in each of the original tokens. The lifetime, bytelife,
+	 and any application-specific data fields are each combined so that the
+	 result is the most restrictive of the two values in each of the original
+	 tokens.  The list of identities is the union of the identities in the
+	 original tokens.
+	 This new token contains the derived key,
 	 Kn. The new token is encrypted with the server's private key, as 
 	 normal, and returned to the client.
       </t>
