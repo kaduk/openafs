@@ -417,7 +417,8 @@ enum RXGK_Level {
       </t>
       <t>To reduce the potential for denial of service attacks, servers
 	 SHOULD only offer the CombineTokens operation to clients connecting
-	 over an rxgk secured connection.</t>
+	 over an rxgk secured connection, with an RXGK_Level of RXGK_LEVEL_AUTH
+	 or higher.</t>
 
     </section>
     <section title="Client Operation">
@@ -589,11 +590,14 @@ enum RXGK_Level {
      <t>The way in which the rxgk security class handles packets depends upon 
 	the requested security level. As noted in
 	<xref target="levels" />, 3 levels are currently
-	defined -- authentication only, integrity protection and encryption.</t>
+	defined -- authentication only, integrity protection and encryption.
+	They are presented here in reverse order from <xref target="levels" />
+	for ease of presentation.</t>
 
 <section title="Encryption" anchor="encryption">
 
-     <t>Using the encryption security level provides both integrity and 
+     <t>Using the encryption security level, RXGK_LEVEL_CRYPT,
+	 provides both integrity and 
 	confidentiality protection.</t> 
 
      <t>The existing payload is prefixed with a psuedo header, to produce 
@@ -634,7 +638,8 @@ enum RXGK_Level {
    </section>
    <section title="Integrity Protection">
    
-     <t>The rxgk_auth security level prepends the packet with the same data
+     <t>The auth security level, RXGK_LEVEL_AUTH,
+	prepends the packet with the same data
 	block as crypt (see <xref target="encryption" />),
 	and then calls the RFC3961 
 	get_mic operation over the result, using key usage
@@ -659,7 +664,8 @@ enum RXGK_Level {
    </section>
 
    <section title="Authentication Only">
-     <t>When running at the rxgk_clear level, no manipulation of the payload is
+     <t>When running at the clear security level, RXGK_LEVEL_CLEAR,
+        no manipulation of the payload is
         performed by the security class.</t>
    </section>
    </section>
