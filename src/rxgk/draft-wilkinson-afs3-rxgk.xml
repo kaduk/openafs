@@ -224,8 +224,10 @@ enum RXGK_Level {
 
 </artwork>
 
-    <t>The client populates RXGK_StartParams with lists of its preferred
-       options. These should be ordered from best to worst, with the 
+    <t>The client populates RXGK_StartParams with its preferred
+       options. The enctypes and levels parameters are lists of
+       values supported by the client, and MUST be ordered from best
+       to worst, with the 
        client's favoured option occurring first within the list. The 
        parameters are: </t>
     <list style="hanging" hangIndent="6">
