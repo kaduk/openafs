@@ -458,7 +458,7 @@ enum RXGK_Level {
 
     <section title="Rekeying">
       <t>As part of connection negotiation, the server and client agree upon
-	 a number of advisory lifetimes (both time, and data, based) for
+	 advisory lifetimes (both time, and data, based) for
 	 connection keys. Each connection has a key number, which starts at
 	 0. When a connection exceeds one of its lifetimes, either side may
 	 elect to increment the key number. When the other endpoint sees
