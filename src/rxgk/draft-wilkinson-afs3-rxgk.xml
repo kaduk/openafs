@@ -3,6 +3,7 @@
 <!ENTITY PREAUTH SYSTEM "http://xml.resource.org/public/rfc/bibxml3/reference.I-D.draft-ietf-krb-wg-preauth-framework-15.xml">
 <!ENTITY RFC2119 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2119.xml">
 <!ENTITY RFC2743 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2743.xml">
+<!ENTITY RFC2744 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2744.xml">
 <!ENTITY RFC3961 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.3961.xml">
 <!ENTITY RFC4120 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.4120.xml">
 <!ENTITY RFC4401 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.4401.xml">
@@ -317,7 +318,8 @@ enum RXGK_Level {
 	transmitted over the connection.</t>
       <t hangText="expiration">The time, expressed as an rxgkTime, at which 
 	this token expires.</t>
-      <t hangText="mic">The result of calling gss_get_mic() over the XDR encoded
+      <t hangText="mic">The result of calling gss_get_mic()
+	<xref target="RFC2744" /> over the XDR encoded
 	representation of the StartParams request received by the server.</t>
       <t hangText="token">An rxgk token. This is an opaque blob, as detailed
 	earlier.</t>
@@ -424,7 +426,8 @@ enum RXGK_Level {
 
    <t>This key is then used to protect the first message the client sends
    to the server. The server follows the standard RX security
-   establishment protocol, and responds to the client with a challenge.
+   establishment protocol, and responds to the client with a challenge
+   <xref target="RX" />.
    rxgk challenges simply contain some versioning information and a
    random nonce selected by the server.</t>
 
@@ -669,6 +672,7 @@ enum RXGK_Level {
    <references title="Normative References">
 	   &RFC2119;
 	   &RFC2743;
+	   &RFC2744;
 	   &RFC3961;
 	   &RFC4120;
 	   &RFC4401;
