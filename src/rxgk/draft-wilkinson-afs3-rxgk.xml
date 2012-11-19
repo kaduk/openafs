@@ -134,9 +134,6 @@ const RXGK_SERVER_ENC_TOKEN		= 1036;
        <t hangText="Encryption"> (2) Provides both integrity and 
 	  confidentiality protection. This corresponds to the traditional
 	  'crypt' security level.</t>
-       <t hangText="Bind"> (3) Connection security is provided by channel
-	  bindings with another layer. This mode of operation is experimental,
-	  and this value is reserved for future expansion.</t>
      </list>
      <t>
      The authentication only, or clear, security level provides faster
@@ -150,7 +147,6 @@ enum RXGK_Level {
     RXGK_LEVEL_CLEAR = 0;
     RXGK_LEVEL_AUTH = 1;
     RXGK_LEVEL_CRYPT = 2;
-    RXGK_LEVEL_BIND = 3;
 };
 </artwork>
 </t>
@@ -776,6 +772,7 @@ enum RXGK_Level {
       </section>
       <section title="Since 02">
 	      <t>Edit for grammar and punctuation.</t>
+	      <t>Remove RXGK_LEVEL_BIND.</t>
       </section>
    </section>
 </back>
