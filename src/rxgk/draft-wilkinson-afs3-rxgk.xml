@@ -334,7 +334,8 @@ enum RXGK_Level {
       <t hangText="expiration">The time, expressed as an rxgkTime, at which 
 	this token expires. The expiration time MAY be set administratively
 	by the server, and SHOULD reflect the expiration time of the
-	underlying GSSAPI credential.</t>
+	underlying GSSAPI credential. The token SHOULD NOT expire later
+	than the underlying GSSAPI credential.</t>
       <t hangText="mic">The result of calling gss_get_mic()
 	<xref target="RFC2744" /> over the XDR encoded
 	representation of the StartParams request received by the server.</t>
