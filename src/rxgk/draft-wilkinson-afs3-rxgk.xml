@@ -576,8 +576,12 @@ const RXGK_CT_PRINTED			= 9;
       <t>The key version number is contained within the 16 bit spare field
 	 of the RX header (used by previous security layers as a checksum
 	 field), and expressed as an unsigned value in network byte order.
-	 If rekeying would cause this value to wrap, then the endpoint
-	 performing the rekey must terminate the connection.
+	 If rekeying would cause this value to wrap, then the key version number
+	 MAY be stored locally as a 32-bit integer on both endpoints with
+	 only the low 16 bits transmitted on the wire.  If an endpoint cannot
+	 store a per-connection 32-bit key version number when the 16-bit
+	 key version number would wrap, that endpoint MUST terminate the
+	 connection.
       </t>
     </section>
 
@@ -865,6 +869,7 @@ const RXGK_CT_PRINTED			= 9;
 	      <t>Edit for grammar and punctuation.</t>
 	      <t>Remove RXGK_LEVEL_BIND.</t>
 	      <t>Make CombineTokens negotiate level and enctype.</t>
+	      <t>Allow key version rollover at 16 bits when rekeying.</t>
       </section>
    </section>
 </back>
