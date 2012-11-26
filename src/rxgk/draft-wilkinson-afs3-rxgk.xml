@@ -786,6 +786,27 @@ const RXGK_CT_PRINTED			= 9;
 	  CombineTokens to determine whether to downgrade to another 
 	  security class</t>
      </section>
+     <section title="Token Expiry">
+	<t>This document permits tokens to be issued with expiration times
+	   after the expiration time of the underlying GSSAPI credential,
+	   though implementations SHOULD NOT do so.  Allowing the expiration
+	   time of a credential to be artificially increased can break the
+	   invariants assumed by a security system, with potentially
+	   disastrous consequences.  For example, with the krb5 GSSAPI
+	   mechanism, access revocation may be implemented by refusing to
+	   issue new tickets (or renew existing tickets) for a principal;
+	   all access is assumed to be revoked once the maximum ticket
+	   lifetime has passed.  If an rxgk token is created with a longer
+	   lifetime than the kerberos ticket, this assumption is invalid,
+	   and the user whose access has supposedly been revoked may gain
+	   access to sensitive materials.  An application should only allow
+	   token expiration times to be extended after a security review of
+	   the assumptions made about credential expiration for the GSSAPI
+	   mechanism(s) in use with that application.  Such a review is needed
+	   to confirm that allowing token expiration times to be extended
+	   will not introduce vulnerabilities into the security eocsystem in
+	   which the application operates.</t>
+     </section>
    </section>
    </middle>
 
@@ -871,6 +892,7 @@ const RXGK_CT_PRINTED			= 9;
 	      <t>Remove RXGK_LEVEL_BIND.</t>
 	      <t>Make CombineTokens negotiate level and enctype.</t>
 	      <t>Allow key version rollover at 16 bits when rekeying.</t>
+	      <t>Add Security Considerations for increasing token expiry.</t>
       </section>
    </section>
 </back>
