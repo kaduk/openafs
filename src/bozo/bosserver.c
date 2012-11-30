@@ -34,6 +34,7 @@
 #endif /* AFS_NT40_ENV */
 
 #define PATH_DELIM '/'
+#include <lock.h>
 #include <rx/rx.h>
 #include <rx/xdr.h>
 #include <rx/rx_globals.h>
@@ -45,6 +46,8 @@
 #include <afs/fileutil.h>
 #include <afs/audit.h>
 #include <afs/cellconfig.h>
+#include <afs/opr.h>
+#include <lock.h>
 
 #if defined(AFS_SGI_ENV)
 #include <afs/afs_args.h>
@@ -59,13 +62,19 @@
 extern struct bnode_ops fsbnode_ops, dafsbnode_ops, ezbnode_ops, cronbnode_ops;
 
 struct afsconf_dir *bozo_confdir = 0;	/* bozo configuration dir */
+#ifdef AFS_PTHREAD_ENV
+static pthread_t bozo_pid;
+#else
 static PROCESS bozo_pid;
+#endif
 const char *bozo_fileName;
 FILE *bozo_logFile;
+static struct Lock bozo_logLock;
 #ifndef AFS_NT40_ENV
 static int bozo_argc = 0;
 static char** bozo_argv = NULL;
 #endif
+struct Lock configUpdate_lock;
 
 const char *DoCore;
 int DoLogging = 0;
@@ -91,7 +100,6 @@ int bozo_restdisable = 0;
 void
 bozo_insecureme(int sig)
 {
-    signal(SIGFPE, bozo_insecureme);
     bozo_isrestricted = 0;
     bozo_restdisable = 1;
 }
@@ -554,9 +562,10 @@ bdrestart(struct bnode *abnode, void *arock)
 {
     afs_int32 code;
 
+    opr_Assert(abnode->refCount > 0);
+
     if (abnode->fileGoal != BSTAT_NORMAL || abnode->goal != BSTAT_NORMAL)
 	return 0;		/* don't restart stopped bnodes */
-    bnode_Hold(abnode);
     code = bnode_RestartP(abnode);
     if (code) {
 	/* restart the dude */
@@ -564,7 +573,6 @@ bdrestart(struct bnode *abnode, void *arock)
 	bnode_WaitStatus(abnode, BSTAT_SHUTDOWN);
 	bnode_SetStat(abnode, BSTAT_NORMAL);
     }
-    bnode_Release(abnode);
     return 0;			/* keep trying all bnodes */
 }
 
@@ -578,7 +586,11 @@ BozoDaemon(void *unused)
     /* now initialize the values */
     bozo_newKTs = 1;
     while (1) {
+#ifdef AFS_PTHREAD_ENV
+	sleep(60);
+#else
 	IOMGR_Sleep(60);
+#endif
 	now = FT_ApproxTime();
 
 	if (bozo_restdisable) {
@@ -602,7 +614,7 @@ BozoDaemon(void *unused)
 	    nextDay = ktime_next(&bozo_nextDayKT, BOZO_MINSKIP);
 
 	    /* call the bnode restartp function, and restart all that require it */
-	    bnode_ApplyInstance(bdrestart, 0);
+	    bnode_ApplyInstance(bdrestart, (void *) NULL, (void *)NULL);
 	}
     }
     return NULL;
@@ -764,6 +776,10 @@ main(int argc, char **argv, char **envp)
     afs_int32 numClasses;
     int DoPeerRPCStats = 0;
     int DoProcessRPCStats = 0;
+#ifdef AFS_PTHREAD_ENV
+    pthread_attr_t tattr;
+    AFS_SIGSET_DECL;
+#endif
 #ifndef AFS_NT40_ENV
     int nofork = 0;
     struct stat sb;
@@ -790,7 +806,6 @@ main(int argc, char **argv, char **envp)
     sigaction(SIGABRT, &nsa, NULL);
 #endif
     osi_audit_init();
-    signal(SIGFPE, bozo_insecureme);
 
 #ifdef AFS_NT40_ENV
     /* Initialize winsock */
@@ -951,6 +966,7 @@ main(int argc, char **argv, char **envp)
 	!(S_ISFIFO(sb.st_mode)))
 #endif
 	) {
+	Lock_Init(&bozo_logLock);
 	strcpy(namebuf, AFSDIR_BOZLOG_FILE);
 	strcat(namebuf, ".old");
 	rk_rename(AFSDIR_BOZLOG_FILE, namebuf);	/* try rename first */
@@ -1052,7 +1068,14 @@ main(int argc, char **argv, char **envp)
     }
 #endif
 
+    code = bnode_InitProcs();
+    if (code != 0) {
+	bozo_Log("bosserver: could not create helper threads, code %d\n", code);
+	exit(code);
+    }
+
     /* Read init file, starting up programs. Also starts watcher threads. */
+    Lock_Init(&configUpdate_lock);
     if ((code = ReadBozoFile(0))) {
 	bozo_Log
 	    ("bosserver: Something is wrong (%d) with the bos configuration file %s; aborting\n",
@@ -1108,12 +1131,24 @@ main(int argc, char **argv, char **envp)
 	}
     }
 
+#ifdef AFS_PTHREAD_ENV
+    opr_Verify(pthread_attr_init(&tattr) == 0);
+    opr_Verify(pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED) == 0);
+    AFS_SIGSET_CLEAR();
+    code = pthread_create(&bozo_pid, &tattr, BozoDaemon, NULL);
+    if (code) {
+	bozo_Log("Failed to create daemon thread\n");
+        exit(1);
+    }
+    AFS_SIGSET_RESTORE();
+#else
     code = LWP_CreateProcess(BozoDaemon, BOZO_LWP_STACKSIZE, /* priority */ 1,
 			     /* param */ NULL , "bozo-the-clown", &bozo_pid);
     if (code) {
 	bozo_Log("Failed to create daemon thread\n");
         exit(1);
     }
+#endif
 
     /* initialize audit user check */
     osi_audit_set_user_check(bozo_confdir, bozo_IsLocalRealmMatch);
@@ -1164,6 +1199,8 @@ bozo_Log(char *format, ...)
         vsyslog(LOG_INFO, format, ap);
 #endif
     } else {
+	ObtainWriteLock(&bozo_logLock);
+
 	myTime = time(0);
 	strcpy(tdate, ctime(&myTime));	/* copy out of static area asap */
 	tdate[24] = ':';
@@ -1184,5 +1221,6 @@ bozo_Log(char *format, ...)
 	    /* close so rm BosLog works */
 	    fclose(bozo_logFile);
 	}
+	ReleaseWriteLock(&bozo_logLock);
     }
 }

@@ -18,16 +18,18 @@
 #include <lwp.h>
 #include <afs/ktime.h>
 #include <afs/afsutil.h>
-#include <opr/queue.h>
+#include <lock.h>
 
 #include "bnode.h"
 #include "bnode_internal.h"
 #include "bosprototypes.h"
 
+extern struct Lock allProcs_lock;
+
 struct bnode *cron_create(char *, char *, char *, char *, char *, char *);
 static int cron_hascore(struct bnode *bnode);
 static int cron_restartp(struct bnode *bnode);
-static int cron_delete(struct bnode *bnode);
+static void cron_delete(struct bnode *bnode);
 static int cron_timeout(struct bnode *bnode);
 static int cron_getstat(struct bnode *bnode, afs_int32 *status);
 static int cron_setstat(struct bnode *bnode, afs_int32 status);
@@ -139,14 +141,14 @@ cron_restartp(struct bnode *abnode)
     return 0;
 }
 
-static int
+static void
 cron_delete(struct bnode *bn)
 {
     struct cronbnode *abnode = (struct cronbnode *)bn;
     free(abnode->command);
     free(abnode->whenString);
     free(abnode);
-    return 0;
+    return;
 }
 
 struct bnode *
@@ -183,12 +185,13 @@ cron_timeout(struct bnode *bn)
 {
     struct cronbnode *abnode = (struct cronbnode *)bn;
     afs_int32 temp;
-    afs_int32 code;
+    afs_int32 code = 0;
     struct bnode_proc *tp;
 
+    ObtainWriteLock(&allProcs_lock);
     if (!abnode->running) {
 	if (abnode->when == 0)
-	    return 0;		/* spurious timeout activation */
+	    goto out;		/* spurious timeout activation */
 	/* not running, perhaps we should start it */
 	if (FT_ApproxTime() >= abnode->when) {
 	    abnode->lastStart = FT_ApproxTime();
@@ -197,7 +200,7 @@ cron_timeout(struct bnode *bn)
 	    if (code) {
 		bozo_Log("cron failed to start bnode %s (code %d)\n",
 			 abnode->b.name, code);
-		return code;
+		goto out;
 	    }
 	    abnode->everRun = 1;
 	    abnode->running = 1;
@@ -211,13 +214,15 @@ cron_timeout(struct bnode *bn)
 	}
     } else {
 	if (!abnode->waitingForShutdown)
-	    return 0;		/* spurious */
+	    goto out;		/* spurious */
 	/* send kill and turn off timer */
 	bnode_StopProc(abnode->proc, SIGKILL);
 	abnode->killSent = 1;
 	bnode_SetTimeout((struct bnode *)abnode, 0);
     }
-    return 0;
+  out:
+    ReleaseWriteLock(&allProcs_lock);
+    return code;
 }
 
 static int

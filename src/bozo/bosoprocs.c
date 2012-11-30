@@ -27,6 +27,7 @@
 #include <afs/ktime.h>
 #include <afs/audit.h>
 #include <afs/kautils.h>
+#include <afs/opr.h>
 
 #include "bnode.h"
 #include "bnode_internal.h"
@@ -34,7 +35,7 @@
 #include "bosprototypes.h"
 
 extern struct ktime bozo_nextRestartKT, bozo_nextDayKT;
-
+extern struct Lock configUpdate_lock;
 extern struct afsconf_dir *bozo_confdir;
 extern int bozo_newKTs;
 extern int DoLogging;
@@ -77,6 +78,7 @@ SBOZO_SetRestartTime(struct rx_call *acall, afs_int32 atype, struct bozo_netKTim
     if (DoLogging)
 	bozo_Log("%s is executing SetRestartTime\n", caller);
 
+    ObtainWriteLock(&configUpdate_lock);
     code = 0;			/* assume success */
     switch (atype) {
     case 1:
@@ -97,6 +99,7 @@ SBOZO_SetRestartTime(struct rx_call *acall, afs_int32 atype, struct bozo_netKTim
 	code = WriteBozoFile(0);
 	bozo_newKTs = 1;
     }
+    ReleaseWriteLock(&configUpdate_lock);
 
   fail:
     osi_auditU(acall, BOS_SetRestartEvent, code, AUD_END);
@@ -782,11 +785,23 @@ SBOZO_CreateBnode(struct rx_call *acall, char *atype, char *ainstance,
     code =
 	bnode_Create(atype, ainstance, &tb, ap1, ap2, ap3, ap4, ap5, notifier,
 		     BSTAT_NORMAL, 1);
-    if (!code)
+    if (!code) {
 	bnode_SetStat(tb, BSTAT_NORMAL);
+	bnode_Release(tb);
+   }
 
   fail:
     osi_auditU(acall, BOS_CreateBnodeEvent, code, AUD_END);
+    return code;
+}
+
+static int
+waitproc(struct bnode *abnode, void *arock)
+{
+    afs_int32 code;
+    opr_Assert(abnode->refCount > 0);
+
+    code = bnode_WaitStatus(abnode, abnode->goal);
     return code;
 }
 
@@ -804,7 +819,7 @@ SBOZO_WaitAll(struct rx_call *acall)
     if (DoLogging)
 	bozo_Log("%s is executing Wait for All\n", caller);
 
-    code = bnode_WaitAll();
+    code = bnode_ApplyInstance(waitproc, (void *) NULL, (void *) NULL);
 
   fail:
     osi_auditU(acall, BOS_WaitAllEvent, code, AUD_END);
@@ -839,34 +854,34 @@ SBOZO_DeleteBnode(struct rx_call *acall, char *ainstance)
 static int
 swproc(struct bnode *abnode, void *arock)
 {
+    opr_Assert(abnode->refCount > 0);
+
     if (abnode->goal == BSTAT_NORMAL)
 	return 0;		/* this one's not shutting down */
     /* otherwise, we are shutting down */
-    bnode_Hold(abnode);
     bnode_WaitStatus(abnode, BSTAT_SHUTDOWN);
-    bnode_Release(abnode);
     return 0;			/* don't stop apply function early, no matter what */
 }
 
 static int
 stproc(struct bnode *abnode, void *arock)
 {
+    opr_Assert(abnode->refCount > 0);
+
     if (abnode->fileGoal == BSTAT_SHUTDOWN)
 	return 0;		/* don't do these guys */
 
-    bnode_Hold(abnode);
     bnode_ResetErrorCount(abnode);
     bnode_SetStat(abnode, BSTAT_NORMAL);
-    bnode_Release(abnode);
     return 0;
 }
 
 static int
 sdproc(struct bnode *abnode, void *arock)
 {
-    bnode_Hold(abnode);
+    opr_Assert(abnode->refCount > 0);
+
     bnode_SetStat(abnode, BSTAT_SHUTDOWN);
-    bnode_Release(abnode);
     return 0;
 }
 
@@ -886,7 +901,7 @@ SBOZO_ShutdownAll(struct rx_call *acall)
     if (DoLogging)
 	bozo_Log("%s is executing ShutdownAll\n", caller);
 
-    code = bnode_ApplyInstance(sdproc, NULL);
+    code = bnode_ApplyInstance(sdproc, (void *) NULL, (void *) NULL);
 
   fail:
     osi_auditU(acall, BOS_ShutdownAllEvent, code, AUD_END);
@@ -907,18 +922,10 @@ SBOZO_RestartAll(struct rx_call *acall)
     if (DoLogging)
 	bozo_Log("%s is executing RestartAll\n", caller);
 
-    /* start shutdown of all processes */
-    code = bnode_ApplyInstance(sdproc, NULL);
-    if (code)
-	goto fail;
-
-    /* wait for all done */
-    code = bnode_ApplyInstance(swproc, NULL);
-    if (code)
-	goto fail;
-
-    /* start them up again */
-    code = bnode_ApplyInstance(stproc, NULL);
+    code = bnode_ApplyInstance(sdproc, (void *) NULL,	/* start shutdown of all processes */
+			       swproc, (void *) NULL,	/* wait for all done */
+			       stproc, (void *) NULL,	/* start them up again */
+			       (void *) NULL);
 
   fail:
     osi_auditU(acall, BOS_RestartAllEvent, code, AUD_END);
@@ -939,13 +946,9 @@ SBOZO_ReBozo(struct rx_call *acall)
     if (DoLogging)
 	bozo_Log("%s is executing ReBozo\n", caller);
 
-    /* start shutdown of all processes */
-    code = bnode_ApplyInstance(sdproc, NULL);
-    if (code)
-	goto fail;
-
-    /* wait for all done */
-    code = bnode_ApplyInstance(swproc, NULL);
+    code = bnode_ApplyInstance(sdproc, (void *) NULL,	/* start shutdown of all processes */
+			       swproc, (void *) NULL,	/* wait for all done */
+			       (void *) NULL);
     if (code)
 	goto fail;
 
@@ -981,7 +984,7 @@ SBOZO_StartupAll(struct rx_call *acall)
     }
     if (DoLogging)
 	bozo_Log("%s is executing StartupAll\n", caller);
-    code = bnode_ApplyInstance(stproc, NULL);
+    code = bnode_ApplyInstance(stproc, (void *) NULL, (void *) NULL);
 
   fail:
     osi_auditU(acall, BOS_StartupAllEvent, code, AUD_END);
@@ -1009,6 +1012,9 @@ SBOZO_Restart(struct rx_call *acall, char *ainstance)
     }
 
     bnode_Hold(tb);
+    /* setup return code */
+    code = 0;
+
     bnode_SetStat(tb, BSTAT_SHUTDOWN);
     code = bnode_WaitStatus(tb, BSTAT_SHUTDOWN);	/* this can fail */
     bnode_ResetErrorCount(tb);
@@ -1040,7 +1046,6 @@ SBOZO_SetTStatus(struct rx_call *acall, char *ainstance, afs_int32 astatus)
 	code = BZNOENT;
 	goto fail;
     }
-    bnode_Hold(tb);
     bnode_ResetErrorCount(tb);
     code = bnode_SetStat(tb, astatus);
     bnode_Release(tb);
@@ -1071,7 +1076,6 @@ SBOZO_SetStatus(struct rx_call *acall, char *ainstance, afs_int32 astatus)
 	code = BZNOENT;
 	goto fail;
     }
-    bnode_Hold(tb);
     bnode_SetFileGoal(tb, astatus);
     code = bnode_SetStat(tb, astatus);
     bnode_Release(tb);
@@ -1094,7 +1098,6 @@ SBOZO_GetStatus(struct rx_call *acall, char *ainstance, afs_int32 *astat,
 	goto fail;
     }
 
-    bnode_Hold(tb);
     code = bnode_GetStat(tb, astat);
     if (code) {
 	bnode_Release(tb);
@@ -1123,6 +1126,8 @@ static int
 eifunc(struct bnode *abnode, void *param)
 {
     struct eidata *arock = (struct eidata *)param;
+
+    opr_Assert(abnode->refCount > 0);
 
     if (arock->counter-- == 0) {
 	/* done */
@@ -1209,7 +1214,7 @@ SBOZO_EnumerateInstance(struct rx_call *acall, afs_int32 anum,
     **ainstance = 0;
     tdata.counter = anum;
     tdata.iname = *ainstance;
-    bnode_ApplyInstance(eifunc, &tdata);
+    bnode_ApplyInstance(eifunc, &tdata, (void *) NULL);
     if (tdata.counter >= 0)
 	return BZDOM;		/* anum > # of actual instances */
     else
@@ -1366,6 +1371,7 @@ SBOZO_GetInstanceInfo(IN struct rx_call *acall,
 	astatus->flags |= BOZO_HASCORE;
     if (!DirAccessOK())
 	astatus->flags |= BOZO_BADDIRACCESS;
+    bnode_Release(tb);
     return 0;
 }
 
@@ -1385,7 +1391,6 @@ SBOZO_GetInstanceParm(struct rx_call *acall,
     tb = bnode_FindInstance(ainstance);
     if (!tb)
 	return BZNOENT;
-    bnode_Hold(tb);
     if (anum == 999) {
 	if (tb->notifier) {
 	    memcpy(tp, tb->notifier, strlen(tb->notifier) + 1);
@@ -1487,6 +1492,7 @@ SBOZO_GetInstanceStrings(struct rx_call *acall, char *abnodeName,
 	*as1 = malloc(1);
 	**as1 = 0;
     }
+    bnode_Release(tb);
     return 0;
 
   fail:
@@ -1517,8 +1523,10 @@ SBOZO_SetRestrictedMode(struct rx_call *acall, afs_int32 arestmode)
     if (arestmode != 0 && arestmode != 1) {
 	return BZDOM;
     }
+    ObtainWriteLock(&configUpdate_lock);
     bozo_isrestricted = arestmode;
     code = WriteBozoFile(0);
+    ReleaseWriteLock(&configUpdate_lock);
 
     return code;
 }
@@ -1533,11 +1541,9 @@ bozo_ShutdownAndExit(void *param)
 	("Shutdown of BOS server and processes in response to signal %d\n",
 	 asignal);
 
-    /* start shutdown of all processes */
-    if ((code = bnode_ApplyInstance(sdproc, NULL)) == 0) {
-	/* wait for shutdown to complete */
-	code = bnode_ApplyInstance(swproc, NULL);
-    }
+    code = bnode_ApplyInstance(sdproc, (void *) NULL,	/* start shutdown of all processes */
+			       swproc, (void *) NULL,	/* wait for shutdown to complete */
+			       (void *) NULL);
 
     if (code) {
 	bozo_Log("Shutdown incomplete (code = %d); manual cleanup required\n",
