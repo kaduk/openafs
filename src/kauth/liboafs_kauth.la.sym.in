@@ -3,7 +3,10 @@ ka_AuthServerConn
 ka_ChangePassword
 ka_GetAdminToken
 ka_Init
+ka_KeyCheckSum
+ka_KeyIsZero
 ka_LocalCell
+ka_PrintBytes
 ka_StringToKey
 ka_UserAuthenticateGeneral
 ka_VerifyUserPassword

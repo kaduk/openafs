@@ -17,7 +17,6 @@
 #include <rx/rx.h>
 
 #include <afs/afsutil.h>
-#include <opr/queue.h>
 
 #include "bnode.h"
 #include "bnode_internal.h"
@@ -28,9 +27,9 @@ extern char *DoPidFiles;
 struct bnode *ez_create(char *, char *, char *, char *, char *, char *);
 static int ez_hascore(struct bnode *bnode);
 static int ez_restartp(struct bnode *bnode);
-static int ez_delete(struct bnode *bnode);
-static int ez_timeout(struct bnode *bnode);
-static int ez_getstat(struct bnode *bnode, afs_int32 *status);
+static void ez_delete(struct bnode *bnode);
+static void ez_timeout(struct bnode *bnode);
+static void ez_getstat(struct bnode *bnode, afs_int32 *status);
 static int ez_setstat(struct bnode *bnode, afs_int32 status);
 static int ez_procexit(struct bnode *bnode, struct bnode_proc *proc);
 static int ez_getstring(struct bnode *bnode, char *abuffer, afs_int32 alen);
@@ -92,14 +91,13 @@ ez_restartp(struct bnode *bn)
     return code;
 }
 
-static int
+static void
 ez_delete(struct bnode *bn)
 {
     struct ezbnode *abnode = (struct ezbnode *)bn;
 
     free(abnode->command);
     free(abnode);
-    return 0;
 }
 
 struct bnode *
@@ -125,7 +123,7 @@ ez_create(char *ainstance, char *acommand, char *unused1, char *unused2,
 
 /* called to SIGKILL a process if it doesn't terminate normally
  * or to retry start after an error stop. */
-static int
+static void
 ez_timeout(struct bnode *bn)
 {
     struct ezbnode *abnode = (struct ezbnode *)bn;
@@ -144,10 +142,10 @@ ez_timeout(struct bnode *bn)
 	bnode_SetTimeout(bn, 0); /* one shot timer */
 	bnode_ResetErrorCount(bn);
     }
-    return 0;
+    return;
 }
 
-static int
+static void
 ez_getstat(struct bnode *bn, afs_int32 * astatus)
 {
     struct ezbnode *abnode = (struct ezbnode *)bn;
@@ -162,7 +160,6 @@ ez_getstat(struct bnode *bn, afs_int32 * astatus)
     else
 	temp = BSTAT_SHUTDOWN;
     *astatus = temp;
-    return 0;
 }
 
 static int
