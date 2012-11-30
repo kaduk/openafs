@@ -20,7 +20,11 @@
 #include <afs/audit.h>
 #include <afs/afsutil.h>
 #include <afs/fileutil.h>
+#include <opr/lock.h>
 #include <opr/queue.h>
+#ifndef AFS_NT40_ENV
+#include <afs/softsig.h>
+#endif
 
 #include "bnode.h"
 #include "bnode_internal.h"
@@ -34,7 +38,13 @@
 #define BNODE_ERROR_COUNT_MAX   16   /* maximum number of retries */
 
 int bnode_waiting = 0;
-static PROCESS bproc_pid;	/* pid of waker-upper */
+#ifdef AFS_PTHREAD_ENV
+static pthread_t bproc_pid;
+static opr_cv_t bproc_cv;
+static opr_mutex_t bproc_mutex;
+#else
+static PROCESS bproc_pid;	/**< pid of waker-upper */
+#endif
 static struct opr_queue allBnodes;	/**< List of all bnodes */
 static struct opr_queue allProcs;	/**< List of all processes for which we're waiting */
 static struct opr_queue allTypes;	/**< List of all registered type handlers */
@@ -483,7 +493,11 @@ bnode_SetTimeout(struct bnode *abnode, afs_int32 atimeout)
 	abnode->nextTimeout = FT_ApproxTime() + atimeout;
 	abnode->flags |= BNODE_NEEDTIMEOUT;
 	abnode->period = atimeout;
+#ifdef AFS_PTHREAD_ENV
+	opr_cv_signal(&bproc_cv);
+#else
 	IOMGR_Cancel(bproc_pid);
+#endif
     } else {
 	abnode->flags &= ~BNODE_NEEDTIMEOUT;
     }
@@ -547,9 +561,20 @@ bproc(void *unused)
 	else
 	    temp = 999999;
 	if (temp > 0) {
+#ifdef AFS_PTHREAD_ENV
+	    struct timespec ts;
+
+	    ts.tv_sec = time(NULL) + temp;
+	    ts.tv_nsec = 0;
+	    if (opr_cv_timedwait(&bproc_cv, &bproc_mutex, &ts) == 0)
+		code = -1;      /* wait was cancelled */
+	    else
+		code = 0;       /* wait timed out */
+#else
 	    tv.tv_sec = temp;
 	    tv.tv_usec = 0;
 	    code = IOMGR_Select(0, 0, 0, 0, &tv);
+#endif
 	} else
 	    code = 0;		/* fake timeout code */
 
@@ -806,7 +831,11 @@ bnode_SoftInt(void *param)
 {
     /* int asignal = (int) param; */
 
+#ifdef AFS_PTHREAD_ENV
+    opr_cv_signal(&bproc_cv);
+#else
     IOMGR_Cancel(bproc_pid);
+#endif
     return 0;
 }
 
@@ -816,11 +845,17 @@ bnode_SoftInt(void *param)
 void
 bnode_Int(int asignal)
 {
-    if (asignal == SIGQUIT || asignal == SIGTERM) {
+#ifdef AFS_PTHREAD_ENV
+    if (asignal == SIGQUIT || asignal == SIGTERM)
+	bozo_ShutdownAndExit((void *)(intptr_t) asignal);
+    else
+	bnode_SoftInt((void *)(intptr_t) asignal);
+#else
+    if (asignal == SIGQUIT || asignal == SIGTERM)
 	IOMGR_SoftSig(bozo_ShutdownAndExit, (void *)(intptr_t)asignal);
-    } else {
+    else
 	IOMGR_SoftSig(bnode_SoftInt, (void *)(intptr_t)asignal);
-    }
+#endif
 }
 
 
@@ -828,9 +863,16 @@ bnode_Int(int asignal)
 int
 bnode_Init(void)
 {
+#ifdef AFS_PTHREAD_ENV
+    AFS_SIGSET_DECL;
+    pthread_attr_t tattr;
+#else
     PROCESS junk;
+#endif
     afs_int32 code;
+#if !defined(AFS_PTHREAD_ENV) || defined(AFS_NT40_ENV)
     struct sigaction newaction;
+#endif
     static int initDone = 0;
 
     if (initDone)
@@ -840,13 +882,29 @@ bnode_Init(void)
     opr_queue_Init(&allProcs);
     opr_queue_Init(&allBnodes);
     memset(&bnode_stats, 0, sizeof(bnode_stats));
+#ifdef AFS_PTHREAD_ENV
+    opr_cv_init(&bproc_cv);
+    opr_mutex_init(&bproc_mutex);
+
+    pthread_attr_init(&tattr);
+    pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED);
+    AFS_SIGSET_CLEAR();
+    code = pthread_create(&bproc_pid, &tattr, bproc, NULL);
+    AFS_SIGSET_RESTORE();
+#else
     LWP_InitializeProcessSupport(1, &junk);	/* just in case */
     IOMGR_Initialize();
     code = LWP_CreateProcess(bproc, BNODE_LWP_STACKSIZE,
 			     /* priority */ 1, (void *) /* parm */ 0,
 			     "bnode-manager", &bproc_pid);
+#endif
     if (code)
 	return code;
+#if defined(AFS_PTHREAD_ENV) && !defined(AFS_NT40_ENV)
+    softsig_signal(SIGCHLD, bnode_Int);
+    softsig_signal(SIGQUIT, bnode_Int);
+    softsig_signal(SIGTERM, bnode_Int);
+#else
     memset(&newaction, 0, sizeof(newaction));
     newaction.sa_handler = bnode_Int;
     code = sigaction(SIGCHLD, &newaction, NULL);
@@ -858,6 +916,7 @@ bnode_Init(void)
     code = sigaction(SIGTERM, &newaction, NULL);
     if (code)
 	return errno;
+#endif
     return code;
 }
 
@@ -944,6 +1003,9 @@ bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName,
     pid_t cpid;
     char *argv[MAXVARGS];
     int i;
+#ifdef AFS_PTHREAD_ENV
+    sigset_t set;
+#endif
 
     code = bnode_ParseLine(aexecString, &tlist);	/* try parsing first */
     if (code)
@@ -962,7 +1024,17 @@ bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName,
     }
     argv[i] = NULL;		/* null-terminated */
 
+#ifdef AFS_PTHREAD_ENV
+    sigemptyset(&set);
+    sigaddset(&set, SIGKILL);
+    sigaddset(&set, SIGTERM);
+    sigaddset(&set, SIGQUIT);
+    pthread_sigmask(SIG_UNBLOCK, &set, NULL);
+#endif
     cpid = spawnprocve(argv[0], argv, environ, -1);
+#ifdef AFS_PTHREAD_ENV
+    pthread_sigmask(SIG_BLOCK, &set, NULL);
+#endif
     osi_audit(BOSSpawnProcEvent, 0, AUD_STR, aexecString, AUD_END);
 
     if (cpid == (pid_t) - 1) {

@@ -34,6 +34,7 @@
 #endif /* AFS_NT40_ENV */
 
 #define PATH_DELIM '/'
+#include <lock.h>
 #include <rx/rx.h>
 #include <rx/xdr.h>
 #include <rx/rx_globals.h>
@@ -45,6 +46,9 @@
 #include <afs/fileutil.h>
 #include <afs/audit.h>
 #include <afs/cellconfig.h>
+#ifndef AFS_NT40_ENV
+# include <afs/softsig.h>
+#endif
 
 #if defined(AFS_SGI_ENV)
 #include <afs/afs_args.h>
@@ -59,9 +63,14 @@
 extern struct bnode_ops fsbnode_ops, dafsbnode_ops, ezbnode_ops, cronbnode_ops;
 
 struct afsconf_dir *bozo_confdir = 0;	/* bozo configuration dir */
+#ifdef AFS_PTHREAD_ENV
+static pthread_t bozo_pid;
+#else
 static PROCESS bozo_pid;
+#endif
 const char *bozo_fileName;
 FILE *bozo_logFile;
+static struct Lock bozo_logLock;
 #ifndef AFS_NT40_ENV
 static int bozo_argc = 0;
 static char** bozo_argv = NULL;
@@ -91,7 +100,9 @@ int bozo_restdisable = 0;
 void
 bozo_insecureme(int sig)
 {
+#if !defined(AFS_PTHREAD_ENV) || defined(AFS_NT40_ENV)
     signal(SIGFPE, bozo_insecureme);
+#endif
     bozo_isrestricted = 0;
     bozo_restdisable = 1;
 }
@@ -578,7 +589,11 @@ BozoDaemon(void *unused)
     /* now initialize the values */
     bozo_newKTs = 1;
     while (1) {
+#ifdef AFS_PTHREAD_ENV
+	sleep(60);
+#else
 	IOMGR_Sleep(60);
+#endif
 	now = FT_ApproxTime();
 
 	if (bozo_restdisable) {
@@ -878,6 +893,10 @@ main(int argc, char **argv, char **envp)
     char *auditFileName = NULL;
     struct rx_securityClass **securityClasses;
     afs_int32 numClasses;
+#ifdef AFS_PTHREAD_ENV
+    pthread_attr_t tattr;
+    AFS_SIGSET_DECL;
+#endif
 #ifndef AFS_NT40_ENV
     int nofork = 0;
     struct stat sb;
@@ -904,7 +923,12 @@ main(int argc, char **argv, char **envp)
     sigaction(SIGABRT, &nsa, NULL);
 #endif
     osi_audit_init();
+#if defined(AFS_PTHREAD_ENV) && !defined(AFS_NT40_ENV)
+    softsig_init();
+    softsig_signal(SIGFPE, bozo_insecureme);
+#else
     signal(SIGFPE, bozo_insecureme);
+#endif
 
 #ifdef AFS_NT40_ENV
     /* Initialize winsock */
@@ -1099,6 +1123,7 @@ main(int argc, char **argv, char **envp)
 	!(S_ISFIFO(sb.st_mode)))
 #endif
 	) {
+	Lock_Init(&bozo_logLock);
 	strcpy(namebuf, AFSDIR_BOZLOG_FILE);
 	strcat(namebuf, ".old");
 	rk_rename(AFSDIR_BOZLOG_FILE, namebuf);	/* try rename first */
@@ -1176,12 +1201,20 @@ main(int argc, char **argv, char **envp)
 	}
     }
 
+#ifdef AFS_PTHREAD_ENV
+    pthread_attr_init(&tattr);
+    pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED);
+    AFS_SIGSET_CLEAR();
+    pthread_create(&bozo_pid, &tattr, BozoDaemon, NULL);
+    AFS_SIGSET_RESTORE();
+#else
     code = LWP_CreateProcess(BozoDaemon, BOZO_LWP_STACKSIZE, /* priority */ 1,
 			     /* param */ NULL , "bozo-the-clown", &bozo_pid);
     if (code) {
 	bozo_Log("Failed to create daemon thread\n");
         exit(1);
     }
+#endif
 
     /* try to read the key from the config file */
     tdir = afsconf_Open(AFSDIR_SERVER_ETC_DIRPATH);
@@ -1278,6 +1311,8 @@ bozo_Log(char *format, ...)
         vsyslog(LOG_INFO, format, ap);
 #endif
     } else {
+	ObtainWriteLock(&bozo_logLock);
+
 	myTime = time(0);
 	strcpy(tdate, ctime(&myTime));	/* copy out of static area asap */
 	tdate[24] = ':';
@@ -1298,5 +1333,6 @@ bozo_Log(char *format, ...)
 	    /* close so rm BosLog works */
 	    fclose(bozo_logFile);
 	}
+	ReleaseWriteLock(&bozo_logLock);
     }
 }
