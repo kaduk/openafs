@@ -448,10 +448,8 @@ int
 bnode_Release(struct bnode *abnode)
 {
     abnode->refCount--;
-    if (abnode->refCount == 0 && abnode->flags & BNODE_DELETE) {
-	abnode->flags &= ~BNODE_DELETE;	/* we're going for it */
+    if (abnode->refCount == 0 && abnode->flags & BNODE_DELETE)
 	bnode_Delete(abnode);
-    }
     return 0;
 }
 
@@ -465,6 +463,7 @@ bnode_Delete(struct bnode *abnode)
 	abnode->flags |= BNODE_DELETE;
 	return 0;
     }
+    abnode->flags &= ~BNODE_DELETE;
 
     /* make sure the bnode is idle before zapping */
     bnode_Hold(abnode);
