@@ -7,6 +7,9 @@
  * directory or online at http://www.openafs.org/dl/license10.html
  */
 
+#include <opr/lock.h>
+#include <opr/queue.h>
+
 #define	BOP_TIMEOUT(bnode)	((*(bnode)->ops->timeout)((bnode)))
 #define	BOP_GETSTAT(bnode, a)	((*(bnode)->ops->getstat)((bnode),(a)))
 #define	BOP_SETSTAT(bnode, a)	((*(bnode)->ops->setstat)((bnode),(a)))
@@ -22,10 +25,10 @@ struct bnode_proc;
 
 struct bnode_ops {
     struct bnode *(*create) ( char *, char *, char *, char *, char *, char *);
-    int (*timeout) ( struct bnode * );
-    int (*getstat) ( struct bnode *, afs_int32 * );
+    void (*timeout) ( struct bnode * );
+    void (*getstat) ( struct bnode *, afs_int32 * );
     int (*setstat) ( struct bnode *, afs_int32 );
-    int (*delete) ( struct bnode * );
+    void (*delete) ( struct bnode * );
     int (*procexit) ( struct bnode *, struct bnode_proc * );
     int (*getstring) ( struct bnode *, char *abuffer, afs_int32 alen );
     int (*getparm) ( struct bnode *, afs_int32 aindex, char *abuffer,
@@ -69,6 +72,10 @@ struct bnode {
     char fileGoal;		/* same, but to be stored in file */
     afs_int32 errorStopCount;	/* number of recent error stops */
     afs_int32 errorStopDelay;	/* seconds to wait before retrying start */
+#ifdef AFS_PTHREAD_ENV
+    opr_cv_t cv;		/* used for waiting */
+    opr_mutex_t mutex;		/* used to protect wait */
+#endif
 };
 
 struct bnode_proc {
@@ -76,10 +83,15 @@ struct bnode_proc {
     struct bnode *bnode;	/* bnode creating this process */
     char *comLine;		/* command line used to start this process */
     char *coreName;		/* optional core file component name */
+    struct bnode_token *tlist;	/* parsed command line for process */
     afs_int32 pid;		/* pid if created */
     afs_int32 lastExit;		/* last termination code */
     afs_int32 lastSignal;	/* last signal that killed this guy */
     afs_int32 flags;		/* flags giving process state */
+#ifdef AFS_PTHREAD_ENV
+    opr_cv_t started;		/* used to synchronize startup */
+    opr_mutex_t mutex;		/* used to protect started */
+#endif
 };
 
 struct ezbnode {
@@ -123,6 +135,7 @@ struct bozo_bosEntryStats {
 /* calls back up to the generic bnode layer */
 extern int bnode_SetTimeout(struct bnode *abnode, afs_int32 atimeout);
 extern int bnode_Init(void);
+extern int bnode_InitProcs(void);
 extern int bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName, struct bnode_proc **aproc);
 extern int bnode_InitBnode(struct bnode *abnode, struct bnode_ops *abnodeops, char *aname);
 extern afs_int32 bnode_Create(char *atype, char *ainstance, struct bnode ** abp, char *ap1, char *ap2, char *ap3, char *ap4, char *ap5, char *notifier, int fileGoal, int rewritefile);
