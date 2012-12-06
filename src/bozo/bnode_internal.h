@@ -69,6 +69,10 @@ struct bnode {
     char fileGoal;		/* same, but to be stored in file */
     afs_int32 errorStopCount;	/* number of recent error stops */
     afs_int32 errorStopDelay;	/* seconds to wait before retrying start */
+#ifdef AFS_PTHREAD_ENV
+    opr_cv_t cv;		/* used for waiting */
+    opr_mutex_t mutex;		/* used to protect wait */
+#endif
 };
 
 struct bnode_proc {
