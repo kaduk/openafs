@@ -17,6 +17,7 @@
 #include <rx/rx.h>
 
 #include <afs/afsutil.h>
+#include <opr/lock.h>
 #include <opr/queue.h>
 
 #include "bnode.h"
