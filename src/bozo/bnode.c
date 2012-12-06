@@ -194,13 +194,37 @@ bnode_RestartP(struct bnode *abnode)
     return BOP_RESTARTP(abnode);
 }
 
+static void
+bnode_Lock(struct bnode *abnode)
+{
+#ifdef AFS_PTHREAD_ENV
+    opr_mutex_enter(&abnode->mutex);
+#endif
+    return;
+}
+
+static void
+bnode_Unlock(struct bnode *abnode)
+{
+#ifdef AFS_PTHREAD_ENV
+    opr_mutex_exit(&abnode->mutex);
+#endif
+    return;
+}
+
 static int
 bnode_Check(struct bnode *abnode)
 {
+    bnode_Lock(abnode);
     if (abnode->flags & BNODE_WAIT) {
 	abnode->flags &= ~BNODE_WAIT;
+#ifdef AFS_PTHREAD_ENV
+	opr_cv_signal(&abnode->cv);
+#else
 	LWP_NoYieldSignal(abnode);
+#endif
     }
+    bnode_Unlock(abnode);
     return 0;
 }
 
@@ -211,29 +235,34 @@ bnode_HasCore(struct bnode *abnode)
     return BOP_HASCORE(abnode);
 }
 
+static void
+bnode_Wait(struct bnode *abnode)
+{
+    abnode->flags |= BNODE_WAIT;
+#ifdef AFS_PTHREAD_ENV
+    do {
+	opr_cv_wait(&abnode->cv, &abnode->mutex);
+    } while (abnode->flags & BNODE_WAIT);
+#else
+    LWP_WaitProcess(abnode);
+#endif
+}
+
 /* wait for all bnodes to stabilize */
 int
 bnode_WaitAll(void)
 {
     struct opr_queue *cursor;
     afs_int32 code;
-    afs_int32 stat;
 
-  retry:
     for (opr_queue_Scan(&allBnodes, cursor)) {
 	struct bnode *tb = opr_queue_Entry(cursor, struct bnode, q);
 
 	bnode_Hold(tb);
-	code = BOP_GETSTAT(tb, &stat);
+	code = bnode_WaitStatus(tb, tb->goal);
 	if (code) {
 	    bnode_Release(tb);
 	    return code;
-	}
-	if (stat != tb->goal) {
-	    tb->flags |= BNODE_WAIT;
-	    LWP_WaitProcess(tb);
-	    bnode_Release(tb);
-	    goto retry;
 	}
 	bnode_Release(tb);
     }
@@ -259,13 +288,15 @@ bnode_WaitStatus(struct bnode *abnode, int astatus)
 	    bnode_Release(abnode);
 	    return 0;		/* done */
 	}
+	bnode_Lock(abnode);
 	if (astatus != abnode->goal) {
 	    bnode_Release(abnode);
+	    bnode_Unlock(abnode);
 	    return -1;		/* no longer our goal, don't keep waiting */
 	}
 	/* otherwise, block */
-	abnode->flags |= BNODE_WAIT;
-	LWP_WaitProcess(abnode);
+	bnode_Wait(abnode);
+	bnode_Unlock(abnode);
     }
 }
 
@@ -516,6 +547,10 @@ bnode_InitBnode(struct bnode *abnode, struct bnode_ops *abnodeops,
     /* format the bnode properly */
     memset(abnode, 0, sizeof(struct bnode));
     opr_queue_Init(&abnode->q);
+#ifdef AFS_PTHREAD_ENV
+    opr_cv_init(&abnode->cv);
+    opr_mutex_init(&abnode->mutex);
+#endif
     abnode->ops = abnodeops;
     abnode->name = strdup(aname);
     if (!abnode->name)
