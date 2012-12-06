@@ -18,6 +18,7 @@
 #include <lwp.h>
 #include <afs/ktime.h>
 #include <afs/afsutil.h>
+#include <opr/lock.h>
 #include <opr/queue.h>
 #include <lock.h>
 
