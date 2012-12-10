@@ -49,6 +49,8 @@
 #ifndef AFS_NT40_ENV
 # include <afs/softsig.h>
 #endif
+#include <afs/opr.h>
+#include <lock.h>
 
 #if defined(AFS_SGI_ENV)
 #include <afs/afs_args.h>
@@ -61,6 +63,8 @@
 
 #define BOZO_LWP_STACKSIZE	16000
 extern struct bnode_ops fsbnode_ops, dafsbnode_ops, ezbnode_ops, cronbnode_ops;
+extern struct opr_queue allBnodes;
+extern struct Lock allBnodes_lock;
 
 struct afsconf_dir *bozo_confdir = 0;	/* bozo configuration dir */
 #ifdef AFS_PTHREAD_ENV
@@ -106,10 +110,6 @@ bozo_insecureme(int sig)
     bozo_isrestricted = 0;
     bozo_restdisable = 1;
 }
-
-struct bztemp {
-    FILE *file;
-};
 
 /* check whether caller is authorized to manage RX statistics */
 int
@@ -308,20 +308,22 @@ StripLine(char *abuffer)
     return 0;
 }
 
-/* write one bnode's worth of entry into the file */
+/* Write one bnode's worth of entry into the file.  The allBnodes_lock
+ * protects the content that we are accessing. */
 static int
-bzwrite(struct bnode *abnode, void *arock)
+bnode_Write(struct bnode *abnode, FILE *out)
 {
-    struct bztemp *at = (struct bztemp *)arock;
     int i;
     char tbuffer[BOZO_BSSIZE];
     afs_int32 code;
 
+    opr_Assert(allBnodes_lock.readers_reading > 0
+               || allBnodes_lock.excl_locked == WRITE_LOCK);
     if (abnode->notifier)
-	fprintf(at->file, "bnode %s %s %d %s\n", abnode->type->name,
+	fprintf(out, "bnode %s %s %d %s\n", abnode->type->name,
 		abnode->name, abnode->fileGoal, abnode->notifier);
     else
-	fprintf(at->file, "bnode %s %s %d\n", abnode->type->name,
+	fprintf(out, "bnode %s %s %d\n", abnode->type->name,
 		abnode->name, abnode->fileGoal);
     for (i = 0;; i++) {
 	code = bnode_GetParm(abnode, i, tbuffer, BOZO_BSSIZE);
@@ -330,9 +332,9 @@ bzwrite(struct bnode *abnode, void *arock)
 		return code;
 	    break;
 	}
-	fprintf(at->file, "parm %s\n", tbuffer);
+	fprintf(out, "parm %s\n", tbuffer);
     }
-    fprintf(at->file, "end\n");
+    fprintf(out, "end\n");
     return 0;
 }
 
@@ -499,6 +501,7 @@ ReadBozoFile(char *aname)
 	} else {
 	    bnode_SetStat(tb, BSTAT_SHUTDOWN);
 	}
+	bnode_Release(tb);
     }
     /* all done */
     code = 0;
@@ -520,10 +523,10 @@ ReadBozoFile(char *aname)
 int
 WriteBozoFile(char *aname)
 {
+    struct opr_queue *cursor;
     FILE *tfile;
     char tbuffer[AFSDIR_PATH_MAX];
     afs_int32 code;
-    struct bztemp btemp;
 
     if (!aname)
 	aname = (char *)bozo_fileName;
@@ -532,7 +535,6 @@ WriteBozoFile(char *aname)
     tfile = fopen(tbuffer, "w");
     if (!tfile)
 	return -1;
-    btemp.file = tfile;
 
     fprintf(tfile, "restrictmode %d\n", bozo_isrestricted);
     fprintf(tfile, "restarttime %d %d %d %d %d\n", bozo_nextRestartKT.mask,
@@ -541,12 +543,19 @@ WriteBozoFile(char *aname)
     fprintf(tfile, "checkbintime %d %d %d %d %d\n", bozo_nextDayKT.mask,
 	    bozo_nextDayKT.day, bozo_nextDayKT.hour, bozo_nextDayKT.min,
 	    bozo_nextDayKT.sec);
-    code = bnode_ApplyInstance(bzwrite, &btemp);
-    if (code || (code = ferror(tfile))) {	/* something went wrong */
-	fclose(tfile);
-	unlink(tbuffer);
-	return code;
+
+    opr_Assert(allBnodes_lock.readers_reading > 0
+               || allBnodes_lock.excl_locked == WRITE_LOCK);
+    for (opr_queue_Scan(&allBnodes, cursor)) {
+	struct bnode *tb = opr_queue_Entry(cursor, struct bnode, q);
+	code = bnode_Write(tb, tfile);
+	if (code || (code = ferror(tfile))) {	/* something went wrong */
+	    fclose(tfile);
+	    unlink(tbuffer);
+	    return code;
+	}
     }
+
     /* close the file, check for errors and snap new file into place */
     if (fclose(tfile) == EOF) {
 	unlink(tbuffer);
@@ -565,9 +574,10 @@ bdrestart(struct bnode *abnode, void *arock)
 {
     afs_int32 code;
 
+    opr_Assert(abnode->refCount > 0);
+
     if (abnode->fileGoal != BSTAT_NORMAL || abnode->goal != BSTAT_NORMAL)
 	return 0;		/* don't restart stopped bnodes */
-    bnode_Hold(abnode);
     code = bnode_RestartP(abnode);
     if (code) {
 	/* restart the dude */
@@ -575,7 +585,6 @@ bdrestart(struct bnode *abnode, void *arock)
 	bnode_WaitStatus(abnode, BSTAT_SHUTDOWN);
 	bnode_SetStat(abnode, BSTAT_NORMAL);
     }
-    bnode_Release(abnode);
     return 0;			/* keep trying all bnodes */
 }
 
