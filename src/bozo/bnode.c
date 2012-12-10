@@ -20,11 +20,13 @@
 #include <afs/audit.h>
 #include <afs/afsutil.h>
 #include <afs/fileutil.h>
+#include <afs/opr.h>
 #include <opr/lock.h>
 #include <opr/queue.h>
 #ifndef AFS_NT40_ENV
 #include <afs/softsig.h>
 #endif
+#include <lock.h>
 
 #include "bnode.h"
 #include "bnode_internal.h"
@@ -47,6 +49,7 @@ static PROCESS bproc_pid;	/**< pid of waker-upper */
 #endif
 static struct opr_queue allBnodes;	/**< List of all bnodes */
 static struct opr_queue allProcs;	/**< List of all processes for which we're waiting */
+struct Lock allProcs_lock;
 static struct opr_queue allTypes;	/**< List of all registered type handlers */
 
 static struct bnode_stats {
@@ -279,7 +282,9 @@ bnode_SetStat(struct bnode *abnode, int agoal)
 {
     abnode->goal = agoal;
     bnode_Check(abnode);
-    BOP_SETSTAT(abnode, agoal);
+    ObtainWriteLock(&allProcs_lock);
+    BOP_SETSTAT(abnode, agoal);		/* might call bnode_NewProc() */
+    ReleaseWriteLock(&allProcs_lock);
     abnode->flags &= ~BNODE_ERRORSTOP;
     return 0;
 }
@@ -526,6 +531,98 @@ bnode_InitBnode(struct bnode *abnode, struct bnode_ops *abnodeops,
     return 0;
 }
 
+static void
+bnode_DeleteProc(struct bnode_proc *aproc, int awhen, int astatus)
+{
+    struct bnode *abnode = aproc->bnode;
+
+    bnode_Hold(abnode);
+
+    /* count restarts in last 30 seconds */
+    if (awhen > abnode->rsTime + 30) {
+	/* it's been 30 seconds we've been counting */
+	abnode->rsTime = awhen;
+	abnode->rsCount = 0;
+    }
+
+    if (WIFSIGNALED(astatus) == 0) {
+	/* exited, not signalled */
+	aproc->lastExit = WEXITSTATUS(astatus);
+	aproc->lastSignal = 0;
+	if (aproc->lastExit) {
+	    abnode->errorCode = aproc->lastExit;
+	    abnode->lastErrorExit = FT_ApproxTime();
+	    RememberProcName(aproc);
+	    abnode->errorSignal = 0;
+	}
+	if (aproc->coreName)
+	    bozo_Log("%s:%s exited with code %d\n", abnode->name,
+		     aproc->coreName, aproc->lastExit);
+	else
+	    bozo_Log("%s exited with code %d\n", abnode->name,
+		     aproc->lastExit);
+    } else {
+	/* Signal occurred, perhaps spurious due to shutdown request.
+	 * If due to a shutdown request, don't overwrite last error
+	 * information.
+	 */
+	aproc->lastSignal = WTERMSIG(astatus);
+	aproc->lastExit = 0;
+	if (aproc->lastSignal != SIGQUIT
+	    && aproc->lastSignal != SIGTERM
+	    && aproc->lastSignal != SIGKILL) {
+	    abnode->errorSignal = aproc->lastSignal;
+	    abnode->lastErrorExit = FT_ApproxTime();
+	    RememberProcName(aproc);
+	}
+	if (aproc->coreName)
+	    bozo_Log("%s:%s exited on signal %d%s\n",
+		     abnode->name, aproc->coreName, aproc->lastSignal,
+		     WCOREDUMP(astatus) ? " (core dumped)" :
+		     "");
+	else
+	    bozo_Log("%s exited on signal %d%s\n", abnode->name,
+		     aproc->lastSignal,
+		     WCOREDUMP(astatus) ? " (core dumped)" :
+		     "");
+	SaveCore(abnode, aproc);
+    }
+    abnode->lastAnyExit = FT_ApproxTime();
+
+    if (abnode->notifier) {
+	bozo_Log("BNODE: Notifier %s will be called\n",
+		 abnode->notifier);
+	hdl_notifier(aproc);
+    }
+
+    if (abnode->goal && abnode->rsCount++ > 10) {
+	/* 10 in 30 seconds */
+	if (abnode->errorStopCount >= BNODE_ERROR_COUNT_MAX) {
+	    abnode->errorStopDelay = 0;	/* max reached, give up. */
+	} else {
+	    abnode->errorStopCount++;
+	    if (!abnode->errorStopDelay) {
+		abnode->errorStopDelay = 1;	/*wait a second, then retry */
+	    } else {
+		abnode->errorStopDelay *= 2;	/* ramp up the retry delays */
+	    }
+	}
+	if (abnode->errorStopDelay > BNODE_ERROR_DELAY_MAX) {
+	    abnode->errorStopDelay = BNODE_ERROR_DELAY_MAX; /* cap the delay */
+	}
+	abnode->flags |= BNODE_ERRORSTOP;
+	bnode_SetGoal(abnode, BSTAT_SHUTDOWN);
+	bozo_Log
+	    ("BNODE '%s' repeatedly failed to start, perhaps missing executable.\n",
+	     abnode->name);
+    }
+    BOP_PROCEXIT(abnode, aproc);
+    bnode_Check(abnode);
+    bnode_Release(abnode);	/* bnode delete can happen here */
+    opr_queue_Remove(&aproc->q);
+    free(aproc);
+}
+
 /* bnode lwp executes this code repeatedly */
 static void *
 bproc(void *unused)
@@ -608,103 +705,20 @@ bproc(void *unused)
 		if (code == 0 || code == -1)
 		    break;	/* all done */
 		/* otherwise code has a process id, which we now search for */
+		ObtainWriteLock(&allProcs_lock);
 		for (tp = NULL, opr_queue_Scan(&allProcs, cursor), tp = NULL) {
 		    tp = opr_queue_Entry(cursor, struct bnode_proc, q);
 
-		    if (tp->pid == code)
+		    if (tp->pid == code) {
+			/* found the pid */
 			break;
+		    }
 		}
-		if (tp) {
-		    /* found the pid */
-		    tb = tp->bnode;
-		    bnode_Hold(tb);
-
-		    /* count restarts in last 30 seconds */
-		    if (temp > tb->rsTime + 30) {
-			/* it's been 30 seconds we've been counting */
-			tb->rsTime = temp;
-			tb->rsCount = 0;
-		    }
-
-
-		    if (WIFSIGNALED(status) == 0) {
-			/* exited, not signalled */
-			tp->lastExit = WEXITSTATUS(status);
-			tp->lastSignal = 0;
-			if (tp->lastExit) {
-			    tb->errorCode = tp->lastExit;
-			    tb->lastErrorExit = FT_ApproxTime();
-			    RememberProcName(tp);
-			    tb->errorSignal = 0;
-			}
-			if (tp->coreName)
-			    bozo_Log("%s:%s exited with code %d\n", tb->name,
-				     tp->coreName, tp->lastExit);
-			else
-			    bozo_Log("%s exited with code %d\n", tb->name,
-				     tp->lastExit);
-		    } else {
-			/* Signal occurred, perhaps spurious due to shutdown request.
-			 * If due to a shutdown request, don't overwrite last error
-			 * information.
-			 */
-			tp->lastSignal = WTERMSIG(status);
-			tp->lastExit = 0;
-			if (tp->lastSignal != SIGQUIT
-			    && tp->lastSignal != SIGTERM
-			    && tp->lastSignal != SIGKILL) {
-			    tb->errorSignal = tp->lastSignal;
-			    tb->lastErrorExit = FT_ApproxTime();
-			    RememberProcName(tp);
-			}
-			if (tp->coreName)
-			    bozo_Log("%s:%s exited on signal %d%s\n",
-				     tb->name, tp->coreName, tp->lastSignal,
-				     WCOREDUMP(status) ? " (core dumped)" :
-				     "");
-			else
-			    bozo_Log("%s exited on signal %d%s\n", tb->name,
-				     tp->lastSignal,
-				     WCOREDUMP(status) ? " (core dumped)" :
-				     "");
-			SaveCore(tb, tp);
-		    }
-		    tb->lastAnyExit = FT_ApproxTime();
-
-		    if (tb->notifier) {
-			bozo_Log("BNODE: Notifier %s will be called\n",
-				 tb->notifier);
-			hdl_notifier(tp);
-		    }
-
-		    if (tb->goal && tb->rsCount++ > 10) {
-			/* 10 in 30 seconds */
-			if (tb->errorStopCount >= BNODE_ERROR_COUNT_MAX) {
-			    tb->errorStopDelay = 0;	/* max reached, give up. */
-			} else {
-			    tb->errorStopCount++;
-			    if (!tb->errorStopDelay) {
-				tb->errorStopDelay = 1;   /* wait a second, then retry */
-			    } else {
-			        tb->errorStopDelay *= 2;  /* ramp up the retry delays */
-			    }
-			    if (tb->errorStopDelay > BNODE_ERROR_DELAY_MAX) {
-			        tb->errorStopDelay = BNODE_ERROR_DELAY_MAX; /* cap the delay */
-			    }
-			}
-			tb->flags |= BNODE_ERRORSTOP;
-			bnode_SetGoal(tb, BSTAT_SHUTDOWN);
-			bozo_Log
-			    ("BNODE '%s' repeatedly failed to start, perhaps missing executable.\n",
-			     tb->name);
-		    }
-		    BOP_PROCEXIT(tb, tp);
-		    bnode_Check(tb);
-		    bnode_Release(tb);	/* bnode delete can happen here */
-		    opr_queue_Remove(&tp->q);
-		    free(tp);
-		} else
+		if (tp)
+		    bnode_DeleteProc(tp, temp, status);
+		else
 		    bnode_stats.weirdPids++;
+		ReleaseWriteLock(&allProcs_lock);
 	    }
 	}
     }
@@ -885,6 +899,7 @@ bnode_Init(void)
     initDone = 1;
     opr_queue_Init(&allTypes);
     opr_queue_Init(&allProcs);
+    Lock_Init(&allProcs_lock);
     opr_queue_Init(&allBnodes);
     memset(&bnode_stats, 0, sizeof(bnode_stats));
 #ifdef AFS_PTHREAD_ENV
@@ -1009,6 +1024,8 @@ bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName,
     char *argv[MAXVARGS];
     int i;
     sigset_t set;
+
+    opr_Assert(allProcs_lock.excl_locked == WRITE_LOCK);
 
     code = bnode_ParseLine(aexecString, &tlist);	/* try parsing first */
     if (code)
