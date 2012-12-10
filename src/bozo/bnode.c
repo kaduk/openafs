@@ -46,7 +46,10 @@ static opr_mutex_t bproc_mutex;
 #else
 static PROCESS bproc_pid;	/**< pid of waker-upper */
 #endif
-static struct opr_queue allBnodes;	/**< List of all bnodes */
+struct opr_queue allBnodes;		/**< List of all bnodes */
+struct Lock allBnodes_lock;
+static struct opr_queue tempBnodes;	/**< Temporary list of all bnodes */
+static struct Lock tempBnodes_lock;
 static struct opr_queue allProcs;	/**< List of all processes for which we're waiting */
 struct Lock allProcs_lock;
 static struct opr_queue allTypes;	/**< List of all registered type handlers */
@@ -62,6 +65,7 @@ extern char **environ;		/* env structure */
 #endif
 
 int hdl_notifier(struct bnode_proc *tp);
+static int bnode_DeleteNoLock(struct bnode *abnode);
 
 /* Remember the name of the process, if any, that failed last */
 static void
@@ -214,6 +218,8 @@ bnode_Unlock(struct bnode *abnode)
 static int
 bnode_Check(struct bnode *abnode)
 {
+    opr_Assert(abnode->refCount > 0);
+
     bnode_Lock(abnode);
     if (abnode->flags & BNODE_WAIT) {
 	abnode->flags &= ~BNODE_WAIT;
@@ -237,6 +243,8 @@ bnode_HasCore(struct bnode *abnode)
 static void
 bnode_Wait(struct bnode *abnode)
 {
+    opr_Assert(abnode->refCount > 0);
+
     abnode->flags |= BNODE_WAIT;
 #ifdef AFS_PTHREAD_ENV
     do {
@@ -251,21 +259,38 @@ bnode_Wait(struct bnode *abnode)
 int
 bnode_WaitAll(void)
 {
-    struct opr_queue *cursor;
-    afs_int32 code;
+    struct opr_queue *cursor, *store;
+    afs_int32 code = 0;
+
+    ObtainWriteLock(&tempBnodes_lock);
+    ObtainReadLock(&allBnodes_lock);
 
     for (opr_queue_Scan(&allBnodes, cursor)) {
 	struct bnode *tb = opr_queue_Entry(cursor, struct bnode, q);
 
 	bnode_Hold(tb);
+	opr_queue_Append(&tempBnodes, &tb->tempq);
+    }
+    ReleaseReadLock(&allBnodes_lock);
+
+    for (opr_queue_Scan(&tempBnodes, cursor)) {
+	struct bnode *tb = opr_queue_Entry(cursor, struct bnode, tempq);
+
 	code = bnode_WaitStatus(tb, tb->goal);
-	if (code) {
-	    bnode_Release(tb);
-	    return code;
-	}
+	if (code)
+	    goto out;
+    }
+
+  out:
+    for (opr_queue_ScanSafe(&tempBnodes, cursor, store)) {
+	struct bnode *tb = opr_queue_Entry(cursor, struct bnode, tempq);
+
+	opr_queue_Remove(&tb->tempq);
 	bnode_Release(tb);
     }
-    return 0;
+    ReleaseWriteLock(&tempBnodes_lock);
+
+    return code;
 }
 
 /* wait until bnode status is correct */
@@ -275,7 +300,8 @@ bnode_WaitStatus(struct bnode *abnode, int astatus)
     afs_int32 code;
     afs_int32 stat;
 
-    bnode_Hold(abnode);
+    opr_Assert(abnode->refCount > 0);
+
     while (1) {
 	/* get the status */
 	code = BOP_GETSTAT(abnode, &stat);
@@ -283,13 +309,10 @@ bnode_WaitStatus(struct bnode *abnode, int astatus)
 	    return code;
 
 	/* otherwise, check if we're done */
-	if (stat == astatus) {
-	    bnode_Release(abnode);
+	if (stat == astatus)
 	    return 0;		/* done */
-	}
 	bnode_Lock(abnode);
 	if (astatus != abnode->goal) {
-	    bnode_Release(abnode);
 	    bnode_Unlock(abnode);
 	    return -1;		/* no longer our goal, don't keep waiting */
 	}
@@ -302,6 +325,8 @@ bnode_WaitStatus(struct bnode *abnode, int astatus)
 int
 bnode_ResetErrorCount(struct bnode *abnode)
 {
+    opr_Assert(abnode->refCount > 0);
+
     abnode->errorStopCount = 0;
     abnode->errorStopDelay = 0;
     return 0;
@@ -310,6 +335,8 @@ bnode_ResetErrorCount(struct bnode *abnode)
 int
 bnode_SetStat(struct bnode *abnode, int agoal)
 {
+    opr_Assert(abnode->refCount > 0);
+
     abnode->goal = agoal;
     bnode_Check(abnode);
     ObtainWriteLock(&allProcs_lock);
@@ -322,6 +349,8 @@ bnode_SetStat(struct bnode *abnode, int agoal)
 int
 bnode_SetGoal(struct bnode *abnode, int agoal)
 {
+    opr_Assert(abnode->refCount > 0);
+
     abnode->goal = agoal;
     bnode_Check(abnode);
     return 0;
@@ -330,10 +359,14 @@ bnode_SetGoal(struct bnode *abnode, int agoal)
 int
 bnode_SetFileGoal(struct bnode *abnode, int agoal)
 {
+    opr_Assert(abnode->refCount > 0);
+
     if (abnode->fileGoal == agoal)
 	return 0;		/* already done */
+    ObtainWriteLock(&allBnodes_lock);
     abnode->fileGoal = agoal;
     WriteBozoFile(0);
+    ReleaseWriteLock(&allBnodes_lock);
     return 0;
 }
 
@@ -342,19 +375,39 @@ int
 bnode_ApplyInstance(int (*aproc) (struct bnode *tb, void *), void *arock)
 {
     struct opr_queue *cursor, *store;
-    afs_int32 code;
+    afs_int32 code = 0;
 
-    for (opr_queue_ScanSafe(&allBnodes, cursor, store)) {
+    ObtainWriteLock(&tempBnodes_lock);
+    ObtainReadLock(&allBnodes_lock);
+    for (opr_queue_Scan(&allBnodes, cursor)) {
 	struct bnode *tb = opr_queue_Entry(cursor, struct bnode, q);
+
+	bnode_Hold(tb);
+	opr_queue_Append(&tempBnodes, &tb->tempq);
+    }
+    ReleaseReadLock(&allBnodes_lock);
+
+    for (opr_queue_Scan(&tempBnodes, cursor )) {
+	struct bnode *tb = opr_queue_Entry(cursor, struct bnode, tempq);
+
 	code = (*aproc) (tb, arock);
 	if (code)
-	    return code;
+	    goto out;
     }
-    return 0;
+
+  out:
+    for (opr_queue_ScanSafe(&tempBnodes, cursor, store)) {
+	struct bnode *tb = opr_queue_Entry(cursor, struct bnode, tempq);
+
+	opr_queue_Remove(&tb->tempq);
+	bnode_Release(tb);
+    }
+    ReleaseWriteLock(&tempBnodes_lock);
+    return code;
 }
 
 struct bnode *
-bnode_FindInstance(char *aname)
+bnode_FindInstanceNoLock(char *aname)
 {
     struct opr_queue *cursor;
 
@@ -365,6 +418,19 @@ bnode_FindInstance(char *aname)
 	    return tb;
     }
     return NULL;
+}
+
+struct bnode *
+bnode_FindInstance(char *aname)
+{
+    struct bnode *tb;
+
+    ObtainReadLock(&allBnodes_lock);
+    tb = bnode_FindInstanceNoLock(aname);
+    if (tb)
+	bnode_Hold(tb);
+    ReleaseReadLock(&allBnodes_lock);
+    return tb;
 }
 
 static struct bnode_type *
@@ -411,32 +477,41 @@ bnode_Create(char *atype, char *ainstance, struct bnode ** abp, char *ap1,
     struct bnode *tb;
     char *notifierpath = NULL;
     struct stat tstat;
+    afs_int32 code = 0;
 
-    if (bnode_FindInstance(ainstance))
-	return BZEXISTS;
+    ObtainWriteLock(&allBnodes_lock);
+    if (bnode_FindInstanceNoLock(ainstance)) {
+	code = BZEXISTS;
+	goto out_err;
+    }
     type = FindType(atype);
-    if (!type)
-	return BZBADTYPE;
+    if (!type) {
+	code = BZBADTYPE;
+	goto out_err;
+    }
 
     if (notifier && strcmp(notifier, NONOTIFIER)) {
 	/* construct local path from canonical (wire-format) path */
 	if (ConstructLocalBinPath(notifier, &notifierpath)) {
 	    bozo_Log("BNODE-Create: Notifier program path invalid '%s'\n",
 		     notifier);
-	    return BZNOCREATE;
+	    code = BZNOCREATE;
+	    goto out_err;
 	}
 
 	if (stat(notifierpath, &tstat)) {
 	    bozo_Log("BNODE-Create: Notifier program '%s' not found\n",
 		     notifierpath);
 	    free(notifierpath);
-	    return BZNOCREATE;
+	    code = BZNOCREATE;
+	    goto out_err;
 	}
     }
     tb = (*type->ops->create) (ainstance, ap1, ap2, ap3, ap4, ap5);
     if (!tb) {
 	free(notifierpath);
-	return BZNOCREATE;
+	code = BZNOCREATE;
+	goto out_err;
     }
     tb->notifier = notifierpath;
     *abp = tb;
@@ -447,29 +522,57 @@ bnode_Create(char *atype, char *ainstance, struct bnode ** abp, char *ap1,
      ** this function as a parameter... */
     tb->fileGoal = fileGoal;
 
-    bnode_SetStat(tb, tb->goal);	/* nudge it once */
+    bnode_Hold(tb);
 
     if (rewritefile != 0)
 	WriteBozoFile(0);
 
-    return 0;
+    ReleaseWriteLock(&allBnodes_lock);
+
+    bnode_SetStat(tb, tb->goal);	/* nudge it once */
+    goto out;
+
+  out_err:
+    ReleaseWriteLock(&allBnodes_lock);
+  out:
+    return code;
 }
 
 int
 bnode_DeleteName(char *ainstance)
 {
-    struct bnode *tb;
+    struct bnode *abnode;
+    int code, stat;
 
-    tb = bnode_FindInstance(ainstance);
-    if (!tb)
-	return BZNOENT;
+    ObtainWriteLock(&allBnodes_lock);
+    abnode = bnode_FindInstanceNoLock(ainstance);
+    if (!abnode) {
+	code = BZNOENT;
+        goto out;
+    }
 
-    return bnode_Delete(tb);
+    /* make sure the bnode is idle before zapping */
+    code = BOP_GETSTAT(abnode, &stat);
+    if (code) {
+	goto out;
+    }
+    if (stat != BSTAT_SHUTDOWN) {
+	code = BZBUSY;
+	goto out;
+    }
+
+    code = bnode_DeleteNoLock(abnode);
+
+  out:
+    ReleaseWriteLock(&allBnodes_lock);
+    return code;
 }
 
 int
 bnode_Hold(struct bnode *abnode)
 {
+    opr_Assert(allBnodes_lock.readers_reading > 0
+               || allBnodes_lock.excl_locked == WRITE_LOCK);
     abnode->refCount++;
     return 0;
 }
@@ -477,17 +580,21 @@ bnode_Hold(struct bnode *abnode)
 int
 bnode_Release(struct bnode *abnode)
 {
+    ObtainWriteLock(&allBnodes_lock);
+    opr_Assert(abnode->refCount > 0);
     abnode->refCount--;
     if (abnode->refCount == 0 && abnode->flags & BNODE_DELETE)
-	bnode_Delete(abnode);
+	bnode_DeleteNoLock(abnode);
+    ReleaseWriteLock(&allBnodes_lock);
     return 0;
 }
 
-int
-bnode_Delete(struct bnode *abnode)
+static int
+bnode_DeleteNoLock(struct bnode *abnode)
 {
     afs_int32 code;
-    afs_int32 temp;
+
+    opr_Assert(allBnodes_lock.excl_locked == WRITE_LOCK);
 
     if (abnode->refCount != 0) {
 	abnode->flags |= BNODE_DELETE;
@@ -495,20 +602,22 @@ bnode_Delete(struct bnode *abnode)
     }
     abnode->flags &= ~BNODE_DELETE;
 
-    /* make sure the bnode is idle before zapping */
-    bnode_Hold(abnode);
-    code = BOP_GETSTAT(abnode, &temp);
-    bnode_Release(abnode);
-    if (code)
-	return code;
-    if (temp != BSTAT_SHUTDOWN)
-	return BZBUSY;
-
     /* all clear to zap */
     opr_queue_Remove(&abnode->q);
     free(abnode->name);		/* do this first, since bnode fields may be bad after BOP_DELETE */
     code = BOP_DELETE(abnode);	/* don't play games like holding over this one */
     WriteBozoFile(0);
+    return code;
+}
+
+int
+bnode_Delete(struct bnode *abnode)
+{
+    afs_int32 code;
+
+    ObtainWriteLock(&allBnodes_lock);
+    code = bnode_DeleteNoLock(abnode);
+    ReleaseWriteLock(&allBnodes_lock);
     return code;
 }
 
@@ -543,9 +652,12 @@ int
 bnode_InitBnode(struct bnode *abnode, struct bnode_ops *abnodeops,
 		char *aname)
 {
+    opr_Assert(allBnodes_lock.excl_locked == WRITE_LOCK);
+
     /* format the bnode properly */
     memset(abnode, 0, sizeof(struct bnode));
     opr_queue_Init(&abnode->q);
+    opr_queue_Init(&abnode->tempq);
 #ifdef AFS_PTHREAD_ENV
     opr_cv_init(&abnode->cv);
     opr_mutex_init(&abnode->mutex);
@@ -568,8 +680,6 @@ static void
 bnode_DeleteProc(struct bnode_proc *aproc, int atimeout, int astatus)
 {
     struct bnode *abnode = aproc->bnode;
-
-    bnode_Hold(abnode);
 
     /* count restarts in last 30 seconds */
     if (atimeout > abnode->rsTime + 30) {
@@ -660,7 +770,7 @@ bproc(void *unused)
     afs_int32 code;
     struct bnode *tb;
     afs_int32 temp;
-    struct opr_queue *cursor, *store;
+    struct opr_queue *cursor;
     struct bnode_proc *tp;
     int options;		/* must not be register */
     struct timeval tv;
@@ -671,6 +781,7 @@ bproc(void *unused)
 	/* first figure out how long to sleep for */
 	temp = 0x7fffffff;	/* afs_int32 time; maxint doesn't work in select */
 	setAny = 0;
+	ObtainReadLock(&allBnodes_lock);
 	for (opr_queue_Scan(&allBnodes, cursor)) {
 	    tb = opr_queue_Entry(cursor, struct bnode, q);
 	    if (tb->flags & BNODE_NEEDTIMEOUT) {
@@ -680,6 +791,7 @@ bproc(void *unused)
 		}
 	    }
 	}
+	ReleaseReadLock(&allBnodes_lock);
 	/* now temp has the time at which we should wakeup next */
 
 	/* sleep */
@@ -710,18 +822,24 @@ bproc(void *unused)
 	temp = tv.tv_sec;
 
 	/* check all bnodes to see which ones need timeout events */
-	for (opr_queue_ScanSafe(&allBnodes, cursor, store)) {
+  retry:
+	ObtainReadLock(&allBnodes_lock);
+	for (opr_queue_Scan(&allBnodes, cursor)) {
 	    tb = opr_queue_Entry(cursor, struct bnode, q);
 	    if ((tb->flags & BNODE_NEEDTIMEOUT) && temp > tb->nextTimeout) {
 		bnode_Hold(tb);
+		ReleaseReadLock(&allBnodes_lock);
+
 		BOP_TIMEOUT(tb);
 		bnode_Check(tb);
 		if (tb->flags & BNODE_NEEDTIMEOUT) {	/* check again, BOP_TIMEOUT could change */
 		    tb->nextTimeout = FT_ApproxTime() + tb->period;
 		}
 		bnode_Release(tb);	/* delete may occur here */
+		goto retry;
 	    }
 	}
+	ReleaseReadLock(&allBnodes_lock);
 
 	if (code < 0) {
 	    /* signalled, probably by incoming signal */
@@ -927,6 +1045,9 @@ bnode_Init(void)
     opr_queue_Init(&allProcs);
     Lock_Init(&allProcs_lock);
     opr_queue_Init(&allBnodes);
+    opr_queue_Init(&tempBnodes);
+    Lock_Init(&allBnodes_lock);
+    Lock_Init(&tempBnodes_lock);
     memset(&bnode_stats, 0, sizeof(bnode_stats));
 #ifdef AFS_PTHREAD_ENV
     opr_cv_init(&bproc_cv);
@@ -1060,6 +1181,10 @@ bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName,
 	return code;
     tp = calloc(1, sizeof(struct bnode_proc));
     opr_queue_Init(&tp->q);
+    opr_Assert(abnode->refCount > 0);
+    ObtainReadLock(&allBnodes_lock);
+    bnode_Hold(abnode);		/* hold a ref for duration of proc */
+    ReleaseReadLock(&allBnodes_lock);
     tp->bnode = abnode;
     tp->comLine = aexecString;
     tp->coreName = coreName;	/* may be null */
