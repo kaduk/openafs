@@ -29,7 +29,7 @@ extern struct Lock allProcs_lock;
 struct bnode *cron_create(char *, char *, char *, char *, char *, char *);
 static int cron_hascore(struct bnode *bnode);
 static int cron_restartp(struct bnode *bnode);
-static int cron_delete(struct bnode *bnode);
+static void cron_delete(struct bnode *bnode);
 static int cron_timeout(struct bnode *bnode);
 static int cron_getstat(struct bnode *bnode, afs_int32 *status);
 static int cron_setstat(struct bnode *bnode, afs_int32 status);
@@ -141,14 +141,14 @@ cron_restartp(struct bnode *abnode)
     return 0;
 }
 
-static int
+static void
 cron_delete(struct bnode *bn)
 {
     struct cronbnode *abnode = (struct cronbnode *)bn;
     free(abnode->command);
     free(abnode->whenString);
     free(abnode);
-    return 0;
+    return;
 }
 
 struct bnode *

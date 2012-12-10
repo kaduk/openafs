@@ -28,7 +28,7 @@ struct bnode_ops {
     int (*timeout) ( struct bnode * );
     int (*getstat) ( struct bnode *, afs_int32 * );
     int (*setstat) ( struct bnode *, afs_int32 );
-    int (*delete) ( struct bnode * );
+    void (*delete) ( struct bnode * );
     int (*procexit) ( struct bnode *, struct bnode_proc * );
     int (*getstring) ( struct bnode *, char *abuffer, afs_int32 alen );
     int (*getparm) ( struct bnode *, afs_int32 aindex, char *abuffer,
@@ -114,7 +114,6 @@ struct bozo_bosEntryStats {
 #define	BNODE_NEEDTIMEOUT	    1	/* timeouts are active */
 #define	BNODE_ACTIVE		    2	/* in generic lists */
 #define	BNODE_WAIT		    4	/* someone waiting for status change */
-#define	BNODE_DELETE		    8	/* delete this bnode asap */
 #define	BNODE_ERRORSTOP		    0x10	/* stopped due to errors */
 
 /* flags for bnode_proc */

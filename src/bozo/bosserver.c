@@ -49,6 +49,8 @@
 #ifndef AFS_NT40_ENV
 # include <afs/softsig.h>
 #endif
+#include <afs/opr.h>
+#include <lock.h>
 
 #if defined(AFS_SGI_ENV)
 #include <afs/afs_args.h>
@@ -75,6 +77,7 @@ static struct Lock bozo_logLock;
 static int bozo_argc = 0;
 static char** bozo_argv = NULL;
 #endif
+struct Lock configUpdate_lock;
 
 const char *DoCore;
 int DoLogging = 0;
@@ -565,9 +568,10 @@ bdrestart(struct bnode *abnode, void *arock)
 {
     afs_int32 code;
 
+    opr_Assert(abnode->refCount > 0);
+
     if (abnode->fileGoal != BSTAT_NORMAL || abnode->goal != BSTAT_NORMAL)
 	return 0;		/* don't restart stopped bnodes */
-    bnode_Hold(abnode);
     code = bnode_RestartP(abnode);
     if (code) {
 	/* restart the dude */
@@ -575,7 +579,6 @@ bdrestart(struct bnode *abnode, void *arock)
 	bnode_WaitStatus(abnode, BSTAT_SHUTDOWN);
 	bnode_SetStat(abnode, BSTAT_NORMAL);
     }
-    bnode_Release(abnode);
     return 0;			/* keep trying all bnodes */
 }
 
@@ -617,7 +620,7 @@ BozoDaemon(void *unused)
 	    nextDay = ktime_next(&bozo_nextDayKT, BOZO_MINSKIP);
 
 	    /* call the bnode restartp function, and restart all that require it */
-	    bnode_ApplyInstance(bdrestart, 0);
+	    bnode_ApplyInstance(bdrestart, (void *) NULL, (void *)NULL);
 	}
     }
     return NULL;
@@ -1078,6 +1081,7 @@ main(int argc, char **argv, char **envp)
 #endif
 
     /* Read init file, starting up programs. Also starts watcher threads. */
+    Lock_Init(&configUpdate_lock);
     if ((code = ReadBozoFile(0))) {
 	bozo_Log
 	    ("bosserver: Something is wrong (%d) with the bos configuration file %s; aborting\n",

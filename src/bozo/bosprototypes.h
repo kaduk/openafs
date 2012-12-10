@@ -20,14 +20,13 @@ int bnode_GetParm(struct bnode *abnode, afs_int32 aindex, char *abuffer,
 int bnode_GetStat(struct bnode *abnode, afs_int32 * astatus);
 int bnode_RestartP(struct bnode *abnode);
 int bnode_HasCore(struct bnode *abnode);
-int bnode_WaitAll(void);
 int bnode_SetGoal(struct bnode *abnode, int agoal);
 int bnode_SetFileGoal(struct bnode *abnode, int agoal);
-int bnode_ApplyInstance(int (*aproc)(struct bnode *, void *), void *arock);
+int bnode_ApplyInstance(int (*aproc)(struct bnode *, void *), void *arock, ...);
 int bnode_Register(char *, struct bnode_ops *, int);
 int bnode_DeleteName(char *);
 int bnode_Hold(struct bnode *);
-int bnode_Release(struct bnode *);
+void bnode_Release(struct bnode *);
 int bnode_Delete(struct bnode *);
 int bnode_PendingTimeout(struct bnode *abnode);
 void bnode_Int(int asignal);
