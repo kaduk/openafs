@@ -241,6 +241,7 @@ AC_OUTPUT([
     src/scout/Makefile
     src/sgistuff/Makefile
     src/sys/Makefile
+    src/tbozo/Makefile
     src/tbutc/Makefile
     src/tests/Makefile
     src/tests/run-tests

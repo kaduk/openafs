@@ -116,6 +116,12 @@ AC_ARG_ENABLE([pthreaded-ubik],
          disabled)])],
     ,
     [enable_pthreaded_ubik="no"])
+AC_ARG_ENABLE([pthreaded-bos],
+    [AS_HELP_STRING([--enable-pthreaded-bos],
+        [enable installation of pthreaded bos applications (defaults to
+         disabled)])],
+    ,
+    [enable_pthreaded_bos="no"])
 
 dnl Kernel module build options.
 AC_ARG_WITH([linux-kernel-headers],
@@ -1822,11 +1828,16 @@ if test "x$enable_pthreaded_ubik" = "xyes"; then
 ENABLE_PTHREADED_UBIK=yes
 fi
 
+if test "x$enable_pthreaded_bos" = "xyes"; then
+ENABLE_PTHREADED_BOS=yes
+fi
+
 AC_SUBST(VFSCK)
 AC_SUBST(AFS_SYSNAME)
 AC_SUBST(AFS_PARAM_COMMON)
 AC_SUBST(ENABLE_KERNEL_MODULE)
 AC_SUBST(ENABLE_PTHREADED_UBIK)
+AC_SUBST(ENABLE_PTHREADED_BOS)
 AC_SUBST(LIB_AFSDB)
 AC_SUBST(LINUX_KERNEL_PATH)
 AC_SUBST(LINUX_KERNEL_BUILD)
