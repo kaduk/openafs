@@ -46,9 +46,6 @@
 #include <afs/fileutil.h>
 #include <afs/audit.h>
 #include <afs/cellconfig.h>
-#ifndef AFS_NT40_ENV
-# include <afs/softsig.h>
-#endif
 #include <afs/opr.h>
 #include <lock.h>
 
@@ -104,9 +101,6 @@ int bozo_restdisable = 0;
 void
 bozo_insecureme(int sig)
 {
-#if !defined(AFS_PTHREAD_ENV) || defined(AFS_NT40_ENV)
-    signal(SIGFPE, bozo_insecureme);
-#endif
     bozo_isrestricted = 0;
     bozo_restdisable = 1;
 }
@@ -929,12 +923,6 @@ main(int argc, char **argv, char **envp)
     sigaction(SIGABRT, &nsa, NULL);
 #endif
     osi_audit_init();
-#if defined(AFS_PTHREAD_ENV) && !defined(AFS_NT40_ENV)
-    softsig_init();
-    softsig_signal(SIGFPE, bozo_insecureme);
-#else
-    signal(SIGFPE, bozo_insecureme);
-#endif
 
 #ifdef AFS_NT40_ENV
     /* Initialize winsock */
@@ -1089,6 +1077,16 @@ main(int argc, char **argv, char **envp)
     }
 #endif
 
+    /*
+     * go into the background and remove our controlling tty, close open
+     * file desriptors
+     */
+
+#ifndef AFS_NT40_ENV
+    if (!nofork)
+	daemon(1, 0);
+#endif /* ! AFS_NT40_ENV */
+
     code = bnode_Init();
     if (code) {
 	printf("bosserver: could not init bnode package, code %d\n", code);
@@ -1108,20 +1106,6 @@ main(int argc, char **argv, char **envp)
 	chdir(DoCore);
     else
 	chdir(AFSDIR_SERVER_LOGS_DIRPATH);
-
-#if 0
-    fputs(AFS_GOVERNMENT_MESSAGE, stdout);
-    fflush(stdout);
-#endif
-
-    /* go into the background and remove our controlling tty, close open
-       file desriptors
-     */
-
-#ifndef AFS_NT40_ENV
-    if (!nofork)
-	daemon(1, 0);
-#endif /* ! AFS_NT40_ENV */
 
     if ((!DoSyslog)
 #ifndef AFS_NT40_ENV
