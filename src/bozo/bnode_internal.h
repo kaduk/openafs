@@ -83,10 +83,15 @@ struct bnode_proc {
     struct bnode *bnode;	/* bnode creating this process */
     char *comLine;		/* command line used to start this process */
     char *coreName;		/* optional core file component name */
+    struct bnode_token *tlist;	/* parsed command line for process */
     afs_int32 pid;		/* pid if created */
     afs_int32 lastExit;		/* last termination code */
     afs_int32 lastSignal;	/* last signal that killed this guy */
     afs_int32 flags;		/* flags giving process state */
+#ifdef AFS_PTHREAD_ENV
+    opr_cv_t started;		/* used to synchronize startup */
+    opr_mutex_t mutex;		/* used to protect started */
+#endif
 };
 
 struct ezbnode {

@@ -46,9 +46,6 @@
 #include <afs/fileutil.h>
 #include <afs/audit.h>
 #include <afs/cellconfig.h>
-#ifndef AFS_NT40_ENV
-# include <afs/softsig.h>
-#endif
 #include <afs/opr.h>
 #include <lock.h>
 
@@ -103,9 +100,6 @@ int bozo_restdisable = 0;
 void
 bozo_insecureme(int sig)
 {
-#if !defined(AFS_PTHREAD_ENV) || defined(AFS_NT40_ENV)
-    signal(SIGFPE, bozo_insecureme);
-#endif
     bozo_isrestricted = 0;
     bozo_restdisable = 1;
 }
@@ -812,12 +806,6 @@ main(int argc, char **argv, char **envp)
     sigaction(SIGABRT, &nsa, NULL);
 #endif
     osi_audit_init();
-#if defined(AFS_PTHREAD_ENV) && !defined(AFS_NT40_ENV)
-    softsig_init();
-    softsig_signal(SIGFPE, bozo_insecureme);
-#else
-    signal(SIGFPE, bozo_insecureme);
-#endif
 
 #ifdef AFS_NT40_ENV
     /* Initialize winsock */
