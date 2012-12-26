@@ -695,11 +695,41 @@ const RXGK_CT_PRINTED			= 9;
      <t>The way in which the rxgk security class handles packets depends upon 
 	the requested security level. As noted in
 	<xref target="levels" />, 3 levels are currently
-	defined -- authentication only, integrity protection and encryption.
-	They are presented here in reverse order from <xref target="levels" />
-	for ease of presentation.</t>
+	defined -- authentication only, integrity protection and encryption.</t>
 
-<section title="Encryption" anchor="encryption">
+   <section title="Authentication Only">
+     <t>When running at the clear security level, RXGK_LEVEL_CLEAR,
+        no manipulation of the payload is performed by the security class.</t>
+   </section>
+
+   <section title="Integrity Protection">
+   
+     <t>The auth security level, RXGK_LEVEL_AUTH,
+	prepends the packet with the same data
+	block as crypt (see <xref target="encryption" />),
+	and then calls the RFC3961 
+	get_mic operation over the result, using key usage
+	RXGK_CLIENT_MIC_PACKET for messages from client to server, and 
+	RXGK_SERVER_MIC_PACKET for messages from server to client.
+	All fields MUST be in network byte order for the get_mic operation.</t>
+
+     <t>The peer is sent the output from the MIC operation, followed by the
+        original payload (excluding the additional header which was added for
+        the MIC step).</t>
+
+     <t>Upon receiving a protected packet, the receiver should consult the 
+        RFC3961 profile for the encryption algorithm in use to determine how
+	many bytes of checksum are contained within the packet. Having split
+	the data into checksum and payload using this information, the 
+	checksum should be verified using the encryption profile's
+	verify_mic() operation with the appropriate key derivation
+	(RXGK_CLIENT_MIC_PACKET or RXGK_SERVER_MIC_PACKET).</t>
+
+     <t>Note that the checksum field within the rx packet header itself is not
+        used, as it is too small to hold a collision-proof checksum value.</t>
+   </section>
+
+   <section title="Encryption" anchor="encryption">
 
      <t>Using the encryption security level, RXGK_LEVEL_CRYPT,
 	 provides both integrity and 
@@ -741,38 +771,7 @@ const RXGK_CT_PRINTED			= 9;
      </t>
 
    </section>
-   <section title="Integrity Protection">
-   
-     <t>The auth security level, RXGK_LEVEL_AUTH,
-	prepends the packet with the same data
-	block as crypt (see <xref target="encryption" />),
-	and then calls the RFC3961 
-	get_mic operation over the result, using key usage
-	RXGK_CLIENT_MIC_PACKET for messages from client to server, and 
-	RXGK_SERVER_MIC_PACKET for messages from server to client.
-	All fields MUST be in network byte order for the get_mic operation.</t>
 
-     <t>The peer is sent the output from the MIC operation, followed by the
-        original payload (excluding the additional header which was added for
-        the MIC step).</t>
-
-     <t>Upon receiving a protected packet, the receiver should consult the 
-        RFC3961 profile for the encryption algorithm in use to determine how
-	many bytes of checksum are contained within the packet. Having split
-	the data into checksum and payload using this information, the 
-	checksum should be verified using the encryption profile's
-	verify_mic() operation with the appropriate key derivation
-	(RXGK_CLIENT_MIC_PACKET or RXGK_SERVER_MIC_PACKET).</t>
-
-     <t>Note that the checksum field within the rx packet header itself is not
-        used, as it is too small to hold a collision-proof checksum value.</t>
-   </section>
-
-   <section title="Authentication Only">
-     <t>When running at the clear security level, RXGK_LEVEL_CLEAR,
-        no manipulation of the payload is
-        performed by the security class.</t>
-   </section>
    </section>
    </section>
     <section anchor="IANA" title="IANA Considerations">
