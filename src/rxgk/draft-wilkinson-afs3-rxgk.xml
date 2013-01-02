@@ -311,9 +311,11 @@ enum RXGK_Level {
       <t hangText="errorcode">A policy (rather than connection establishment) 
         error code. If non-zero, an error has occurred, the resulting key
 	negotiation has failed, and the rest of the values in this structure
-	are undefined.  These policy error codes are application-specific,
+	are undefined.  These policy error codes are from com_err tables
 	and may represent such conditions as insufficient authorization
-	or that the client has too many active connections to the service.</t>
+	or that the client has too many active connections to the service.
+        Error codes may be RXGK errors (see section <xref target="AFSReg" />)
+        or from an application-specific table.</t>
       <t hangText="enctype">The encryption type selected by the server.
 	This SHALL be one of the types listed by the client in its StartParams
 	structure.</t>
