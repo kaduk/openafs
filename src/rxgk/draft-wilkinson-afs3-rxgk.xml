@@ -460,49 +460,19 @@ enum RXGK_Level {
 	 a successful CombineTokens operation.
 	 If errorcode is nonzero, the values of the other fields in the
 	 RXGK_TokenInfo structure and the value of new_token are undefined.
-	 A registry of error codes will be created at the central.org registry,
-	 with the values 0x80000000-0xffffffff reserved for application-specific
-	 usage.  The registry should initially contain:
-<artwork>
-const RXGK_CT_SUCCESS			= 0;
-const RXGK_CT_NOT_IMPL			= 1;
-const RXGK_CT_BAD_ENCTYPE		= 2;
-const RXGK_CT_BAD_LEVEL			= 3;
-const RXGK_CT_RECURSE			= 4;
-const RXGK_CT_EXPIRED			= 5;
-const RXGK_CT_ENCTYPE_MISMATCH		= 6;
-const RXGK_CT_LEVEL_MISMATCH		= 7;
-const RXGK_CT_TOPOLOGY			= 8;
-const RXGK_CT_PRINTED			= 9;
-</artwork>
-	 <list style="hanging" hangIndent="6">
-	   <t hangText="RXGK_CT_SUCCESS">The CombineTokens operation
-	     completed successfully.</t>
-	   <t hangText="RXGK_CT_NOT_IMPL">The server will refuse all CombineTokens
-	     requests.</t>
-	   <t hangText="RXGK_CT_BAD_ENCTYPE">None of the enctypes supplied by
-	     the client are acceptable to the server.</t>
-	   <t hangText="RXGK_CT_BAD_LEVEL">None of the security levels supplied
-	     by the client are acceptable to the server.</t>
-	   <t hangText="RXGK_CT_RECURSE">One or more of the supplied tokens was the
-	     result of a previous CombineTokens operation, and the server will
-	     refuse to perform the CombineTokens operation recursively.</t>
-	   <t hangText="RXGK_CT_EXPIRED">One or more of the input tokens was
-	     already expired.</t>
-	   <t hangText="RXGK_CT_ENCTYPE_MISMATCH">The client supplied a list of
-	     enctypes disjoint from the enctypes used by the two input tokens,
-	     and the server is configured to reject such enctype renegotiation.</t>
-	   <t hangText="RXGK_CT_LEVEL_MISMATCH">The client supplied a list of
-	     security levels disjoint from the security levels used by the two
-	     input tokens, and the server is configured to reject such security
-	     level renegotiation.</t>
-	   <t hangText="RXGK_CT_TOPOLOGY">The compound identity of the two
-	     input tokens cannot be represented in the application's scheme
-	     because the topology of the tree of CombineTokens operations
-	     involved is too complicated.</t>
-	   <t hangText="GXGK_CT_PRINTED">One or more of the supplied tokens
-	     was printed by the application server using the server's key,
-	     and combining printed tokens is forbidden by the server.</t>
+         Nonzero values for errorcode should be com_err codes, from an RX,
+         RXGK, or application-specific table.  See section
+         <xref target="AFSReg" /> for RXGK error codes.
+         section <xref target="derivation" />.  For example,
+         <list style="hanging" hangIndent="6">
+           <t hangText="RXGEN_OPCODE">used when
+             the server will refuse all CombineTokens requests.</t>
+           <t hangText="RXGK_BAD_ETYPE">used when none of the enctypes
+             supplied by the client are acceptable to the server.</t>
+           <t hangText="RXGK_BAD_LEVEL">used when one of the security levels
+             supplied by the client are acceptable to the server.</t>
+           <t hangText="RXGK_EXPIRED">used when one or more of the input
+             tokens was already expired.</t>
       </list>
       <t>To reduce the potential for denial of service attacks, servers
 	 SHOULD only offer the CombineTokens operation to clients connecting
@@ -808,6 +778,25 @@ const RXGK_CT_PRINTED			= 9;
    </section>
 
    </section>
+   </section>
+   <section anchor="AFSReg" title="AFS-3 Registry Considerations">
+     <t>This document requests that the AFS-3 registrar include
+        a com_err error table for the RXGK module, as follows:</t>
+<artwork>
+ec RXGK_INCONSISTENCY, "Security module structure inconsistent"
+ec RXGK_PACKETSHORT, "Packet too short for security challenge"
+ec RXGK_BADCHALLENGE, "Invalid security challenge"
+ec RXGK_BADETYPE, "Encryption type negotiation failed"
+ec RXGK_BADLEVEL, "Security level negotiation failed"
+ec RXGK_BADKEYNO, "Key version number not found"
+ec RXGK_EXPIRED, "Token has expired"
+ec RXGK_COMPOUND_IDENTITY, "Token's combined identity not usable"
+ec RXGK_PRINTED, "Printed token not allowed"
+ec RXGK_NOTAUTH, "Caller not authorized"
+ec RXGK_BAD_TOKEN, "Security object was passed a bad token"
+ec RXGK_SEALED_INCON, "Sealed data inconsistent"
+ec RXGK_DATA_LEN, "User data too long"
+</artwork>
    </section>
     <section anchor="IANA" title="IANA Considerations">
       <t>This memo includes no request to IANA.</t>
