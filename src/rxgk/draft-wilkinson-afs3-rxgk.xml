@@ -312,6 +312,7 @@ enum RXGK_Level {
         error code. If non-zero, an error has occurred, the resulting key
 	negotiation has failed, and the rest of the values in this structure
 	are undefined.  These policy error codes are from com_err tables
+	<xref target="COMERR" />
 	and may represent such conditions as insufficient authorization
 	or that the client has too many active connections to the service.
         Error codes may be RXGK errors (see section <xref target="AFSReg" />)
@@ -462,7 +463,8 @@ enum RXGK_Level {
 	 a successful CombineTokens operation.
 	 If errorcode is nonzero, the values of the other fields in the
 	 RXGK_TokenInfo structure and the value of new_token are undefined.
-         Nonzero values for errorcode should be com_err codes, from an RX,
+         Nonzero values for errorcode should be com_err codes
+         <xref target="COMERR" />, from an RX,
          RXGK, or application-specific table.  See section
          <xref target="AFSReg" /> for RXGK error codes.
          section <xref target="derivation" />.  For example,
@@ -846,6 +848,22 @@ ec RXGK_DATA_LEN, "User data too long"
 				   </author>
 			   </front>
 			   <format type='HTML' target='http://web.mit.edu/kolya/afs/rx/rx-spec' />
+		   </reference>
+		   <reference anchor='COMERR'>
+			   <front>
+				   <title>A Common Error Description Library
+					  for UNIX</title>
+				   <author initials='K.' surname='Raeburn'
+					   fullname='Ken Raeburn'>
+					   <organization>MIT Student
+							 Information Processing
+							 Board</organization>
+				   </author>
+			   </front>
+			   <format type='application/zip' target='ftp://athena-dist.mit.edu/pub/ATHENA/tools/com_err.tar.Z' />
+			   <annotation>This paper is available as
+				       com_err.texinfo within
+				       com_err.tar.Z.</annotation>
 		   </reference>
 	   </references>
    <references title="Normative References">
