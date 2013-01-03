@@ -725,12 +725,18 @@ enum RXGK_Level {
 |                                                               |
 ~                            MIC                                ~
 |                                                               |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|               |                                               |
++-+-+-+-+-+-+-+-+                                               |
 |                                                               |
 ~                  original packet payload                      ~
 |                                                               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 </artwork>
+
+     <t>Note: The length of the MIC depends on which RFC3961 encryption
+        type is used.  In particular, the original packet payload may
+        not be word-aligned.</t>
 
      <t>Note: The data prepended to the original packet payload
         during the MIC generation is not transmitted.</t>
