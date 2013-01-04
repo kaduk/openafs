@@ -1,7 +1,7 @@
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
-include @TOP_OBJDIR@/src/config/Makefile.pthread
-include @TOP_OBJDIR@/src/config/Makefile.libtool
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+include @TOP_OBJDIR@/src/config/Makefile.lwptool
 
 INCLS=	${TOP_INCDIR}/rx/rx.h ${TOP_INCDIR}/rx/rxgk.h ${TOP_INCDIR}/rx/rxgk_errs.h \
 	${TOP_INCDIR}/rx/rxgk_int.h
@@ -16,11 +16,14 @@ LT_deps =   $(top_builddir)/src/opr/liboafs_opr.la \
 LT_libs =   # gssapi will go here
 
 all: depinstall rxgk_int.cs.c rxgk_int.ss.c rxgk_int.xdr.c rxgk_int.h \
-	${LT_objs} liboafs_rxgk.la libafsrpc_rxgk.la
+	${LT_objs} liboafs_rxgk.la libafsrpc_rxgk.la ${TOP_LIBDIR}/librxgk.a
 
 generated: \
 	rxgk_errs.h rxgk_errs.c rxgk_int.h rxgk_int.cs.c rxgk_int.xdr.c \
 	rxgk_int.ss.c
+
+${TOP_LIBDIR}/librxgk.a: librxgk.a
+	${INSTALL_DATA} $? $@
 
 depinstall: \
 	${TOP_INCDIR}/rx/rxgk.h \
@@ -52,6 +55,9 @@ rxgk_int.h: rxgk_int.xg
 rxgk_int.ss.o: rxgk_int.ss.c rxgk_int.xdr.c rxgk_int.h
 rxgk_int.cs.o: rxgk_int.cs.c rxgk_int.xdr.c rxgk_int.h
 rxgk_int.xdr.o: rxgk_int.xdr.c rxgk_int.h
+
+librxgk.a: $(LT_objs)
+	$(LT_LDLIB_lwp) $(LT_objs)
 
 liboafs_rxgk.la: liboafs_rxgk.la.sym ${LT_objs} ${LT_deps}
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
