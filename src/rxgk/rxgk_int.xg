@@ -1,0 +1,129 @@
+/*
+ * Copyright (C) 2012 by the Massachusetts Institute of Technology.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * * Redistributions of source code must retain the above copyright
+ *   notice, this list of conditions and the following disclaimer.
+ *
+ * * Redistributions in binary form must reproduce the above copyright
+ *   notice, this list of conditions and the following disclaimer in
+ *   the documentation and/or other materials provided with the
+ *   distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ * Protocol descriptions for core RXGK structures and RPCs.
+ */
+
+package RXGK_
+prefix S
+
+/* constants for RXGK RPC numbers */
+#define	RXGK_GSSNEGOTIATE	1
+#define	RXGK_COMBINETOKENS	2
+
+typedef afs_int64 rxgkTime;
+
+/* Security levels */
+enum RXGK_Level {
+    RXGK_LEVEL_CLEAR = 0,
+    RXGK_LEVEL_AUTH = 1,
+    RXGK_LEVEL_CRYPT = 2
+};
+
+/* key usage values */
+const RXGK_CLIENT_ENC_PACKET		= 1026;
+const RXGK_CLIENT_MIC_PACKET		= 1027;
+const RXGK_SERVER_ENC_PACKET		= 1028;
+const RXGK_SERVER_MIC_PACKET		= 1029;
+const RXGK_CLIENT_ENC_RESPONSE		= 1030;
+const RXGK_SERVER_ENC_TOKEN		= 1036;
+
+typedef int RXGK_Enctype;
+typedef int RXGK_Enctypes<>;
+typedef opaque RXGK_Data<>;
+
+struct RXGK_StartParams { 
+    RXGK_Enctypes enctypes;
+    RXGK_Level levels<>;
+    int lifetime;
+    int bytelife;
+    opaque client_nonce<>;
+};
+
+struct RXGK_ClientInfo {
+    int errorcode;
+    int enctype;
+    RXGK_Level level;
+    int lifetime;
+    int bytelife;
+    rxgkTime expiration;
+    opaque mic<>;
+    opaque token<>;
+    opaque server_nonce<>;
+};
+
+GSSNegotiate(IN RXGK_StartParams *client_start,
+	     IN RXGK_Data *input_token_buffer,
+	     IN RXGK_Data *opaque_in,
+	     OUT RXGK_Data *output_token_buffer,
+	     OUT RXGK_Data *opaque_out,
+	     OUT unsigned int *gss_major_status,
+	     OUT unsigned int *gss_minor_status,
+	     OUT RXGK_Data *rxgk_info) = RXGK_GSSNEGOTIATE;
+
+struct RXGK_CombineOptions {
+    RXGK_Enctypes enctypes;
+    RXGK_Level levels<>;
+};
+
+struct RXGK_TokenInfo {
+    unsigned int errorcode;
+    RXGK_Enctype enctype;
+    RXGK_Level level;
+    unsigned int lifetime;
+    unsigned int bytelife;
+    rxgkTime expiration;
+};
+
+CombineTokens(IN RXGK_Data *token0, IN RXGK_Data *token1,
+	  IN RXGK_CombineOptions *options,
+	  OUT RXGK_Data *new_token,
+	  OUT RXGK_TokenInfo *info) = RXGK_COMBINETOKENS;
+
+/* RX challenge and response structures */
+struct RXGK_Challenge {
+    opaque nonce[20];
+};
+struct RXGK_Response {
+    rxgkTime start_time;
+    RXGK_Data token<>;
+    opaque authenticator<>;
+};
+
+struct RXGK_Authenticator {
+    opaque nonce[20];
+    opaque appdata<>;
+    RXGK_Level level;
+    unsigned int epoch;
+    unsigned int cid;
+    unsigned int maxcalls;
+    unsigned int call_numbers<>;
+};

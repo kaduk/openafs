@@ -1,0 +1,15 @@
+error_table RXGK
+  ec RXGK_INCONSISTENCY, "Security module structure inconsistent"
+  ec RXGK_PACKETSHORT, "Packet too short for security challenge"
+  ec RXGK_BADCHALLENGE, "Invalid security challenge"
+  ec RXGK_BADETYPE, "Encryption type negotiation failed"
+  ec RXGK_BADLEVEL, "Security level negotiation failed"
+  ec RXGK_BADKEYNO, "Key version number not found"
+  ec RXGK_EXPIRED, "Token has expired"
+  ec RXGK_COMPOUND_IDENTITY, "Token's combined identity not usable"
+  ec RXGK_PRINTED, "Printed token not allowed"
+  ec RXGK_NOTAUTH, "Caller not authorized"
+  ec RXGK_BAD_TOKEN, "Security object was passed a bad token"
+  ec RXGK_SEALED_INCON, "Sealed data inconsistent"
+  ec RXGK_DATA_LEN, "User data too long"
+end
