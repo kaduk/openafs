@@ -795,6 +795,7 @@ enum RXGK_Level {
      <t>This document requests that the AFS-3 registrar include
         a com_err error table for the RXGK module, as follows:</t>
 <artwork>
+error_table RXGK
 ec RXGK_INCONSISTENCY, "Security module structure inconsistent"
 ec RXGK_PACKETSHORT, "Packet too short for security challenge"
 ec RXGK_BADCHALLENGE, "Invalid security challenge"
@@ -809,6 +810,9 @@ ec RXGK_BAD_TOKEN, "Security object was passed a bad token"
 ec RXGK_SEALED_INCON, "Sealed data inconsistent"
 ec RXGK_DATA_LEN, "User data too long"
 </artwork>
+     <t>The error table base should be 1233242880, with codes within the
+        table assigned relative numbers starting from 0 in the order
+        appearing above.</t>
    </section>
     <section anchor="IANA" title="IANA Considerations">
       <t>This memo includes no request to IANA.</t>
