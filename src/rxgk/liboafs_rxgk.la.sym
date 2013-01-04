@@ -1,0 +1,4 @@
+RXGK_GSSNegotiate
+RXGK_CombineTokens
+rxgk_NewServerSecurityObject
+rxgk_NewClientSecurityObject
