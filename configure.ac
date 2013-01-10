@@ -126,6 +126,39 @@ dnl We only need gssapi for rxgk (at this point).  rxgk requires pseudo_random.
 ])
 AC_SUBST([BUILD_GSSAPI])
 
+BUILD_RXGK="no"
+RXGK_TARGET=""
+RXGK_FINALE_TARGET=""
+RXGK_LIBS=""
+RXGK_CFLAGS=""
+RXGK_GSSAPI_LIBS=""
+dnl Now that we know about GSSAPI, we can check if rxgk is buildable
+if test "$enable_rxgk" = yes; then
+	if test "$BUILD_GSSAPI" = yes; then
+		BUILD_RXGK="yes"
+		RXGK_TARGET="rxgk"
+		RXGK_LIBS="\$(top_builddir)/src/rxgk/liboafs_rxgk.la"
+		RXGK_CFLAGS="\$(CPPFLAGS_gssapi)"
+		RXGK_GSSAPI_LIBS="\$(LIB_gssapi)"
+		AC_DEFINE(ENABLE_RXGK, 1,
+			  [Build rxgk support into applications])
+	else
+		AC_MSG_ERROR([Insufficient GSS-API support to enable rxgk])
+	fi
+else
+	BUILD_RXGK="no"
+fi
+dnl Build the code if there's enough of a gss library, for buildbot coverage
+if test "$BUILD_GSSAPI" = yes; then
+	RXGK_FINALE_TARGET="rxgk"
+fi
+AC_SUBST(BUILD_RXGK)
+AC_SUBST(RXGK_TARGET)
+AC_SUBST(RXGK_FINALE_TARGET)
+AC_SUBST(RXGK_LIBS)
+AC_SUBST(RXGK_CFLAGS)
+AC_SUBST(RXGK_GSSAPI_LIBS)
+
 dnl Checks for summary
 OPENAFS_SUMMARY_CHECK_NAMEI
 
