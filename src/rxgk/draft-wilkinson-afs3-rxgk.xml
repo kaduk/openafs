@@ -211,7 +211,7 @@ enum RXGK_Level {
         int bytelife;
         rxgkTime expiration;
         opaque mic&lt;&gt;;
-        opaque token&lt;&gt;;
+        RXGK_Data token;
         opaque server_nonce&lt;&gt;;
     };
 
@@ -612,7 +612,7 @@ enum RXGK_Level {
 <artwork>
     struct RXGK_Response {
         rxgkTime start_time;
-        RXGK_Data token&lt;&gt;
+        RXGK_Data token;
         opaque authenticator&lt;&gt;
     };
 </artwork>
