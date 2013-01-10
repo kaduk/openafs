@@ -170,6 +170,13 @@ AC_ARG_ENABLE([kauth],
     ,
     [enable_kauth="yes"])
 
+dnl modern crypto
+AC_ARG_ENABLE([rxgk],
+    [AS_HELP_STRING([--enable-rxgk],
+        [Include experimental support for the RXGK security class (defeaults to disabled)])],
+    ,
+    [enable_rxgk="no"])
+
 dnl Optimization and debugging flags.
 AC_ARG_ENABLE([strip-binaries],
     [AS_HELP_STRING([--disable-strip-binaries],
@@ -1480,6 +1487,14 @@ else
 	INSTALL_KAUTH="no"
 fi
 AC_SUBST(INSTALL_KAUTH)
+
+if test "$enable_rxgk" = yes; then
+	ENABLE_RXGK="rxgk"
+	AC_CHECK_HEADERS([gssapi/gssapi.h])
+else
+	ENABLE_RXGK=""
+fi
+AC_SUBST(ENABLE_RXGK)
 
 AC_CHECK_FUNCS([ \
 	arc4random \
