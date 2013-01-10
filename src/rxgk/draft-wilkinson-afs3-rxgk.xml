@@ -413,7 +413,7 @@ enum RXGK_Level {
       <artwork>
     struct RXGK_CombineOptions {
         RXGK_Enctypes enctypes;
-        RXGK_Level levels<>;
+        RXGK_Level levels&lt;&gt;;
     };
 
     struct RXGK_TokenInfo {
