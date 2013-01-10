@@ -651,7 +651,7 @@ finale: project cmd comerr afsd butc tbutc tbudb @ENABLE_KERNEL_MODULE@ libuafs 
 	dviced dvolser libafscp\
 	venus venustests update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
 	libafsauthent libadmin man-pages \
-	tools platform kopenafs authtools $(DIR_roken)
+	tools platform kopenafs authtools $(DIR_roken) @RXGK_FINALE_TARGET@
 	+${COMPILE_PART1} finale ${COMPILE_PART2}
 
 finale_nolibafs: project cmd comerr afsd butc tbutc tbudb libuafs audit kauth log \

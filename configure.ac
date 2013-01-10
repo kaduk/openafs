@@ -126,6 +126,51 @@ dnl We only need gssapi for rxgk (at this point).  rxgk requires pseudo_random.
 ])
 AC_SUBST([BUILD_GSSAPI])
 
+BUILD_RXGK="no"
+RXGK_TARGET=""
+RXGK_FINALE_TARGET=""
+RXGK_LIBS=""
+RXGK_LIBS_RPC=""
+RXGK_LIBS_STATIC=""
+RXGK_CFLAGS=""
+RXGK_GSSAPI_LIBS=""
+rxgk_GetServerInfo=""
+dnl Now that we know about GSSAPI, we can check if rxgk is buildable
+if test "$enable_rxgk" = yes; then
+	if test "$BUILD_GSSAPI" = yes; then
+		BUILD_RXGK="yes"
+		RXGK_TARGET="rxgk"
+		RXGK_LIBS="\$(top_builddir)/src/rxgk/liboafs_rxgk.la"
+		RXGK_LIBS_RPC="\$(top_builddir)/src/rxgk/libafsrpc_rxgk.la"
+		RXGK_LIBS_STATIC="\${TOP_LIBDIR}/librxgk.a"
+		RXGK_CFLAGS="\$(CPPFLAGS_gssapi)"
+		RXGK_GSSAPI_LIBS="\$(LIB_gssapi)"
+dnl We need an embedded newline here to avoid empty lines in .la.sym files.
+dnl libtool chokes on blank lines in such files.
+		rxgk_GetServerInfo="rxgk_GetServerInfo
+"
+		AC_DEFINE(ENABLE_RXGK, 1,
+			  [Build rxgk support into applications])
+	else
+		AC_MSG_ERROR([Insufficient GSS-API support to enable rxgk])
+	fi
+else
+	BUILD_RXGK="no"
+fi
+dnl Build the code if there's enough of a gss library, for buildbot coverage
+if test "$BUILD_GSSAPI" = yes; then
+	RXGK_FINALE_TARGET="rxgk"
+fi
+AC_SUBST(BUILD_RXGK)
+AC_SUBST(RXGK_TARGET)
+AC_SUBST(RXGK_FINALE_TARGET)
+AC_SUBST(RXGK_LIBS)
+AC_SUBST(RXGK_LIBS_RPC)
+AC_SUBST(RXGK_LIBS_STATIC)
+AC_SUBST(RXGK_CFLAGS)
+AC_SUBST(RXGK_GSSAPI_LIBS)
+AC_SUBST(rxgk_GetServerInfo)
+
 dnl Checks for summary
 OPENAFS_SUMMARY_CHECK_NAMEI
 
