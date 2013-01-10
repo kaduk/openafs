@@ -129,6 +129,23 @@ dnl We only need gssapi for rxgk (at this point).  rxgk requires pseudo_random.
 AC_SUBST([BUILD_GSSAPI])
 AC_SUBST([MAKE_GSSAPI])
 
+MAKE_RXGK="#"
+dnl Now that we know about GSSAPI, we can check if rxgk is buildable
+if test "$enable_rxgk" = yes; then
+	if test "$BUILD_GSSAPI" = yes; then
+		BUILD_RXGK="yes"
+		MAKE_RXGK=""
+		AC_DEFINE(ENABLE_RXGK, 1,
+			  [Build rxgk support into applications])
+	else
+		AC_MSG_ERROR([Insufficient GSS-API support to enable rxgk])
+	fi
+else
+	BUILD_RXGK="no"
+fi
+AC_SUBST(BUILD_RXGK)
+AC_SUBST(MAKE_RXGK)
+
 dnl Checks for summary
 OPENAFS_SUMMARY_CHECK_NAMEI
 
