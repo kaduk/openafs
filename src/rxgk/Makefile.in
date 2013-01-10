@@ -5,7 +5,8 @@ include @TOP_OBJDIR@/src/config/Makefile.libtool
 
 INCLS=	${TOP_INCDIR}/rx/rx.h ${TOP_INCDIR}/rx/xdr.h
 
-LT_objs =   rxgk_client.lo rxgk_common.lo rxgk_server.lo rxgk_errs.lo
+LT_objs =   rxgk_client.lo rxgk_common.lo rxgk_server.lo rxgk_errs.lo \
+	    rxgk_procs.lo
 
 LT_deps =   $(top_builddir)/src/opr/liboafs_opr.la \
 	    $(top_builddir)/src/comerr/liboafs_comerr.la \
