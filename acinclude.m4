@@ -176,6 +176,13 @@ AC_ARG_ENABLE([kauth],
     [enable_kauth="no"
      enable_pam="no"])
 
+dnl modern crypto
+AC_ARG_ENABLE([rxgk],
+    [AS_HELP_STRING([--enable-rxgk],
+        [Include experimental support for the RXGK security class (defaults to disabled)])],
+    ,
+    [enable_rxgk="no"])
+
 dnl Optimization and debugging flags.
 AC_ARG_ENABLE([strip-binaries],
     [AS_HELP_STRING([--disable-strip-binaries],

@@ -122,6 +122,39 @@ dnl We only need gssapi for rxgk (at this point).  rxgk requires pseudo_random.
 ])
 AC_SUBST([BUILD_GSSAPI])
 
+ENABLE_RXGK="no"
+RXGK_TARGET=""
+RXGK_LIBS=""
+RXGK_LIBS_RPC=""
+RXGK_LIBS_STATIC=""
+RXGK_CFLAGS=""
+RXGK_GSSAPI_LIBS=""
+dnl Now that we know about GSSAPI, we can check if rxgk is buildable
+if test "$enable_rxgk" = yes; then
+	if test "$BUILD_GSSAPI" = yes; then
+		ENABLE_RXGK="yes"
+		RXGK_TARGET="rxgk"
+		RXGK_LIBS="\$(top_builddir)/src/rxgk/liboafs_rxgk.la"
+		RXGK_LIBS_RPC="\$(top_builddir)/src/rxgk/librxgk_pic.la"
+		RXGK_LIBS_STATIC="\${TOP_LIBDIR}/librxgk.a"
+		RXGK_CFLAGS="\$(CPPFLAGS_gssapi)"
+		RXGK_GSSAPI_LIBS="\$(LDFLAGS_gssapi) \$(LIB_gssapi)"
+		AC_DEFINE(ENABLE_RXGK, 1,
+			  [Build rxgk support into applications])
+	else
+		AC_MSG_ERROR([Insufficient GSS-API support to enable rxgk])
+	fi
+else
+	ENABLE_RXGK="no"
+fi
+AC_SUBST(ENABLE_RXGK)
+AC_SUBST(RXGK_TARGET)
+AC_SUBST(RXGK_LIBS)
+AC_SUBST(RXGK_LIBS_RPC)
+AC_SUBST(RXGK_LIBS_STATIC)
+AC_SUBST(RXGK_CFLAGS)
+AC_SUBST(RXGK_GSSAPI_LIBS)
+
 dnl Checks for summary
 OPENAFS_SUMMARY_CHECK_NAMEI
 
