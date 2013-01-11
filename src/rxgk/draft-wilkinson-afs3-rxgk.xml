@@ -144,9 +144,9 @@ const RXGK_SERVER_ENC_TOKEN		= 1036;
      being transmitted.
 <artwork>
 enum RXGK_Level {
-    RXGK_LEVEL_CLEAR = 0;
-    RXGK_LEVEL_AUTH = 1;
-    RXGK_LEVEL_CRYPT = 2;
+    RXGK_LEVEL_CLEAR = 0,
+    RXGK_LEVEL_AUTH = 1,
+    RXGK_LEVEL_CRYPT = 2
 };
 </artwork>
 </t>
