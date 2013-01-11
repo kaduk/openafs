@@ -878,6 +878,7 @@ ec RXGK_NOTAUTH, "Caller not authorized"
 ec RXGK_BAD_TOKEN, "Security object was passed a bad token"
 ec RXGK_SEALED_INCON, "Sealed data inconsistent"
 ec RXGK_DATA_LEN, "User data too long"
+end
 </artwork>
      <t>The error table base should be 1233242880, with codes within the
         table assigned relative numbers starting from 0 in the order
