@@ -11,6 +11,7 @@ afs_xdr_pointer
 afs_xdr_short
 afs_xdr_string
 afs_xdr_u_char
+afs_xdr_u_int
 afs_xdr_u_short
 afs_xdr_vector
 afs_xdrmem_create
