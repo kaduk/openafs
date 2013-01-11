@@ -37,6 +37,9 @@
 
 #include <rx/rxgk.h>
 
+/* Must use osi_alloc to allocate data for output structures.
+ * It will be freed by the server-side stub code using osi_free. */
+
 afs_int32
 SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 		   RXGK_Data *input_token_buffer, RXGK_Data *opaque_in,
@@ -44,17 +47,51 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 		   u_int *gss_major_status, u_int *gss_minor_status,
 		   RXGK_Data *rxgk_info)
 {
-    /* XXXBJK */
-    output_token_buffer->len = 0;
-    output_token_buffer->val = NULL;
-    opaque_out->len = 0;
-    opaque_out->val = NULL;
+    afs_int32 ret = 0;
+    size_t len;
+    char *tmp;
+
+    /* XXXBJK This routine is a stub implementation */
+
+    /* fill output_token_buffer */
+    len = 8;
+    tmp = osi_alloc(len);
+    if (tmp == NULL) {
+        ret = RXGEN_SS_MARSHAL;
+        goto fail;
+    }
+    memcpy(tmp, "KADUKtok", len);
+    output_token_buffer->len = len;
+    output_token_buffer->val = tmp;
+
+    /* fill opaque_out */
+    len = 12;
+    tmp = osi_alloc(len);
+    if (tmp == NULL) {
+        ret = RXGEN_SS_MARSHAL;
+        goto fail;
+    }
+    memcpy(tmp, "opaqueOPAQUEopaque", len);
+    opaque_out->len = len;
+    opaque_out->val = tmp;
+
+    /* set the GSS status to dummy values for now */
     *gss_major_status = GSS_S_COMPLETE;
     *gss_minor_status = 0;
-    rxgk_info->len = 0;
-    rxgk_info->val = NULL;
 
-    return 0;
+    /* fill the output rxgk_info */
+    len = 16;
+    tmp = osi_alloc(len);
+    if (tmp == NULL) {
+        ret = RXGEN_SS_MARSHAL;
+        goto fail;
+    }
+    memcpy(tmp, "This should be an encrypted blob but is plaintext", len);
+    rxgk_info->len = len;
+    rxgk_info->val = tmp;
+
+fail:
+    return ret;
 }
 
 
@@ -63,9 +100,24 @@ SRXGK_CombineTokens(struct rx_call *z_call, RXGK_Data *token0,
 		    RXGK_Data *token1, RXGK_CombineOptions *options,
 		    RXGK_Data *new_token, RXGK_TokenInfo *info)
 {
-    /* XXXBJK */
-    new_token->len = 0;
-    new_token->val = NULL;
+    afs_int32 ret = 0;
+    size_t len;
+    char *tmp;
+
+    /* XXXBJK This routine is a stub implementation */
+
+    /* fill in the new_token */
+    len = 8;
+    tmp = osi_alloc(len);
+    if (tmp == NULL) {
+        ret = RXGEN_SS_MARSHAL;
+        goto fail;
+    }
+    memcpy(tmp, "This token has no meaning", len);
+    new_token->len = len;
+    new_token->val = tmp;
+
+    /* what values did we end up with? */
     info->errorcode = RXGK_INCONSISTENCY;
     info->enctype = 1; /* des-cbc-crc */
     info->level = RXGK_LEVEL_CLEAR;
@@ -73,5 +125,6 @@ SRXGK_CombineTokens(struct rx_call *z_call, RXGK_Data *token0,
     info->bytelife = 1;
     info->expiration = 0;
 
-    return 0;
+fail:
+    return ret;
 }
