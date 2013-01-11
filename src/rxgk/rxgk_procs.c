@@ -37,7 +37,7 @@
 
 #include <rx/rxgk.h>
 
-/* Must use osi_alloc to allocate data for output structures.
+/* Must use xdr_alloc to allocate data for output structures.
  * It will be freed by the server-side stub code using osi_free. */
 
 afs_int32
@@ -55,7 +55,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 
     /* fill output_token_buffer */
     len = 8;
-    tmp = osi_alloc(len);
+    tmp = xdr_alloc(len);
     if (tmp == NULL) {
         ret = RXGEN_SS_MARSHAL;
         goto fail;
@@ -66,7 +66,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 
     /* fill opaque_out */
     len = 12;
-    tmp = osi_alloc(len);
+    tmp = xdr_alloc(len);
     if (tmp == NULL) {
         ret = RXGEN_SS_MARSHAL;
         goto fail;
@@ -81,7 +81,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 
     /* fill the output rxgk_info */
     len = 16;
-    tmp = osi_alloc(len);
+    tmp = xdr_alloc(len);
     if (tmp == NULL) {
         ret = RXGEN_SS_MARSHAL;
         goto fail;
@@ -108,7 +108,7 @@ SRXGK_CombineTokens(struct rx_call *z_call, RXGK_Data *token0,
 
     /* fill in the new_token */
     len = 8;
-    tmp = osi_alloc(len);
+    tmp = xdr_alloc(len);
     if (tmp == NULL) {
         ret = RXGEN_SS_MARSHAL;
         goto fail;
