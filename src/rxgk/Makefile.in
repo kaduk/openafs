@@ -14,7 +14,8 @@ LT_deps =   $(top_builddir)/src/opr/liboafs_opr.la \
 	    $(top_builddir)/src/comerr/liboafs_comerr.la \
 	    $(top_builddir)/src/rx/liboafs_rx.la
 
-all: depinstall rxgk_int.cs.c rxgk_int.ss.c rxgk_int.xdr.c rxgk_int.h ${LT_objs}
+all: depinstall rxgk_int.cs.c rxgk_int.ss.c rxgk_int.xdr.c rxgk_int.h \
+	${LT_objs} rxgkd
 
 generated: \
 	rxgk_errs.h rxgk_errs.c rxgk_int.cx.c rxgk_int.xdr.c rxgk_int.ss.c
@@ -60,6 +61,11 @@ rxgk_errs.c: rxgk_errs.et
 	$(RM) -f rxgk_errs.h rxgk_errs.c
 	${COMPILE_ET} -p ${srcdir} rxgk_errs
 
+rxgkd: ${INCLS} liboafs_rxgk.la rxgk_procs.o rxgkd.o \
+		rxgk_int.ss.o rxgk_int.xdr.o
+	$(LT_LDRULE_static) rxgkd.o rxgk_procs.o rxgk_int.ss.o rxgk_int.xdr.o \
+		liboafs_rxgk.la ${LIB_roken}
+
 #
 # Installation targets
 #
@@ -74,7 +80,7 @@ dest: liboafs_rxgk.la
 #
 clean:
 	$(LT_CLEAN)
-	$(RM) -f *.o *.a *.cs.c *.ss.c *.xdr.c
+	$(RM) -f *.o *.a *.cs.c *.ss.c *.xdr.c rxgkd
 	$(RM) -f rxgk_int.h core AFS_component_version_number.c
 
 include ../config/Makefile.version
