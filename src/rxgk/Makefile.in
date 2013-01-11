@@ -3,7 +3,9 @@ include @TOP_OBJDIR@/src/config/Makefile.config
 include @TOP_OBJDIR@/src/config/Makefile.pthread
 include @TOP_OBJDIR@/src/config/Makefile.libtool
 
-INCLS=	${TOP_INCDIR}/rx/rx.h ${TOP_INCDIR}/rx/xdr.h
+INCLS=	${TOP_INCDIR}/rx/rx.h ${TOP_INCDIR}/rx/xdr.h \
+	${TOP_INCDIR}/rx/rxgk.h ${TOP_INCDIR}/rx/rxgk_errs.h \
+	${TOP_INCDIR}/rx/rxgk_int.h
 
 LT_objs =   rxgk_client.lo rxgk_common.lo rxgk_server.lo rxgk_errs.lo \
 	    rxgk_procs.lo
