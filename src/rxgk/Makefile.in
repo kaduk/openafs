@@ -7,8 +7,8 @@ INCLS=	${TOP_INCDIR}/rx/rx.h ${TOP_INCDIR}/rx/xdr.h \
 	${TOP_INCDIR}/rx/rxgk.h ${TOP_INCDIR}/rx/rxgk_errs.h \
 	${TOP_INCDIR}/rx/rxgk_int.h
 
-LT_objs =   rxgk_client.lo rxgk_common.lo rxgk_server.lo rxgk_errs.lo \
-	    rxgk_procs.lo
+LT_objs = rxgk_client.lo rxgk_common.lo rxgk_server.lo rxgk_errs.lo \
+	rxgk_int.cs.lo rxgk_int.xdr.lo rxgk_int.ss.lo rxgk_procs.lo
 
 LT_deps =   $(top_builddir)/src/opr/liboafs_opr.la \
 	    $(top_builddir)/src/comerr/liboafs_comerr.la \
