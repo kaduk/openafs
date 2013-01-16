@@ -34,6 +34,7 @@
  */
 
 #include <gssapi/gssapi.h>
+#include <gssapi/gssapi_krb5.h>
 #include <ctype.h>
 
 #include <afsconfig.h>
@@ -46,16 +47,21 @@
 int
 main(int argc, char *argv[])
 {
+    gss_buffer_desc gss_token_in, gss_token_out, *gss_token_ptr;
+    gss_ctx_id_t gss_ctx;
+    gss_name_t target_name;
     RXGK_StartParams params;
+    /* 'in' and 'out' here are for GSSNegotiate, *not* gss_init_sec_context! */
     RXGK_Data token_out, token_in, opaque_in, opaque_out, info;
-    RXGK_Level level;
     struct rx_securityClass *secobj;
     struct rx_connection *conn;
     unsigned char *data;
+    char *sname = "afs-rxgk/_afs.perfluence.mit.edu@ZONE.MIT.EDU";
     void *tmp;
+    afs_uint32 gss_flags, ret_flags;
     size_t len, i;
-    unsigned int major_status, minor_status, nonce;
-    int ret, etype;
+    unsigned int major_status, minor_status;
+    int ret;
     u_short port = 8888;
     u_short svc = 34567;
     unsigned char c;
@@ -122,8 +128,22 @@ main(int argc, char *argv[])
     params.client_nonce.len = len;
     params.client_nonce.val = tmp;
 
+    /* Set a few things before entering the context-establishment loop. */
     token_in.len = 0;
     token_in.val = NULL;
+    /* The GSS variables, too. */
+    major_status = GSS_S_CONTINUE_NEEDED;
+    gss_ctx = GSS_C_NO_CONTEXT;
+    gss_token_ptr = (gss_buffer_desc *)GSS_C_NO_BUFFER;
+    gss_flags = (GSS_C_MUTUAL_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG ) &
+		~GSS_C_DELEG_FLAG;
+    gss_token_in.value = sname;
+    gss_token_in.length = strlen(sname);
+    major_status = gss_import_name(&minor_status, &gss_token_in,
+				   GSS_C_NT_HOSTBASED_SERVICE,
+				   &target_name);
+    gss_token_in.value = NULL;
+    gss_token_in.length = 0;
 
     /* For the first call to GSSNegotiate(), there is no input opaque token. */
     opaque_in.len = 0;
@@ -137,22 +157,60 @@ main(int argc, char *argv[])
     info.len = 0;
     info.val = NULL;
 
-    /* Actual RPC call */
-    ret = RXGK_GSSNegotiate(conn, &params, &token_in, &opaque_in, &token_out,
-			    &opaque_out, &major_status, &minor_status, &info);
+    /*
+     * The negotiation loop to establish a security context and generate
+     * a token.
+     */
+    do  {
+	major_status = gss_init_sec_context(&minor_status,
+					    GSS_C_NO_CREDENTIAL,
+					    &gss_ctx, target_name,
+					    (gss_OID)gss_mech_krb5,
+					    gss_flags,
+					    0 /* time */,
+					    NULL /* channel bindings */,
+					    gss_token_ptr,
+					    NULL /* actual mech type */,
+					    &gss_token_in, &ret_flags,
+					    NULL /* time_rec */);
 
-    if (ret != 0) {
-	dprintf(2, "GSSNegotiate returned %i\n", ret);
-	exit(1);
-    }
+	/* XXX error checking here */
 
-    /* Decode the reply and print it to the user */
+	token_in.len = gss_token_in.length;
+	token_in.val = gss_token_in.value;
+
+	/* Actual RPC call */
+	ret = RXGK_GSSNegotiate(conn, &params, &token_in, &opaque_in,
+				&token_out, &opaque_out, &major_status,
+				&minor_status, &info);
+
+	if (ret != 0) {
+	    dprintf(2, "GSSNegotiate returned %i\n", ret);
+	    exit(1);
+	}
+
+	/* Decode the reply and print it to the user */
+	if (major_status != GSS_S_COMPLETE) {
+	    printf("GSS negotiation incomplete, major %i minor %i\n",
+		   major_status, minor_status);
+	} else {
+	    printf("GSS negotiation finished, major %i minor %i\n",
+		   major_status, minor_status);
+	}
+
+	/* Prepare for a possible next cycle */
+	opaque_in.len = opaque_out.len;
+	opaque_in.val = opaque_out.val;
+	gss_token_out.length = token_out.len;
+	gss_token_out.value = token_out.val;
+	gss_token_ptr = &gss_token_out;
+    } while(major_status == GSS_S_CONTINUE_NEEDED);
+    /* end negotiation loop */
+
     if (major_status != GSS_S_COMPLETE) {
-	printf("GSS negotiation incomplete, major %i minor %i\n",
-	       major_status, minor_status);
-    } else {
-	printf("GSS negotiation successful, major %i minor %i\n",
-	       major_status, minor_status);
+	dprintf(2, "GSS negotiation failed, major %i minor %i\n",
+		major_status, minor_status);
+	exit(2);
     }
 
     printf("GSSNegotiate returned info of length %zu\n", info.len);

@@ -68,7 +68,7 @@ rxgkd: ${INCLS} liboafs_rxgk.la rxgk_procs.o rxgkd.o \
 
 ndebug: ${INCLS} liboafs_rxgk.la ndebug.o rxgk_int.cs.o rxgk_int.xdr.o
 	$(LT_LDRULE_static) ndebug.o rxgk_int.cs.o rxgk_int.xdr.o \
-		liboafs_rxgk.la
+		liboafs_rxgk.la -lgssapi_krb5
 
 #
 # Installation targets
