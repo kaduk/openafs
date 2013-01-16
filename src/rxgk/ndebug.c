@@ -38,6 +38,7 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
+#include <hcrypto/rand.h>
 
 #include <rx/rx.h>
 #include <rx/rxgk.h>
@@ -51,7 +52,8 @@ main(int argc, char *argv[])
     struct rx_securityClass *secobj;
     struct rx_connection *conn;
     unsigned char *data;
-    size_t i;
+    void *tmp;
+    size_t len, i;
     unsigned int major_status, minor_status, nonce;
     int ret, etype;
     u_short port = 8888;
@@ -74,22 +76,56 @@ main(int argc, char *argv[])
     }
 
     /* prepare arguments for GSSNegotiate */
-    /* XXXBJK dummy arguments for now */
-    etype = 1;		/* des-cbc-crc */
-    params.enctypes.len = 1;
-    params.enctypes.val = &etype;
-    level = RXGK_LEVEL_CLEAR;
-    params.levels.len = 1;
-    params.levels.val = &level;
-    params.lifetime = 2;
-    params.bytelife = 2;
-    nonce = 0x41328576;
-    params.client_nonce.len = 1;
-    params.client_nonce.val = &nonce;
+    /* enctypes */
+    len = 3;
+    tmp = malloc(len * sizeof(int));
+    if (tmp == NULL) {
+	dprintf(2, "couldn't allocate for params.enctypes\n");
+	exit(1);
+    }
+    params.enctypes.len = len;
+    params.enctypes.val = tmp;
+    params.enctypes.val[0] = ENCTYPE_AES256_CTS_HMAC_SHA1_96;
+    params.enctypes.val[1] = ENCTYPE_AES128_CTS_HMAC_SHA1_96;
+    params.enctypes.val[2] = ENCTYPE_DES_CBC_CRC;
+   
+    /* security levels */
+    len = 3;
+    tmp = malloc(len * sizeof(RXGK_Level));
+    if (tmp == NULL) {
+	dprintf(2, "couldn't allocate for params.levels\n");
+	exit(1);
+    }
+    params.levels.len = len;
+    params.levels.val = tmp;
+    params.levels.val[0] = RXGK_LEVEL_CRYPT;
+    params.levels.val[0] = RXGK_LEVEL_AUTH;
+    params.levels.val[0] = RXGK_LEVEL_CLEAR;
+
+    /* lifetimes (advisory) */
+    params.lifetime = 60 * 60 * 10;	/* 10 hours */
+    params.bytelife = 30;		/* 1 GiB */
+
+    /* use a random nonce */
+    len = 20;
+    tmp = malloc(len);
+    if (tmp == NULL) {
+	dprintf(2, "couldn't allocate for params.client_nonce\n");
+	exit(1);
+    }
+    ret = RAND_bytes(tmp, len);
+    /* RAND_bytes returns 1 on success, sigh. */
+    if (ret != 1) {
+	dprintf(2, "no random data for client_nonce\n");
+	exit(1);
+    }
+    params.client_nonce.len = len;
+    params.client_nonce.val = tmp;
 
     token_in.len = 0;
     token_in.val = NULL;
 
+    /* For the first call to GSSNegotiate(), there is no input opaque token. */
     opaque_in.len = 0;
     opaque_in.val = NULL;
 
