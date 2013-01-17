@@ -175,6 +175,8 @@ main(int argc, char *argv[])
 					    NULL /* time_rec */);
 
 	/* XXX error checking here */
+	dprintf(2, "GSS init sec context status major %i minor %i\n",
+		major_status, minor_status);
 
 	token_in.len = gss_token_in.length;
 	token_in.val = gss_token_in.value;
