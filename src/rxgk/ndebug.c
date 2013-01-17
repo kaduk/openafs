@@ -56,7 +56,7 @@ main(int argc, char *argv[])
     struct rx_securityClass *secobj;
     struct rx_connection *conn;
     unsigned char *data;
-    char *sname = "afs-rxgk/_afs.perfluence.mit.edu@ZONE.MIT.EDU";
+    char *sname = "afs-rxgk@_afs.perfluence.mit.edu";
     void *tmp;
     afs_uint32 gss_flags, ret_flags;
     size_t len, i;
