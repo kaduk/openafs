@@ -44,6 +44,60 @@
 #include <rx/rx.h>
 #include <rx/rxgk.h>
 
+static int
+fill_start_params(RXGK_StartParams *params)
+{
+    void *tmp;
+    size_t len;
+    int ret;
+
+    /* enctypes */
+    len = 3;
+    tmp = malloc(len * sizeof(int));
+    if (tmp == NULL) {
+	dprintf(2, "couldn't allocate for params.enctypes\n");
+	return 1;
+    }
+    params->enctypes.len = len;
+    params->enctypes.val = tmp;
+    params->enctypes.val[0] = ENCTYPE_AES256_CTS_HMAC_SHA1_96;
+    params->enctypes.val[1] = ENCTYPE_AES128_CTS_HMAC_SHA1_96;
+    params->enctypes.val[2] = ENCTYPE_DES_CBC_CRC;
+   
+    /* security levels */
+    len = 3;
+    tmp = malloc(len * sizeof(RXGK_Level));
+    if (tmp == NULL) {
+	dprintf(2, "couldn't allocate for params.levels\n");
+	return 1;
+    }
+    params->levels.len = len;
+    params->levels.val = tmp;
+    params->levels.val[0] = RXGK_LEVEL_CRYPT;
+    params->levels.val[0] = RXGK_LEVEL_AUTH;
+    params->levels.val[0] = RXGK_LEVEL_CLEAR;
+
+    /* lifetimes (advisory) */
+    params->lifetime = 60 * 60 * 10;	/* 10 hours */
+    params->bytelife = 30;		/* 1 GiB */
+
+    /* use a random nonce */
+    len = 20;
+    tmp = malloc(len);
+    if (tmp == NULL) {
+	dprintf(2, "couldn't allocate for params.client_nonce\n");
+	return 1;
+    }
+    ret = RAND_bytes(tmp, len);
+    /* RAND_bytes returns 1 on success, sigh. */
+    if (ret != 1) {
+	dprintf(2, "no random data for client_nonce\n");
+	return 1;
+    }
+    params->client_nonce.len = len;
+    params->client_nonce.val = tmp;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -57,9 +111,8 @@ main(int argc, char *argv[])
     struct rx_connection *conn;
     unsigned char *data;
     char *sname = "afs-rxgk@_afs.perfluence.mit.edu";
-    void *tmp;
     afs_uint32 gss_flags, ret_flags;
-    size_t len, i;
+    size_t i;
     unsigned int major_status, minor_status;
     int ret;
     u_short port = 8888;
@@ -82,51 +135,7 @@ main(int argc, char *argv[])
     }
 
     /* prepare arguments for GSSNegotiate */
-    /* enctypes */
-    len = 3;
-    tmp = malloc(len * sizeof(int));
-    if (tmp == NULL) {
-	dprintf(2, "couldn't allocate for params.enctypes\n");
-	exit(1);
-    }
-    params.enctypes.len = len;
-    params.enctypes.val = tmp;
-    params.enctypes.val[0] = ENCTYPE_AES256_CTS_HMAC_SHA1_96;
-    params.enctypes.val[1] = ENCTYPE_AES128_CTS_HMAC_SHA1_96;
-    params.enctypes.val[2] = ENCTYPE_DES_CBC_CRC;
-   
-    /* security levels */
-    len = 3;
-    tmp = malloc(len * sizeof(RXGK_Level));
-    if (tmp == NULL) {
-	dprintf(2, "couldn't allocate for params.levels\n");
-	exit(1);
-    }
-    params.levels.len = len;
-    params.levels.val = tmp;
-    params.levels.val[0] = RXGK_LEVEL_CRYPT;
-    params.levels.val[0] = RXGK_LEVEL_AUTH;
-    params.levels.val[0] = RXGK_LEVEL_CLEAR;
-
-    /* lifetimes (advisory) */
-    params.lifetime = 60 * 60 * 10;	/* 10 hours */
-    params.bytelife = 30;		/* 1 GiB */
-
-    /* use a random nonce */
-    len = 20;
-    tmp = malloc(len);
-    if (tmp == NULL) {
-	dprintf(2, "couldn't allocate for params.client_nonce\n");
-	exit(1);
-    }
-    ret = RAND_bytes(tmp, len);
-    /* RAND_bytes returns 1 on success, sigh. */
-    if (ret != 1) {
-	dprintf(2, "no random data for client_nonce\n");
-	exit(1);
-    }
-    params.client_nonce.len = len;
-    params.client_nonce.val = tmp;
+    ret = fill_start_params(&params);
 
     /* Set a few things before entering the context-establishment loop. */
     token_in.len = 0;
