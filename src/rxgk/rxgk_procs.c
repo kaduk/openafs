@@ -150,13 +150,21 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     ret = get_creds(gss_minor_status, &creds);
     if (ret != 0) {
 	dprintf(2, "No credentials!\n");
+	printf("get_creds gives major %i minor %i\n",
+	       ret, *gss_minor_status);
 	return RXGK_INCONSISTENCY;
     }
 
     /* prepare the input token */
     if (input_token_buffer->len > 0) {
+	printf("using client-supplied input token of length %i\n",
+	       input_token_buffer->len);
 	gss_token_in.length = input_token_buffer->len;
 	gss_token_in.value = input_token_buffer->val;
+    } else {
+	printf("no input token\n");
+	gss_token_in.length = 0;
+	gss_token_in.value = NULL;
     }
 
     /* Call into GSS */
