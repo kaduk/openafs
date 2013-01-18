@@ -186,9 +186,14 @@ main(int argc, char *argv[])
 	/* XXX error checking here */
 	dprintf(2, "GSS init sec context status major %i minor %i\n",
 		major_status, minor_status);
+	if (major_status == GSS_S_BAD_MECH) {
+	    printf("init sec context bad mech, exiting\n");
+	    exit(1);
+	}
 
 	token_in.len = gss_token_in.length;
 	token_in.val = gss_token_in.value;
+	printf("init_sec_context token length %i\n", gss_token_in.length);
 
 	/* Actual RPC call */
 	ret = RXGK_GSSNegotiate(conn, &params, &token_in, &opaque_in,
