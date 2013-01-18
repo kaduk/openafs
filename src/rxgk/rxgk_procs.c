@@ -79,28 +79,41 @@ get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
 {
     gss_buffer_desc name_buf;
     gss_name_t sname;
+    gss_OID_set mechs;
+    gss_OID mech0;
     afs_int32 ret;
     char *name = "afs-rxgk@_afs.perfluence.mit.edu";
+    int i;
 
     /* Tell gssapi-krb5 where to find the keytab. */
     krb5_gss_register_acceptor_identity(
 	"/Users/kaduk/openafs/perfluence-keytab");
 
     name_buf.value = name;
-    name_buf.length = strlen(name) + 1;
+    name_buf.length = strlen(name);
     ret = gss_import_name(minor_status, &name_buf, GSS_C_NT_HOSTBASED_SERVICE,
 			  &sname);
     if (ret != 0)
 	return ret;
 
     /* Actually get creds. */
-    ret = gss_acquire_cred(minor_status, sname, 0 /* time */,
-			    GSS_C_NO_OID_SET, GSS_C_ACCEPT, creds,
-			    NULL /* actual mechs */, NULL /* time rec */);
+    ret = gss_acquire_cred(minor_status, GSS_C_NO_NAME, 0 /* time */,
+			    gss_mech_set_krb5, GSS_C_ACCEPT, creds,
+			    &mechs /* actual mechs */, NULL /* time rec */);
     if (ret != 0)
 	return ret;
 
     /* (void)gss_release_name(minor_status, &sname); */
+
+    printf("actual mechs count %i\n", mechs->count);
+    mech0 = mechs->elements;
+    /* mech0++; */
+    printf("firxt mech length %i\n", mech0->length);
+    for(i = 0; i < mech0->length; ++i) {
+	unsigned char *c = mech0->elements;
+	c += i;
+	printf("%x\n", *c);
+    }
 
     *minor_status = 0;
     return 0;

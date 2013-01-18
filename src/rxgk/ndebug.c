@@ -146,6 +146,7 @@ main(int argc, char *argv[])
     gss_token_ptr = (gss_buffer_desc *)GSS_C_NO_BUFFER;
     gss_flags = (GSS_C_MUTUAL_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG ) &
 		~GSS_C_DELEG_FLAG;
+    gss_flags = 0;
     gss_token_in.value = sname;
     gss_token_in.length = strlen(sname);
     major_status = gss_import_name(&minor_status, &gss_token_in,
