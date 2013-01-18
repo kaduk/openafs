@@ -185,6 +185,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     /* fill output_token_buffer */
     if (gss_token_out.length > 0) {
 	len = gss_token_out.length;
+	printf("Filling output_token_buffer with length %i\n", len);
 	tmp = xdr_alloc(len);
 	if (tmp == NULL) {
 	    ret = RXGEN_SS_MARSHAL;
