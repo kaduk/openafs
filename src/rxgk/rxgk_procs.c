@@ -80,7 +80,6 @@ get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
     gss_buffer_desc name_buf;
     gss_name_t sname;
     gss_OID_set mechs;
-    gss_OID mech0;
     afs_int32 ret;
     char *name = "afs-rxgk@_afs.perfluence.mit.edu";
     int i;
@@ -104,16 +103,6 @@ get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
 	return ret;
 
     /* (void)gss_release_name(minor_status, &sname); */
-
-    printf("actual mechs count %i\n", mechs->count);
-    mech0 = mechs->elements;
-    /* mech0++; */
-    printf("firxt mech length %i\n", mech0->length);
-    for(i = 0; i < mech0->length; ++i) {
-	unsigned char *c = mech0->elements;
-	c += i;
-	printf("%x\n", *c);
-    }
 
     *minor_status = 0;
     return 0;
