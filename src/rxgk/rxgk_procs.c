@@ -87,7 +87,7 @@ get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
 
     /* Tell gssapi-krb5 where to find the keytab. */
     krb5_gss_register_acceptor_identity(
-	"/Users/kaduk/openafs/perfluence-keytab");
+	"/Users/kaduk/openafs/perfluence.keytab");
 
     name_buf.value = name;
     name_buf.length = strlen(name);
