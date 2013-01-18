@@ -191,6 +191,11 @@ main(int argc, char *argv[])
 	    printf("init sec context bad mech, exiting\n");
 	    exit(1);
 	}
+	if (GSS_ERROR(major_status)) {
+	    printf("init sec context in error, major %i minor %i\n",
+		   major_status, minor_status);
+	    exit(1);
+	}
 
 	token_in.len = gss_token_in.length;
 	token_in.val = gss_token_in.value;
