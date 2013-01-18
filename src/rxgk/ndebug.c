@@ -223,9 +223,9 @@ main(int argc, char *argv[])
 	/* Prepare for a possible next cycle */
 	opaque_in.len = opaque_out.len;
 	opaque_in.val = opaque_out.val;
-	gss_token_out.length = token_out.len;
-	gss_token_out.value = token_out.val;
-	gss_token_ptr = &gss_token_out;
+	gss_token_in.length = token_out.len;
+	gss_token_in.value = token_out.val;
+	gss_token_ptr = &gss_token_in;
     } while(major_status == GSS_S_CONTINUE_NEEDED);
     /* end negotiation loop */
 
