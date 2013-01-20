@@ -214,6 +214,8 @@ main(int argc, char *argv[])
 	}
 	/* Done with token_out. */
 	xdr_free((xdrproc_t)xdr_RXGK_Data, &token_out);
+	if (major_status == GSS_S_COMPLETE && gss_token_in.length == 0)
+	    break;
 
 	/* Translate from gss_buffer to RXGK_Data. GSS still owns the storage
 	 * and we must use gss_release_buffer() later. */
@@ -250,7 +252,8 @@ main(int argc, char *argv[])
 	gss_token_out.length = token_out.len;
 	gss_token_out.value = token_out.val;
 	gss_token_ptr = &gss_token_out;
-    } while(major_status == GSS_S_CONTINUE_NEEDED);
+    } while(major_status == GSS_S_CONTINUE_NEEDED ||
+	    token_out.len > 0);
     /* end negotiation loop */
 
     if (major_status != GSS_S_COMPLETE) {
