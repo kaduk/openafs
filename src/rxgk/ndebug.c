@@ -98,19 +98,45 @@ fill_start_params(RXGK_StartParams *params)
     params->client_nonce.val = tmp;
 }
 
+static afs_uint32
+get_server_name(afs_uint32 *minor_status, gss_name_t *target_name)
+{
+    gss_buffer_desc name_tmp;
+    char *sname = "afs-rxgk@_afs.perfluence.mit.edu";
+
+    name_tmp.value = sname;
+    name_tmp.length = strlen(sname);
+    return gss_import_name(minor_status, &name_tmp,
+			   GSS_C_NT_HOSTBASED_SERVICE,
+			   target_name);
+}
+
+static void
+zero_data(RXGK_Data *data)
+{
+    data->len = 0;
+    data->val = NULL;
+}
+
 int
 main(int argc, char *argv[])
 {
+    /*
+     * We have both gss_buffer and RXGK_Data copies of the token_in and
+     * token_out structures (the 'in' and 'out' are with respect to the
+     * GSSNegotiate RPC, not gss_init_sec_context!).  token_out is allocated
+     * by the XDR routines and must be freed by them,  and token_in is
+     * allocated in gss_init_sec_context and must be freed with
+     * gss_release_buffer.
+     */
     gss_buffer_desc gss_token_in, gss_token_out, *gss_token_ptr;
     gss_ctx_id_t gss_ctx;
     gss_name_t target_name;
     RXGK_StartParams params;
-    /* 'in' and 'out' here are for GSSNegotiate, *not* gss_init_sec_context! */
     RXGK_Data token_out, token_in, opaque_in, opaque_out, info;
     struct rx_securityClass *secobj;
     struct rx_connection *conn;
     unsigned char *data;
-    char *sname = "afs-rxgk@_afs.perfluence.mit.edu";
     afs_uint32 gss_flags, ret_flags;
     size_t i;
     unsigned int major_status, minor_status;
@@ -134,38 +160,33 @@ main(int argc, char *argv[])
 	exit(1);
     }
 
-    /* prepare arguments for GSSNegotiate */
-    ret = fill_start_params(&params);
-
-    /* Set a few things before entering the context-establishment loop. */
-    token_in.len = 0;
-    token_in.val = NULL;
-    /* The GSS variables, too. */
-    major_status = GSS_S_CONTINUE_NEEDED;
-    gss_ctx = GSS_C_NO_CONTEXT;
-    gss_token_ptr = (gss_buffer_desc *)GSS_C_NO_BUFFER;
+    /* Prepare things for gss_init_sec_context unchanged by the loop. */
     gss_flags = (GSS_C_MUTUAL_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG ) &
 		~GSS_C_DELEG_FLAG;
-    gss_flags = 0;
-    gss_token_in.value = sname;
-    gss_token_in.length = strlen(sname);
-    major_status = gss_import_name(&minor_status, &gss_token_in,
-				   GSS_C_NT_HOSTBASED_SERVICE,
-				   &target_name);
-    gss_token_in.value = NULL;
-    gss_token_in.length = 0;
+    major_status = get_server_name(&minor_status, &target_name);
+    if (major_status != 0) {
+	dprintf(2, "Could not import server name major %i minor %i\n",
+		major_status, minor_status);
+	exit(1);
+    }
+
+    /* Prepare arguments for GSSNegotiate that are unchanged over the loop. */
+    ret = fill_start_params(&params);
+
+    /* Initialize GSSNegotiate argument that changes in the loop. */
+    zero_data(&token_in);
+
+    /* The GSS variables, too. */
+    gss_ctx = GSS_C_NO_CONTEXT;
+    gss_token_ptr = (gss_buffer_desc *)GSS_C_NO_BUFFER;
 
     /* For the first call to GSSNegotiate(), there is no input opaque token. */
-    opaque_in.len = 0;
-    opaque_in.val = NULL;
+    zero_data(&opaque_in);
 
     /* tell the XDR decoder to allocate space */
-    token_out.len = 0;
-    token_out.val = NULL;
-    opaque_out.len = 0;
-    opaque_out.val = NULL;
-    info.len = 0;
-    info.val = NULL;
+    zero_data(&token_out);
+    zero_data(&opaque_out);
+    zero_data(&info);
 
     /*
      * The negotiation loop to establish a security context and generate
@@ -184,19 +205,18 @@ main(int argc, char *argv[])
 					    &gss_token_in, &ret_flags,
 					    NULL /* time_rec */);
 
-	/* XXX error checking here */
-	dprintf(2, "GSS init sec context status major %i minor %i\n",
-		major_status, minor_status);
-	if (major_status == GSS_S_BAD_MECH) {
-	    printf("init sec context bad mech, exiting\n");
-	    exit(1);
-	}
+	printf("GSS init sec context status major %i minor %i\n",
+	       major_status, minor_status);
 	if (GSS_ERROR(major_status)) {
-	    printf("init sec context in error, major %i minor %i\n",
-		   major_status, minor_status);
+	    dprintf(2, "init sec context in error, major %i minor %i\n",
+		    major_status, minor_status);
 	    exit(1);
 	}
+	/* Done with token_out. */
+	xdr_free((xdrproc_t)xdr_RXGK_Data, &token_out);
 
+	/* Translate from gss_buffer to RXGK_Data. GSS still owns the storage
+	 * and we must use gss_release_buffer() later. */
 	token_in.len = gss_token_in.length;
 	token_in.val = gss_token_in.value;
 	printf("init_sec_context token length %i\n", gss_token_in.length);
@@ -205,7 +225,6 @@ main(int argc, char *argv[])
 	ret = RXGK_GSSNegotiate(conn, &params, &token_in, &opaque_in,
 				&token_out, &opaque_out, &major_status,
 				&minor_status, &info);
-
 	if (ret != 0) {
 	    dprintf(2, "GSSNegotiate returned %i\n", ret);
 	    exit(1);
@@ -216,11 +235,16 @@ main(int argc, char *argv[])
 	    printf("GSS negotiation incomplete, major %i minor %i\n",
 		   major_status, minor_status);
 	} else {
-	    printf("GSS negotiation finished, major %i minor %i\n",
+	    printf("GSSNegotiate finished, major %i minor %i\n",
 		   major_status, minor_status);
+	    printf("Server gave us token of length %i\n", token_out.len);
 	}
+	/* Done with token_in. Down here so as to not spoil minor_status. */
+	zero_data(&token_in);
+	ret = gss_release_buffer(&minor_status, &gss_token_in);
 
 	/* Prepare for a possible next cycle */
+	xdr_free((xdrproc_t)xdr_RXGK_Data, &opaque_in);
 	opaque_in.len = opaque_out.len;
 	opaque_in.val = opaque_out.val;
 	gss_token_out.length = token_out.len;
