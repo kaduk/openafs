@@ -102,7 +102,7 @@ get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
     if (ret != 0)
 	return ret;
 
-    /* (void)gss_release_name(minor_status, &sname); */
+    (void)gss_release_name(minor_status, &sname);
 
     *minor_status = 0;
     return 0;
@@ -181,6 +181,11 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 
     printf("GSS accept_sec_context gives major %i minor %i\n",
 	   *gss_major_status, *gss_minor_status);
+    if (GSS_ERROR(*gss_major_status)) {
+	/* Though the GSS negotiation failed, the RPC shall succeed. */
+	ret = 0;
+	goto out;
+    }
 
     /* fill output_token_buffer */
     if (gss_token_out.length > 0) {
@@ -189,37 +194,45 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 	tmp = xdr_alloc(len);
 	if (tmp == NULL) {
 	    ret = RXGEN_SS_MARSHAL;
-	    goto fail;
+	    goto out;
 	}
 	memcpy(tmp, gss_token_out.value, len);
 	output_token_buffer->len = len;
 	output_token_buffer->val = tmp;
     }
 
-    /* fill opaque_out */
-    local_opaque.gss_ctx = gss_ctx;
-    len = sizeof(local_opaque);
-    tmp = xdr_alloc(len);
-    if (tmp == NULL) {
-        ret = RXGEN_SS_MARSHAL;
-        goto fail;
+    /* If our side is done, we don't need to give anything to the client
+     * for it to give back to us. */
+    if (*gss_major_status != GSS_S_COMPLETE) {
+	/* Continue needed, since our GSS is not in error.
+	 * Fill opaque_out so we have state when the client calls back. */
+	local_opaque.gss_ctx = gss_ctx;
+	len = sizeof(local_opaque);
+	tmp = xdr_alloc(len);
+	if (tmp == NULL) {
+	    ret = RXGEN_SS_MARSHAL;
+	    goto out;
+	}
+	memcpy(tmp, &local_opaque, len);
+	opaque_out->len = len;
+	opaque_out->val = tmp;
+	ret = 0;
+	goto out;
     }
-    memcpy(tmp, &local_opaque, len);
-    opaque_out->len = len;
-    opaque_out->val = tmp;
-
-    /* fill the output rxgk_info */
+    /* else */
+    /* We're done and can generate a token, and fill in rxgk_info. */
     len = 16;
     tmp = xdr_alloc(len);
     if (tmp == NULL) {
-        ret = RXGEN_SS_MARSHAL;
-        goto fail;
+	ret = RXGEN_SS_MARSHAL;
+	goto out;
     }
-    memcpy(tmp, "This should be an encrypted blob but is plaintext", len);
+    memcpy(tmp, "This should be an encrypted blob but is not", len);
     rxgk_info->len = len;
     rxgk_info->val = tmp;
 
-fail:
+out:
+    (void)gss_release_cred(gss_minor_status, &creds);
     return ret;
 }
 
