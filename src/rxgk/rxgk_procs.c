@@ -121,6 +121,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     struct rxgk_opaque local_opaque;
     RXGK_Level level;
     afs_int32 ret = 0;
+    afs_uint32 time_rec;
     size_t len;
     char *tmp;
     int enctype, lifetime, bytelife;
@@ -175,7 +176,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 					       &client_name, NULL,
 					       &gss_token_out,
 					       NULL /* ret flags */,
-					       NULL /* time rec */,
+					       &time_rec,
 					       NULL /* del. cred handle */);
 
     printf("GSS accept_sec_context gives major %i minor %i\n",
