@@ -230,6 +230,8 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     memcpy(tmp, "This should be an encrypted blob but is not", len);
     rxgk_info->len = len;
     rxgk_info->val = tmp;
+    ret = 0;
+    (void)gss_delete_sec_context(gss_minor_status, &gss_ctx, GSS_C_NO_BUFFER);
 
 out:
     (void)gss_release_cred(gss_minor_status, &creds);
