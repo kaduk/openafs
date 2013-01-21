@@ -128,7 +128,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 
     /* See what the client sent us. */
     if (opaque_in->len == 0) {
-	gss_ctx = NULL;
+	gss_ctx = GSS_C_NO_CONTEXT;
     } else {
 	if (opaque_in->len != sizeof(local_opaque)) {
 	    dprintf(2, "Evil client detected\n");
