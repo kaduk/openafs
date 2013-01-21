@@ -81,7 +81,6 @@ get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
     gss_name_t sname;
     afs_int32 ret;
     char *name = "afs-rxgk@_afs.perfluence.mit.edu";
-    int i;
 
     /* Tell gssapi-krb5 where to find the keytab. */
     krb5_gss_register_acceptor_identity(
