@@ -79,7 +79,6 @@ get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
 {
     gss_buffer_desc name_buf;
     gss_name_t sname;
-    gss_OID_set mechs;
     afs_int32 ret;
     char *name = "afs-rxgk@_afs.perfluence.mit.edu";
     int i;
@@ -98,7 +97,7 @@ get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
     /* Actually get creds. */
     ret = gss_acquire_cred(minor_status, GSS_C_NO_NAME, 0 /* time */,
 			    gss_mech_set_krb5, GSS_C_ACCEPT, creds,
-			    &mechs /* actual mechs */, NULL /* time rec */);
+			    NULL /* actual mechs */, NULL /* time rec */);
     if (ret != 0)
 	return ret;
 
@@ -199,6 +198,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 	memcpy(tmp, gss_token_out.value, len);
 	output_token_buffer->len = len;
 	output_token_buffer->val = tmp;
+	(void)gss_release_buffer(gss_minor_status, &gss_token_out);
     }
 
     /* If our side is done, we don't need to give anything to the client
@@ -232,6 +232,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     rxgk_info->val = tmp;
     ret = 0;
     (void)gss_delete_sec_context(gss_minor_status, &gss_ctx, GSS_C_NO_BUFFER);
+    (void)gss_release_name(gss_minor_status, &client_name);
 
 out:
     (void)gss_release_cred(gss_minor_status, &creds);
