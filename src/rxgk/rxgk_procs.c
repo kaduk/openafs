@@ -95,7 +95,7 @@ get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
 
     /* Actually get creds. */
     ret = gss_acquire_cred(minor_status, GSS_C_NO_NAME, 0 /* time */,
-			    gss_mech_set_krb5, GSS_C_ACCEPT, creds,
+			    (gss_OID_set)gss_mech_set_krb5, GSS_C_ACCEPT, creds,
 			    NULL /* actual mechs */, NULL /* time rec */);
     if (ret != 0)
 	return ret;
