@@ -42,4 +42,12 @@
 /* Pull in the protocol description */
 #include <rx/rxgk_int.h>
 
+/* Interface between the rxgkTime type and other types */
+static_inline rxgkTime RXGK_NOW(void)
+{
+    time_t _a = time(0);
+    rxgkTime _b = ((rxgkTime)_a) * 1000 * 10;
+    return _b;
+}
+
 #endif /* OPENAFS_RXGK_H */
