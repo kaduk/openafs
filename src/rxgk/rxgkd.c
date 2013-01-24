@@ -36,6 +36,8 @@
  * themselves.
  */
 
+#include <gssapi/gssapi.h>
+
 #include <afsconfig.h>
 #include <afs/param.h>
 

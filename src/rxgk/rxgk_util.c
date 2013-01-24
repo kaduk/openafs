@@ -38,9 +38,54 @@
 #include <gssapi/gssapi.h>
 #include <rx/rxgk.h>
 
+static ssize_t
+etype_to_len(int etype)
+{
+    /* Should use krb5_c_keylengths, but that requires a krb5_context. */
+
+    switch(etype)
+    {
+	case 1: return 7;
+	case 2: return 7;
+	case 3: return 7;
+	case 5: return 21;
+	case 7: return 21;
+	case 16: return 21;
+	case 17: return 16;
+	case 18: return 32;
+	default: return -1;
+    }
+}
+
 void
 zero_rxgkdata(RXGK_Data *data)
 {
     data->len = 0;
     data->val = NULL;
+}
+
+afs_uint32
+rxgk_make_k0(afs_uint32 *minor_status, gss_ctx_id_t gss_ctx,
+	     RXGK_Data *client_nonce, RXGK_Data *server_nonce, int enctype,
+	     gss_buffer_t key)
+{
+    gss_buffer_desc seed;
+    ssize_t len;
+    afs_uint32 ret;
+
+    len = etype_to_len(enctype);
+    if (len == -1)
+	return GSS_S_FAILURE;
+    seed.length = client_nonce->len + server_nonce->len;
+    seed.value = malloc(seed.length);
+    if (seed.value == NULL)
+	return GSS_S_FAILURE;
+    memcpy(seed.value, client_nonce->val, client_nonce->len);
+    memcpy(seed.value + client_nonce->len, server_nonce->val, server_nonce->len);
+
+    ret = gss_pseudo_random(minor_status, gss_ctx, GSS_C_PRF_KEY_FULL,
+			    &seed, len, key);
+
+    free(seed.value);
+    return ret;
 }

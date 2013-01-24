@@ -52,5 +52,8 @@ static_inline rxgkTime RXGK_NOW(void)
 
 /* rxgk_util.c */
 void zero_rxgkdata(RXGK_Data *data);
+afs_uint32 rxgk_make_k0(afs_uint32 *minor_status, gss_ctx_id_t gss_ctx,
+			RXGK_Data *client_nonce, RXGK_Data *server_nonce,
+			int enctype, gss_buffer_t key);
 
 #endif /* OPENAFS_RXGK_H */
