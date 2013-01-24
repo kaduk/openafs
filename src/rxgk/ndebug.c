@@ -96,6 +96,8 @@ fill_start_params(RXGK_StartParams *params)
     }
     params->client_nonce.len = len;
     params->client_nonce.val = tmp;
+
+    return 0;
 }
 
 static afs_uint32
