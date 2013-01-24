@@ -37,6 +37,7 @@
 #include <gssapi/gssapi_krb5.h>
 
 #include <rx/rxgk.h>
+#include <hcrypto/rand.h>
 
 /* One week */
 #define MAX_LIFETIME	(60 * 60 * 24 * 7)
@@ -106,6 +107,128 @@ get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
     return 0;
 }
 
+/* Allocates its mic parameter, the caller must arrange for it to be freed. */
+static afs_uint32
+mic_startparams(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
+		RXGK_Data *mic, RXGK_StartParams *client_start)
+{
+    XDR xdrs;
+    gss_buffer_desc startparams, mic_buffer;
+    afs_uint32 ret;
+    u_int len;
+    void *tmp = NULL;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+    xdrlen_create(&xdrs);
+    if (!xdr_RXGK_StartParams(&xdrs, client_start)) {
+	ret = GSS_S_FAILURE;
+	dprintf(2, "xdrlen for StartParams says they are invalid\n");
+	goto out;
+    }
+    len = xdr_getpos(&xdrs);
+    xdr_destroy(&xdrs);
+
+    tmp = malloc(len);
+    if (tmp == NULL) {
+	dprintf(2, "Couldn't allocate for encoding StartParams\n");
+	return GSS_S_FAILURE;
+    }
+    xdrmem_create(&xdrs, tmp, len, XDR_ENCODE);
+    if (!xdr_RXGK_StartParams(&xdrs, client_start)) {
+	ret = GSS_S_FAILURE;
+	dprintf(2, "xdrmem for StartParams says they are invalid\n");
+	goto out;
+    }
+
+    /* We have the StartParams encoded in tmp, now get the mic. */
+    startparams.length = len;
+    startparams.value = tmp;
+    ret = gss_get_mic(gss_minor_status, gss_ctx, GSS_C_QOP_DEFAULT, &startparams,
+		      &mic_buffer);
+    if (ret != 0)
+	goto out;
+    mic->len = mic_buffer.length;
+    mic->val = xdr_alloc(mic->len);
+    if (mic->val == NULL) {
+	dprintf(2, "No memory for RXGK_Data mic\n");
+	goto out;
+    }
+    memcpy(mic->val, mic_buffer.value, mic->len);
+    ret = gss_release_buffer(gss_minor_status, &mic_buffer);
+
+out:
+    free(tmp);
+    xdr_destroy(&xdrs);
+    return ret;
+}
+
+static afs_uint32
+pack_clientinfo(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
+		RXGK_Data *rxgk_info, RXGK_ClientInfo *info)
+{
+    XDR xdrs;
+    gss_buffer_desc info_buffer, wrapped;
+    afs_uint32 ret;
+    u_int len;
+    int conf_state;
+    void *tmp = NULL;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+    xdrlen_create(&xdrs);
+    if (!xdr_RXGK_ClientInfo(&xdrs, info)) {
+	ret = GSS_S_FAILURE;
+	dprintf(2, "xdrlen for ClientInfo says they are invalid\n");
+	goto out;
+    }
+    len = xdr_getpos(&xdrs);
+    xdr_destroy(&xdrs);
+
+    tmp = malloc(len);
+    if (tmp == NULL) {
+	dprintf(2, "Couldn't allocate for encoding ClientInfo\n");
+	return GSS_S_FAILURE;
+    }
+    xdrmem_create(&xdrs, tmp, len, XDR_ENCODE);
+    if (!xdr_RXGK_ClientInfo(&xdrs, info)) {
+	ret = GSS_S_FAILURE;
+	dprintf(2, "xdrmem for ClientInfo says they are invalid\n");
+	goto out;
+    }
+
+    info_buffer.length = len;
+    info_buffer.value = tmp;
+    ret = gss_wrap(gss_minor_status, gss_ctx, TRUE, GSS_C_QOP_DEFAULT,
+		   &info_buffer, &conf_state, &wrapped);
+    if (ret == 0 && conf_state == 0) {
+	(void)gss_release_buffer(gss_minor_status, &wrapped);
+	ret = GSS_S_FAILURE;
+    }
+    if (ret != 0)
+	goto out;
+
+    rxgk_info->val = xdr_alloc(wrapped.length);
+    if (rxgk_info->val == NULL) {
+	dprintf(2, "No memory for wrapped ClientInfo\n");
+	ret = GSS_S_FAILURE;
+	goto out;
+    }
+    rxgk_info->len = wrapped.length;
+    memcpy(rxgk_info->val, wrapped.value, wrapped.length);
+    ret = gss_release_buffer(gss_minor_status, &wrapped);
+
+out:
+    free(tmp);
+    xdr_destroy(&xdrs);
+    return ret;
+}
+
+static void
+zero_data(RXGK_Data *data)
+{
+    data->len = 0;
+    data->val = NULL;
+}
+
 afs_int32
 SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 		   RXGK_Data *input_token_buffer, RXGK_Data *opaque_in,
@@ -118,12 +241,16 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     gss_ctx_id_t gss_ctx;
     gss_name_t client_name;
     struct rxgk_opaque local_opaque;
+    RXGK_ClientInfo info;
     RXGK_Level level;
+    rxgkTime start_time;
     afs_int32 ret = 0;
     afs_uint32 time_rec;
     size_t len;
     char *tmp;
     int enctype, lifetime, bytelife;
+
+    start_time = RXGK_NOW();
 
     /* See what the client sent us. */
     if (opaque_in->len == 0) {
@@ -221,16 +348,49 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     }
     /* else */
     /* We're done and can generate a token, and fill in rxgk_info. */
-    len = 16;
+    printf("time_rec is %u\n", time_rec);
+    printf("start_time is %llu\n", start_time);
+    info.errorcode = 0;
+    info.enctype = enctype;
+    info.level = level;
+    info.lifetime = lifetime;
+    info.bytelife = bytelife;
+    info.expiration = start_time + time_rec * 1000 * 10;
+    if ((RXGK_NOW() - start_time) > 50000) {
+	/* We've been processing for 5 seconds?! */
+	dprintf(2, "extended SRXGK_GSSNegotiation processing\n");
+	/* five minutes only */
+	info.expiration = start_time + 5 * 60 * 1000 * 10;
+    }
+    if (RXGK_NOW() < start_time) {
+	/* time went backwards */
+	info.expiration = RXGK_NOW() + 5 * 60 * 1000 * 10;
+    }
+    len = 20;
     tmp = xdr_alloc(len);
     if (tmp == NULL) {
 	ret = RXGEN_SS_MARSHAL;
 	goto out;
     }
-    memcpy(tmp, "This should be an encrypted blob but is not", len);
-    rxgk_info->len = len;
-    rxgk_info->val = tmp;
-    ret = 0;
+    ret = RAND_bytes(tmp, len);
+    /* RAND_bytes returns 1 on success, sigh. */
+    if (ret != 1) {
+	dprintf(2, "no random data for server_nonce\n");
+	return 1;
+    }
+    info.server_nonce.len = len;
+    info.server_nonce.val = tmp;
+    ret = mic_startparams(gss_minor_status, gss_ctx, &info.mic, client_start);
+    if (ret != 0)
+	goto out;
+    /* Token not implemented yet. */
+    zero_data(&info.token);
+
+    /* Wrap the ClientInfo response and pack it as an RXGK_Data. */
+    ret = pack_clientinfo(gss_minor_status, gss_ctx, rxgk_info, &info);
+    if (ret != 0)
+	goto out;
+
     (void)gss_delete_sec_context(gss_minor_status, &gss_ctx, GSS_C_NO_BUFFER);
     (void)gss_release_name(gss_minor_status, &client_name);
 
