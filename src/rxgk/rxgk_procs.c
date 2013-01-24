@@ -222,13 +222,6 @@ out:
     return ret;
 }
 
-static void
-zero_data(RXGK_Data *data)
-{
-    data->len = 0;
-    data->val = NULL;
-}
-
 afs_int32
 SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 		   RXGK_Data *input_token_buffer, RXGK_Data *opaque_in,
@@ -384,7 +377,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     if (ret != 0)
 	goto out;
     /* Token not implemented yet. */
-    zero_data(&info.token);
+    zero_rxgkdata(&info.token);
 
     /* Wrap the ClientInfo response and pack it as an RXGK_Data. */
     ret = pack_clientinfo(gss_minor_status, gss_ctx, rxgk_info, &info);

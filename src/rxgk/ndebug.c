@@ -111,13 +111,6 @@ get_server_name(afs_uint32 *minor_status, gss_name_t *target_name)
 			   target_name);
 }
 
-static void
-zero_data(RXGK_Data *data)
-{
-    data->len = 0;
-    data->val = NULL;
-}
-
 int
 main(int argc, char *argv[])
 {
@@ -174,19 +167,19 @@ main(int argc, char *argv[])
     ret = fill_start_params(&params);
 
     /* Initialize GSSNegotiate argument that changes in the loop. */
-    zero_data(&token_in);
+    zero_rxgkdata(&token_in);
 
     /* The GSS variables, too. */
     gss_ctx = GSS_C_NO_CONTEXT;
     gss_token_ptr = (gss_buffer_desc *)GSS_C_NO_BUFFER;
 
     /* For the first call to GSSNegotiate(), there is no input opaque token. */
-    zero_data(&opaque_in);
+    zero_rxgkdata(&opaque_in);
 
     /* tell the XDR decoder to allocate space */
-    zero_data(&token_out);
-    zero_data(&opaque_out);
-    zero_data(&info);
+    zero_rxgkdata(&token_out);
+    zero_rxgkdata(&opaque_out);
+    zero_rxgkdata(&info);
 
     /*
      * The negotiation loop to establish a security context and generate
@@ -242,7 +235,7 @@ main(int argc, char *argv[])
 	    printf("Server gave us token of length %i\n", token_out.len);
 	}
 	/* Done with token_in. Down here so as to not spoil minor_status. */
-	zero_data(&token_in);
+	zero_rxgkdata(&token_in);
 	ret = gss_release_buffer(&minor_status, &gss_token_in);
 
 	/* Prepare for a possible next cycle */

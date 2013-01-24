@@ -1,4 +1,4 @@
-/* rxgk.h - External interfaces for RXGK */
+/* rxgk/rxgk_util.c - utility functions for RXGK use */
 /*
  * Copyright (C) 2013 by the Massachusetts Institute of Technology.
  * All rights reserved.
@@ -30,27 +30,17 @@
  */
 
 /*
- * External interfaces for RXGK.
+ * Utility functions for RXGK use.  Includes routines to zero-fill
+ * data types or create data types, as well as some processing that is
+ * common to both clients and servers.
  */
 
-#ifndef OPENAFS_RXGK_H
-#define OPENAFS_RXGK_H
+#include <gssapi/gssapi.h>
+#include <rx/rxgk.h>
 
-/* Pull in the com_err table */
-#include <rx/rxgk_errs.h>
-
-/* Pull in the protocol description */
-#include <rx/rxgk_int.h>
-
-/* Interface between the rxgkTime type and other types */
-static_inline rxgkTime RXGK_NOW(void)
+void
+zero_rxgkdata(RXGK_Data *data)
 {
-    time_t _a = time(0);
-    rxgkTime _b = ((rxgkTime)_a) * 1000 * 10;
-    return _b;
+    data->len = 0;
+    data->val = NULL;
 }
-
-/* rxgk_util.c */
-void zero_rxgkdata(RXGK_Data *data);
-
-#endif /* OPENAFS_RXGK_H */
