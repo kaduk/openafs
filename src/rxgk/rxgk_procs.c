@@ -392,6 +392,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     (void)gss_release_name(gss_minor_status, &client_name);
 
 out:
+    xdr_free((xdrproc_t)xdr_RXGK_ClientInfo, &info);
     (void)gss_release_cred(gss_minor_status, &creds);
     return ret;
 }
