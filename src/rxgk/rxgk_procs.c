@@ -388,6 +388,9 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     if (ret != 0)
 	goto out;
 
+    /* Free memory allocated for k0 */
+    (void)gss_release_buffer(gss_minor_status, &k0);
+
     (void)gss_delete_sec_context(gss_minor_status, &gss_ctx, GSS_C_NO_BUFFER);
     (void)gss_release_name(gss_minor_status, &client_name);
 

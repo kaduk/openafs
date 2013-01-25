@@ -303,6 +303,9 @@ main(int argc, char *argv[])
     /* Done. */
     rx_Finalize();
 
+    /* Free memory allocated for k0 */
+    (void)gss_release_buffer(&minor_status, &k0);
+
     /* Free memory allocated by the XDR decoder */
     xdr_free((xdrproc_t)xdr_RXGK_Data, &token_out);
     xdr_free((xdrproc_t)xdr_RXGK_Data, &opaque_out);
