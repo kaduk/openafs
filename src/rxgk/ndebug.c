@@ -131,14 +131,11 @@ main(int argc, char *argv[])
     RXGK_Data token_out, token_in, opaque_in, opaque_out, info;
     struct rx_securityClass *secobj;
     struct rx_connection *conn;
-    unsigned char *data;
     afs_uint32 gss_flags, ret_flags;
-    size_t i;
     unsigned int major_status, minor_status;
     int ret;
     u_short port = 8888;
     u_short svc = 34567;
-    unsigned char c;
 
     ret = rx_Init(0);
     if (ret != 0) {
@@ -258,15 +255,6 @@ main(int argc, char *argv[])
     }
 
     printf("GSSNegotiate returned info of length %zu\n", info.len);
-    data = info.val;
-    for(i = 0; i < info.len; ++i) {
-	c = *(data + i);
-	if (isascii(c))
-	    putchar(c);
-	else
-	    putchar('?');
-    }
-    printf("\n");
 
     /* Done. */
     rx_Finalize();
