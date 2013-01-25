@@ -229,7 +229,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 		   u_int *gss_major_status, u_int *gss_minor_status,
 		   RXGK_Data *rxgk_info)
 {
-    gss_buffer_desc gss_token_in, gss_token_out;
+    gss_buffer_desc gss_token_in, gss_token_out, k0;
     gss_cred_id_t creds;
     gss_ctx_id_t gss_ctx;
     gss_name_t client_name;
@@ -377,6 +377,10 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     if (ret != 0)
 	goto out;
     /* Token not implemented yet. */
+    ret = rxgk_make_k0(gss_minor_status, gss_ctx, &client_start->client_nonce,
+		       &info.server_nonce, enctype, &k0);
+    if (ret != 0)
+	goto out;
     zero_rxgkdata(&info.token);
 
     /* Wrap the ClientInfo response and pack it as an RXGK_Data. */

@@ -162,7 +162,7 @@ main(int argc, char *argv[])
      * allocated in gss_init_sec_context and must be freed with
      * gss_release_buffer.
      */
-    gss_buffer_desc gss_token_in, gss_token_out, *gss_token_ptr;
+    gss_buffer_desc gss_token_in, gss_token_out, *gss_token_ptr, k0;
     gss_ctx_id_t gss_ctx;
     gss_name_t target_name;
     RXGK_StartParams params;
@@ -295,6 +295,10 @@ main(int argc, char *argv[])
 
     printf("GSSNegotiate returned info of length %zu\n", info.len);
     major_status = decode_clientinfo(&minor_status, gss_ctx, &info, &clientinfo);
+    ret = rxgk_make_k0(&minor_status, gss_ctx, &params.client_nonce,
+		       &clientinfo.server_nonce, clientinfo.enctype, &k0);
+    if (ret != 0)
+	printf("Failed to generate k0\n");
 
     /* Done. */
     rx_Finalize();
