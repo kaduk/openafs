@@ -113,6 +113,44 @@ get_server_name(afs_uint32 *minor_status, gss_name_t *target_name)
 			   target_name);
 }
 
+static afs_uint32
+decode_clientinfo(afs_uint32 *minor_status, gss_ctx_id_t gss_ctx,
+		  RXGK_Data *info_in, RXGK_ClientInfo *info_out)
+{
+    XDR xdrs;
+    gss_buffer_desc info_buf, clientinfo_buf;
+    gss_qop_t qop_state;
+    afs_uint32 ret;
+    int conf_state;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+    info_buf.length = info_in->len;
+    info_buf.value = info_in->val;
+    ret = gss_unwrap(minor_status, gss_ctx, &info_buf, &clientinfo_buf,
+		     &conf_state, &qop_state);
+    if (ret != 0)
+	return ret;
+    if (conf_state == 0 || qop_state != GSS_C_QOP_DEFAULT) {
+	ret = GSS_S_FAILURE;
+	goto out;
+    }
+
+    /* We don't know how long it should be until we decode it. */
+    xdrmem_create(&xdrs, clientinfo_buf.value, clientinfo_buf.length, XDR_DECODE);
+    if (!xdr_RXGK_ClientInfo(&xdrs, info_out)) {
+	ret = GSS_S_FAILURE;
+	dprintf(2, "xdrmem for ClientInfo says they are invalid\n");
+	goto out;
+    }
+    printf("Successfully decoded clientinfo\n");
+    ret = 0;
+
+out:
+    (void)gss_release_buffer(minor_status, &clientinfo_buf);
+    xdr_destroy(&xdrs);
+    return ret;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -129,6 +167,7 @@ main(int argc, char *argv[])
     gss_name_t target_name;
     RXGK_StartParams params;
     RXGK_Data token_out, token_in, opaque_in, opaque_out, info;
+    RXGK_ClientInfo clientinfo;
     struct rx_securityClass *secobj;
     struct rx_connection *conn;
     afs_uint32 gss_flags, ret_flags;
@@ -255,6 +294,7 @@ main(int argc, char *argv[])
     }
 
     printf("GSSNegotiate returned info of length %zu\n", info.len);
+    major_status = decode_clientinfo(&minor_status, gss_ctx, &info, &clientinfo);
 
     /* Done. */
     rx_Finalize();
