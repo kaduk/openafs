@@ -240,7 +240,7 @@
           using the RFC3961 encrypt operation, with a key usage value of
 	  1036 (RXGK_SERVER_ENC_TICKET). The enrypted data is stored in the
           encryted_token field of the TokenContainer structure described in
-	  <xref target="container">.</t>
+	  <xref target="container" />.</t>
       </section>
       <section title="Token Contents">
         <t>The token itself contains the information expressed by the following
