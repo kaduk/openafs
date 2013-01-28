@@ -240,7 +240,7 @@
 	    for details of how this key is negotiated between client and negotiation
             service).</t>
           <t hangText="level:">The security level, as defined in 
-	    <xfer target="I-D.wilkinson-afs3-rxgk"/>, that MUST be used for this
+	    <xref target="I-D.wilkinson-afs3-rxgk"/>, that MUST be used for this
             connection.</t>
           <t hangText="starttime:">The time, expressed as a 100ns value, since
             the Unix epoch. Servers MUST reject attempts to
@@ -374,7 +374,7 @@
 	OUT opaque *keyDataResponse&lt;&gt;) = XXX;
        </artwork>
      </t>
-      <list style="hanging" hangIdent="6">
+      <list style="hanging" hangIndent="6">
         <t hangText="uuidp:">As the existing VL_RegisterAddrs RPC.</t>
         <t hangText="spare1:">As the existing VL_RegisterAddrs RPC.</t>
         <t hangText="ipaddr:">As the existing VL_RegisterAddrs RPC.</t>
@@ -455,7 +455,7 @@
          SHOULD remove their afs@REALM and afs/cell@REALM Kerberos keys.
        </t>
       </section>
-      <section title="Per server keys">
+      <section title="Per server keys" anchor="per-server-keys">
         <t>The mechanism for automatically registering per server keys is
          potentially vulnerable, as it trades a short lived key (the rxgk
          session key, which protects the key exchange) for a long life one
