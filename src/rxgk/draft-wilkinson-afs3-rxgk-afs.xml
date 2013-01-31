@@ -356,7 +356,8 @@
         manual, or out of band key management system.
       </t>
       <t>Implementations supporting automatic key management through the AFS-3
-        protocol MUST provide the following RPC:
+        protocol MUST provide the VL_RegisterAddrsAndKey RPC (similar to the
+        VL_RegisterAddrs RPC), described by the following RPC-L:
 <artwork>
     struct RXGK_ServerKeyDataRequest {
 	afs_int32 enctypes&lt;&gt;
