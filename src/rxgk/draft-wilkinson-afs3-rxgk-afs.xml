@@ -424,7 +424,7 @@
        accept secure callbacks.
      </t>
       <t>A cache manager may set a key for secure callbacks by issuing
-       the following RPC (part of the RXAFS_ family):</t>
+       the following RPC (in the RXAFS service):</t>
       <artwork>
      RXAFS_SetCallbackKey(afs_int32 securityIndex,
 		          opaque mech_data&lt;&gt;) = XXX;
