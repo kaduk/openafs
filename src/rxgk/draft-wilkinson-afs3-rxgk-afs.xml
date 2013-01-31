@@ -152,9 +152,10 @@
           <t hangText="new_token:">A new rxgk token, or empty</t>
           <t hangText="token_info:">Information describing the returned token</t>
         </list>
-        <t>The AFSCombineTokens call MUST only be performed over an rxgk
-          protected channel, with a security level of 1 (integrity) or
-          higher. Servers MUST reject all attempts to perform this operation
+        <t>The AFSCombineTokens call MUST only be performed over a secured rxgk
+          connection.  AFSCombineTokens SHOULD NOT be offered over an
+          RXGK_LEVEL_CLEAR connection.
+          Servers MUST reject all attempts to perform this operation
           over channels that are not protected in this way.</t>
         <t>Clients which are caching the results of RPCs on behalf of
           multiple users (such as a traditional AFS Cache Manager), SHOULD 
