@@ -244,14 +244,15 @@
           <t hangText="level:">The security level, as defined in 
 	    <xref target="I-D.wilkinson-afs3-rxgk"/>, that MUST be used for this
             connection.</t>
-          <t hangText="starttime:">The time, expressed as a 100ns value, since
-            the Unix epoch. Servers MUST reject attempts to
+          <t hangText="starttime:">The time at which the token's validity begins.
+            Servers MUST reject attempts to
             use tokens with a startTime value later than the current time. </t>
           <t hangText="lifetime:">The maximum number of seconds that a 
 	    key derived from K0 may be used for, before the connection is rekeyed.
 	    If 0, keys have no time based limit.</t>
           <t hangText="bytelife:">The maximum amount of data (expressed as
-            log 2 byes) that may be transferred using a key derived from K0,
+            the log base 2 of the number of bytes) that may be transferred
+            using a key derived from K0
             before the connection is rekeyed. If 0, there is no data based limit on
             key usage.</t>
           <t hangText="expirationtime:">The time (expressed as an rxgkTime) 
@@ -288,9 +289,10 @@
         <t>Where a host already has key material for a GSSAPI mechanism
           supported by rxgk, that material MAY be used to key the client.
           The client simply calls the rxgk negotiation service using the
-          relevant material, and obtains a token. The client should frequently
+          relevant material, and obtains a token. The client SHOULD frequently
           renew this token, to avoid combined tokens having unnecessarily
-          close expiration times.</t>
+          close expiration times.  The client SHOULD NOT renew this token
+          so often so as to place excessive load on the vlservers.</t>
         <t>It is recommended that identities created specifically for use by 
           a cache manager have the name afs3-callback@&lt;hostname&gt; where 
           &lt;hostname&gt; is the fully qualified domain name of the cache
