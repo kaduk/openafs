@@ -469,7 +469,8 @@
         <t>The mechanism for automatically registering per server keys is
          potentially vulnerable, as it trades a short lived key (the rxgk
          session key, which protects the key exchange) for a long life one
-         (the server key).
+         (the server key).  There is precedent for this sort of key exchange,
+         such as when using kadmin to extract a new kerberos keytab.
        </t>
       </section>
       <section title="Combined key materials">
