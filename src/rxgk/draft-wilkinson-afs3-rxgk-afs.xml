@@ -2,6 +2,7 @@
 <!DOCTYPE rfc SYSTEM "rfc2629.dtd" [
 <!ENTITY I-D.draft-wilkinson-afs3-rxgk SYSTEM "http://xml.resource.org/public/rfc/bibxml3/reference.I-D.draft-wilkinson-afs3-rxgk-00.xml">
 <!ENTITY I-D.draft-brashear-afs3-pts-extended-names SYSTEM "http://xml.resource.org/public/rfc/bibxml3/reference.I-D.brashear-afs3-pts-extended-names.xml">
+<!ENTITY I-D.draft-benjamin-extendedcallbackinfo SYSTEM "http://xml.resource.org/public/rfc/bibxml3/reference.I-D.benjamin-extendedcallbackinfo.xml">
 <!ENTITY RFC2119 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2119.xml">
 <!ENTITY RFC2743 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2743.xml">
 <!ENTITY RFC3961 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.3961.xml">
@@ -415,7 +416,8 @@
     </section>
     <section title="Securing the callback channel">
       <t>AFS has traditionally had an unprotected callback channel. However,
-       extended callbacks requires a mechanism for ensuring that callback
+       extended callbacks <xref target="I-D.benjamin-extendedcallbackinfo" />
+       requires a mechanism for ensuring that callback
        breaks and, critically, data updates, are protected. This requires
        that there is a strong connection between the key material used
        initially to perform the RPC, and that which is used to protect
@@ -496,6 +498,7 @@
         </front>
         <format type="HTML" target="http://web.mit.edu/kolya/afs/rx/rx-spec"/>
       </reference>
+      &I-D.draft-benjamin-extendedcallbackinfo;
     </references>
     <references title="Normative References">
      &I-D.draft-brashear-afs3-pts-extended-names;
