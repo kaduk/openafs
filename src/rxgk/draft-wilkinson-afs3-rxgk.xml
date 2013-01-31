@@ -481,7 +481,7 @@ enum RXGK_Level {
       <t>To reduce the potential for denial of service attacks, servers
 	 SHOULD only offer the CombineTokens operation to clients connecting
 	 over a secured rxgk connection.  CombineTokens SHOULD NOT be offered
-	 over an RXGK_CLEAR connection.</t>
+	 over an RXGK_LEVEL_CLEAR connection.</t>
       </t>
 
     </section>
