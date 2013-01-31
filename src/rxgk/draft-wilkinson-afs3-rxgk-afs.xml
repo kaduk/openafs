@@ -462,7 +462,7 @@
         <t>Using the presence of a GSSAPI key to determine a cell's ability to
          perform rxgk is vulnerable to a downgrade attack, as an attacker may
          forge error responses. Cells which no longer support rxkad
-         SHOULD remove their afs@REALM and afs/cell@REALM Kerberos keys.
+         should remove their afs@REALM and afs/cell@REALM Kerberos keys.
        </t>
       </section>
       <section title="Per server keys" anchor="per-server-keys">
