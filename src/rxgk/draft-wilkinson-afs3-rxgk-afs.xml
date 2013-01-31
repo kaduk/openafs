@@ -267,7 +267,7 @@
       </section>
     </section>
     <section title="Authenticator data">
-      <t>The appdata opaque within the RXGK_Authenticator contains the results
+      <t>The appdata opaque within the RXGK_Authenticator structure contains the results
            of XDR encoding the RXGK_Authenticator_AFSAppData structure. The uuid field
 	   contains the UUID of the client.</t>
       <artwork>
