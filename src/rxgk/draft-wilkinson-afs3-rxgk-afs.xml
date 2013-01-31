@@ -79,7 +79,7 @@
           to rxgk from other security mechanisms.
         </t>
         <t>
-          We also define mechanisms for securing the callback channel which 
+          We also define mechanisms for securing the callback channel that
           is created between fileserver and client.
         </t>
       </section>
@@ -236,7 +236,7 @@
         </artwork>
         <list style="hanging" hangIndent="6">
           <t hangText="enctype:">The RFC3961 encryption type of the session key
-            contained within this ticke.t</t>
+            contained within this ticket.</t>
           <t hangText="K0:">The session key (see <xref target="I-D.wilkinson-afs3-rxgk"/> 
 	    for details of how this key is negotiated between client and negotiation
             service).</t>
