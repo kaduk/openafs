@@ -154,10 +154,10 @@
           <t hangText="token_info:">Information describing the returned token</t>
         </list>
         <t>The AFSCombineTokens call MUST only be performed over a secured rxgk
-          connection.  AFSCombineTokens SHOULD NOT be offered over an
+          connection.  AFSCombineTokens MUST NOT be offered over an
           RXGK_LEVEL_CLEAR connection.
           Servers MUST reject all attempts to perform this operation
-          over channels that are not protected in this way.</t>
+          over channels that do not offer integrity protection.</t>
         <t>Clients which are caching the results of RPCs on behalf of
           multiple users (such as a traditional AFS Cache Manager), SHOULD 
           provide both the user's token (as token0) and a token generated
