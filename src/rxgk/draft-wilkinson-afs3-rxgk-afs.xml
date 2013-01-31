@@ -274,7 +274,7 @@
     }
         </artwork>
     </section>
-    <section title="Client tokens">
+    <section title="Client tokens" anchor="client-tokens">
       <t>In order to protect users of a multi-user cache manager from each
         other, it must be impossible for an individual user to determine the
         key used to protect operations which affect the cache. This requires
@@ -464,7 +464,8 @@
        </t>
       </section>
       <section title="Combined key materials">
-        <t>As described earlier, combined tokens are used to prevent cache
+        <t>As described in <xref target="client-tokens" />, combined tokens
+         are used to prevent cache
          poisoning attacks on multi-user systems. In order for this protection
          to be effective, cache managers MUST NOT provide user access to
          keys produced through the combine tokens operation, unless those keys
