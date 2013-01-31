@@ -224,7 +224,7 @@
         <t>The token itself contains the information expressed by the following
           RPC-L:</t>
         <artwork>
-    struct RXGK_TokenInfo {
+    struct RXGK_Token {
       afs_int32 enctype;
       opaque    K0&lt;&gt;;
       RXGK_Level level;
