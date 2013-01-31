@@ -426,7 +426,7 @@
       <t>A cache manager may set a key for secure callbacks by issuing
        the following RPC (in the RXAFS service):</t>
       <artwork>
-     RXAFS_SetCallbackKey(afs_int32 securityIndex,
+     RXAFS_SetCallBackKey(afs_int32 securityIndex,
 		          opaque mech_data&lt;&gt;) = XXX;
 </artwork>
       <list style="hanging" hangIndent="6">
@@ -439,7 +439,7 @@
       <t>When used with rxgk, this RPC MUST be performed over an rxgk protected
        link established using solely the cache manager's token. This connection
        MUST have a security level of 2 (encrypted).</t>
-      <t>If a fileserver receives a AFS_SetCallbackKey protected with a different
+      <t>If a fileserver receives a AFS_SetCallBackKey protected with a different
        cache manager identity than the previous call from that client, it MUST
        break all secure callbacks held by that client using the old key before
        this RPC completes.</t>
@@ -455,7 +455,7 @@
     <section anchor="AFSReg" title="AFS-3 Registry Considerations">
       <t>This document requrests that the AFS-3 registry allocate code
       points for the new RPCs AFSCombineTokens (for the RXGK service),
-      RegisterAddrsAndKey (for the VL service), and SetCallbackKey (for the
+      RegisterAddrsAndKey (for the VL service), and SetCallBackKey (for the
       RXAFS service).</t>
     </section>
     <section title="Security Considerations">
@@ -522,6 +522,9 @@
 	       and how they are used against fileservers</t>
         <t>Expand security considerations section to cover combined tokens</t>
         <t>Rename AFS_SetCallbackKey as RXAFS_SetCallbackKey</t>
+      </section>
+      <section title="Since 01">
+        <t>Rename RXAFS_SetCallbackKey to RXAFS_SetCallBackKey</t>
       </section>
     </section>
   </back>
