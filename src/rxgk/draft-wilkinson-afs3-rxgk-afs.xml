@@ -364,7 +364,12 @@
       </t>
       <t>Implementations supporting automatic key management through the AFS-3
         protocol MUST provide the VL_RegisterAddrsAndKey RPC (similar to the
-        VL_RegisterAddrs RPC), described by the following RPC-L:
+        VL_RegisterAddrs RPC).  This RPC is called by a fileserver to
+        register itself with the VLDB; it MUST be called over an rxgk-secured
+        connection.  For the purpose of this RPC, the fileserver acts as the
+        client and the vlserver as the server.  Once the RPC completes, the
+        client can generate a key to be used as the fileserver's server key.</t>
+      <t>The VL_RegisterAddrsAndKey RPC is described by the following RPC-L:
 <artwork>
     struct RXGK_ServerKeyDataRequest {
 	afs_int32 enctypes&lt;&gt;;
