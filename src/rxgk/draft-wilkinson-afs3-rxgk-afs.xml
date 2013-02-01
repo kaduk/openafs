@@ -65,17 +65,20 @@
         <t>
           AFS-3 differs from the standard rxgk implementation in that it 
           does not require GSSAPI negotiation with each server. Instead, 
-          a client negotiates with the vlserver, and receives a token 
-          that can then be used with any server in the cell. This 
-          requires that all servers have an identical cell wide pre-shared 
-          key for token encryption.
+          a client performs GSSAPI negotiation just once (with the vlserver),
+          receiving a token usable with any server in the cell that has the
+          cell-wide key.  Traditional AFS rxkad authentication required that
+          the cell-wide key be distributed to all servers in the cell, both
+          database servers and file servers.  rxgk can operate in such a
+          fashion, with the cell-wide key shared amongst all servers.
         </t>
         <t>
-          For more complex cell topologies, servers which do not share the 
-          cell-wide key are supported by means of an extended CombineTokens
-          call. This call takes a server identifier, and will return a token
-          encrypted with a key for a specific server. This extended call,
-          AFSCombineTokens, also provides support for indicating whether
+          For more complex cell topologies, rxgk also supports configurations
+          where (some) file servers do not have the cell-wide key, by means
+          of an extended version of the CombineTokens RPC.
+          This new RPC, AFSCombineTokens, takes a server identifier,
+          and will return a token encrypted with a key for a specific server.
+          AFSCombineTokens also provides support for indicating whether
           a specific server is rxgk capable, allowing cells to securely migrate
           to rxgk from other security mechanisms.
         </t>
