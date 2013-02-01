@@ -127,20 +127,16 @@
         <t>
           AFS extends the existing CombineTokens operation to provide a general
 	  token manipulation service. This operation takes a user
-	  token, an optional cache manager token, and a destination identifier. It
+	  token, an optional cache manager token, options for enctype and
+          security level negotiation with the server,
+          and a destination identifier. It
 	  returns a token specific to the specified destination, and a structure
 	  containing some cleartext information describing the returned token.
   	</t>
         <artwork>
-    struct RXGK_TokenInfo {
-        RXGK_Level level;
-	afs_int32  lifetime;
-	afs_int32  bytelife;
-	rxgkTime   expirationtime;
-    };
-
     AFSCombineTokens(IN RXGK_Data *token0,
                      IN RXGK_Data *token1,
+                     IN RXGK_CombineOptions *options,
                      IN afsUUID destination,
 		     OUT RXGK_Data *new_token,
 		     OUT RXGK_TokenInfo *token_info) = 3;
@@ -150,6 +146,9 @@
             GSSNegotiate RPC.</t>
           <t hangText="token1:">Either an rxgk token obtained using the 
             GSSNegotiate RPC, or empty (zero-length).</t>
+          <t hangText="options:">An RXGK_CombineOpeions structure containing
+            a list of enctypes acceptable to the client and a list of
+            security levels acceptable to the client.</t>
           <t hangText="destination:">The UUID of the server new_token is
             intended for. Fileserver UUIDs may be obtained from the VLDB
             in the same call that returns their addresses.</t>
@@ -176,12 +175,20 @@
 	   provide that token as token0. token1 MUST be empty. Printed tokens
 	   cannot be combined with any other token, and servers MUST reject
 	   attempts to do so.</t>
+        <t>If the server is unable to perform the AFSCombineTokens operation
+          with the given arguments, a nonzero value is returned in the
+          errorcode field of token_info; errorcode is zero for a successful
+          AFSCombineTokens operation.  If errorcode is nonzero, the values
+          of the other fields in token_info and the value of new_token
+          are undefined.</t>
         <t>If the returned token is zero-length, then the destination does not
           support rxgk, and the client MAY fall back to using a different
 	  authentication mechanism for that server. An rxgk capable client
 	  operating within an rxgk enabled cell MUST NOT downgrade its 
 	  choice of security layer in any other situation.</t>
-        <t>Keys and tokens are combined in the same way as the
+        <t>Other aspects of the operation of AFSCombineTokens, including the
+          values for the errorcode field of token_info and the combination
+          of keys and tokens, are the same as the CombineTokens RPC, documented in
           CombineTokens call, documented in 
           <xref target="I-D.wilkinson-afs3-rxgk"/>.</t>
       </section>
