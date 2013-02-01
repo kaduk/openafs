@@ -426,6 +426,7 @@
        determined by the GSSNegotiate call.</t>
       <t>K is the key generation seed length as specified in enctype's RFC3961
        profile.</t>
+      <t>|| is the concatenation operation.</t>
     </section>
     <section title="Securing the Callback Channel">
       <t>AFS has traditionally had an unprotected callback channel. However,
