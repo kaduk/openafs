@@ -247,7 +247,7 @@
             connection.</t>
           <t hangText="starttime:">The time at which the token's validity begins.
             Servers MUST reject attempts to
-            use tokens with a startTime value later than the current time. </t>
+            use tokens with a starttime value later than the current time.</t>
           <t hangText="lifetime:">The maximum number of seconds that a 
 	    key derived from K0 may be used for, before the connection is rekeyed.
 	    If 0, keys have no time based limit.</t>
