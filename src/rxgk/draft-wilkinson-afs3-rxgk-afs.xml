@@ -26,18 +26,18 @@
     <date month="January" year="2012"/>
     <abstract>
       <t>
-        This document describes how the new GSSAPI based rxgk security class
+        This document describes how the new GSSAPI-based rxgk security class
         for RX is integrated with the AFS application protocol. It describes a
         number of extensions to the basic rxgk protocol, clarifies a number
-        of implementation issues, and provides values for the application
-        specific elements of rxgk.
+        of implementation issues, and provides values for the
+        application-specific elements of rxgk.
       </t>
     </abstract>
   </front>
   <middle>
     <section title="Introduction">
       <t><xref target="I-D.wilkinson-afs3-rxgk">rxgk</xref> is a new 
-	<xref target="RFC2743">GSSAPI</xref> based security layer for the
+	<xref target="RFC2743">GSSAPI-based</xref> security layer for the
         <xref target="RX">RX</xref> remote procedure call system. The rxgk 
         specification details how it may be used with a generic RX application.
         This document provides additional detail specific to integrating 
@@ -126,7 +126,7 @@
 	  token manipulation service. This operation takes a user
 	  token, an optional cache manager token, and a destination identifier. It
 	  returns a token specific to the specified destination, and a structure
-	  containing some cleartext information describing the returned token
+	  containing some cleartext information describing the returned token.
   	</t>
         <artwork>
     struct RXGK_TokenInfo {
@@ -144,14 +144,15 @@
 	</artwork>
         <list style="hanging" hangIndent="6">
           <t hangText="token0:">An rxgk token obtained using the
-            GSSNegotiate rpc</t>
-          <t hangText="token1:">Either, an rxgk token obtained using the 
-            GSSNegotiate rpc, or empty (0 length)</t>
-          <t hangText="destination:">The UUID of the server this token is
+            GSSNegotiate RPC.</t>
+          <t hangText="token1:">Either an rxgk token obtained using the 
+            GSSNegotiate RPC, or empty (zero-length).</t>
+          <t hangText="destination:">The UUID of the server new_token is
             intended for. Fileserver UUIDs may be obtained from the VLDB
-            in the same call as returns their addresses.</t>
-          <t hangText="new_token:">A new rxgk token, or empty</t>
-          <t hangText="token_info:">Information describing the returned token</t>
+            in the same call that returns their addresses.</t>
+          <t hangText="new_token:">The output rxgk token, or empty
+            (zero-length).</t>
+          <t hangText="token_info:">Information describing the returned token.</t>
         </list>
         <t>The AFSCombineTokens call MUST only be performed over a secured rxgk
           connection.  AFSCombineTokens MUST NOT be offered over an
@@ -172,7 +173,7 @@
 	   provide that token as token0. token1 MUST be empty. Printed tokens
 	   cannot be combined with any other token, and servers MUST reject
 	   attempts to do so.</t>
-        <t>If the returned token is 0 length, then the destination does not
+        <t>If the returned token is zero-length, then the destination does not
           support rxgk, and the client MAY fall back to using a different
 	  authentication mechanism for that server. An rxgk capable client
 	  operating within an rxgk enabled cell MUST NOT downgrade its 
@@ -187,8 +188,8 @@
         <t>rxgk tokens for AFS take the form of some key management data,
           followed by an encrypted data blob. The key management data (a
           version number, followed by an <xref target="RFC3961"/> 
-          encryption type) allows the recipient to identify which
-          pre-shared key has been used to encrypt the token itself.
+          encryption type) allows the server receiving a token to identify which
+          pre-shared key has been used to encrypt the core token data.
         </t>
         <artwork>
     struct RXGK_TokenContainer {
@@ -207,9 +208,10 @@
           keys. The cell-wide key must be installed on all servers which are
           capable of accepting cell-wide tokens. Cell-wide keys should be for
           a selected RFC3961 encryption mechanism that is supported by all
-          servers within the cell. Per-server keys should be for an
+          servers within the cell that will accept cell-wide tokens.
+          Per-server keys should be for an
           encryption mechanism that is supported by both the destination
-          server, and the negotiation service. The management of per-server
+          server and the negotiation service. The management of per-server
 	  keys is discussed in more detail in <xref target="per-server-keys"/>.</t>
         <t>Key rollover is permitted by means of a key version number. When the
           key is changed, a different key version number MUST be selected. Servers
@@ -217,7 +219,9 @@
           existing tokens has elapsed.</t>
         <t>Encryption is performed over the XDR encoded RXGK_Token structure,
           using the RFC3961 encrypt operation, with a key usage value of
-	  1036 (RXGK_SERVER_ENC_TICKET). The enrypted data is stored in the
+	  RXGK_SERVER_ENC_TOKEN (defined in
+          <xref target="I-D.wilkinson-afs3-rxgk" />).
+          The enrypted data is stored in the
           encryted_token field of the TokenContainer structure described in
 	  <xref target="container"/>.</t>
       </section>
@@ -227,7 +231,7 @@
         <artwork>
     struct RXGK_Token {
       afs_int32 enctype;
-      opaque    K0&lt;&gt;;
+      opaque K0&lt;&gt;;
       RXGK_Level level;
       rxgkTime starttime;
       afs_int32 lifetime;
@@ -250,16 +254,16 @@
             use tokens with a starttime value later than the current time.</t>
           <t hangText="lifetime:">The maximum number of seconds that a 
 	    key derived from K0 may be used for, before the connection is rekeyed.
-	    If 0, keys have no time based limit.</t>
+	    If 0, keys have no time-based limit.</t>
           <t hangText="bytelife:">The maximum amount of data (expressed as
             the log base 2 of the number of bytes) that may be transferred
             using a key derived from K0
-            before the connection is rekeyed. If 0, there is no data based limit on
+            before the connection is rekeyed. If 0, there is no data-based limit on
             key usage.</t>
           <t hangText="expirationtime:">The time (expressed as an rxgkTime) 
             beyond which this token may no longer be used. Servers MUST
             reject attempts to use connections secured with this token after
-            this time has passed. A time of 0 indicates that this token never
+            this time. A time of 0 indicates that this token never
             expires.</t>
           <t hangText="identities:">A list of identities represented by this
             token. struct PrAuthName is the identity structure defined in 
@@ -287,7 +291,7 @@
         this call requires that a cache manager have access to a token for this
         purpose.</t>
       <section title="Keyed clients" anchor="cm-keying">
-        <t>Where a host already has key material for a GSSAPI mechanism
+        <t>When a host already has key material for a GSSAPI mechanism
           supported by rxgk, that material MAY be used to key the client.
           The client simply calls the rxgk negotiation service using the
           relevant material, and obtains a token. The client SHOULD frequently
@@ -302,7 +306,7 @@
       <section title="Unkeyed clients">
         <t>When a client has no key material, it is possible that an
           anonymous GSSAPI connection may succeed. Clients MAY attempt to
-          negotiate such a connection by calling GSS_Init_Sec_Context() 
+          negotiate such a connection by calling GSS_Init_sec_context() 
           with the <xref target="RFC2743">anon_req_flag</xref> and the 
           default credentials set.</t>
       </section>
@@ -313,7 +317,7 @@
         both a mechanism of generating tokens for these servers to use, and
         a definition of which identities are permitted for authorisation
 	purposes. We refer to the process of forging tokens for local use,
-	given access to the cell-wide pre-shared key as "token printing"
+	given access to the cell-wide pre-shared key as "token printing".
       </t>
       <section title="Token printing" anchor="printing">
         <t>A server with access to the cell-wide pre-shared key may print its
@@ -324,7 +328,7 @@
           can identify it is a printed token by the empty identity list.</t>
         <t>The session key within a printed token MUST use the same encryption
           type as the pre-shared key. When connecting to a fileserver, a client
-          SHOULD use the combine tokens service as discussed above to ensure that
+          SHOULD use the AFSCombineTokens service as discussed above to ensure that
           they are using the correct key for the fileserver.</t>
       </section>
     </section>
@@ -343,18 +347,20 @@
       </t>
       <t>Once a fileserver has been marked as supporting rxgk, VL_RegisterAddrs
         calls for that fileserver MUST only be accepted over an rxgk
-        protected link.
+        protected connection.
       </t>
       <!-- XXX - we need to define a VL_ RPC which can be used to remove
                   the rxgk capable marking -->
     </section>
     <section title="Per server keys">
-      <t>The provision of servers with their own keys, rather than the cell wide
+      <t>The provisioning of servers with their own keys,
+        rather than the cell-wide
         master key, requires the ability to maintain a directory of these keys
         on the vlserver, so that the AFSCombineTokens RPC can encrypt the
         outgoing token with the correct key. The manner in which this directory
-        is maintained is down to the implementor, who MAY decide to use a
-        manual, or out of band key management system.
+        is maintained is left to the implementor, who MAY decide to use a
+        manual, or out of band, key management system.  Otherwise, the automated
+        keying mechanism described as follows will be used.
       </t>
       <t>Implementations supporting automatic key management through the AFS-3
         protocol MUST provide the VL_RegisterAddrsAndKey RPC (similar to the
@@ -381,17 +387,19 @@
        </artwork>
      </t>
       <list style="hanging" hangIndent="6">
-        <t hangText="uuidp:">As the existing VL_RegisterAddrs RPC.</t>
-        <t hangText="spare1:">As the existing VL_RegisterAddrs RPC.</t>
-        <t hangText="ipaddr:">As the existing VL_RegisterAddrs RPC.</t>
+        <t hangText="uuidp:">As for the existing VL_RegisterAddrs RPC.</t>
+        <t hangText="spare1:">As for the existing VL_RegisterAddrs RPC.</t>
+        <t hangText="ipaddr:">As for the existing VL_RegisterAddrs RPC.</t>
         <t hangText="secIndex:">The index of the security mechanism for 
-         which a key is being set. For rxgk, this value MUST be '4'.</t>
+         which a key is being set. For rxgk, this value MUST be 4.</t>
         <t hangText="keyDataRequest:">An opaque blob of data, specific to
          the security mechanism defined by secIndex. For rxgk, it is
-         the xdr encoded representation of RXGK_ServerKeyDataRequest.</t>
+         the XDR-encoded representation of an RXGK_ServerKeyDataRequest
+         structure.</t>
         <t hangText="keyDataResponse:">An opaque blob of data, specific to
          the security mechanism defined by secIndex. For rxgk, it is
-         the xdr encoded representation of RXGK_ServerDataResponse.</t>
+         the XDR-encoded representation of an RXGK_ServerDataResponse
+         structure.</t>
       </list>
       <t>The client provides, in the RXGK_ServerKeyDataRequest structure, a list
        of the RFC3961 encryption types that it will accept as a server key. It
@@ -406,7 +414,7 @@
 </artwork>
      </t>
       <t>random-to-key is the function specified by the RFC3961 profile of the
-       encryption type chosen by the server, and returned in enctype.</t>
+       encryption type chosen by the server and returned in enctype.</t>
       <t>PRF+ is the function of that name specified by 
        <xref target="RFC4402"/>.</t>
       <t>K0 is the master key of the current rxgk session, as originally 
@@ -417,7 +425,7 @@
     <section title="Securing the callback channel">
       <t>AFS has traditionally had an unprotected callback channel. However,
        extended callbacks <xref target="I-D.benjamin-extendedcallbackinfo" />
-       requires a mechanism for ensuring that callback
+       require a mechanism for ensuring that callback
        breaks and, critically, data updates, are protected. This requires
        that there is a strong connection between the key material used
        initially to perform the RPC, and that which is used to protect
@@ -439,7 +447,8 @@
          data. In rxgk's case this is an XDR encoded RXGK_Token structure.</t>
       </list>
       <t>When used with rxgk, this RPC MUST be performed over an rxgk protected
-       link established using solely the cache manager's token. This connection
+       coonection established using solely the cache manager's token.
+       This connection
        MUST have a security level of 2 (encrypted).</t>
       <t>If a fileserver receives a AFS_SetCallBackKey protected with a different
        cache manager identity than the previous call from that client, it MUST
@@ -469,9 +478,9 @@
        </t>
       </section>
       <section title="Per server keys" anchor="per-server-keys">
-        <t>The mechanism for automatically registering per server keys is
-         potentially vulnerable, as it trades a short lived key (the rxgk
-         session key, which protects the key exchange) for a long life one
+        <t>The mechanism for automatically registering per-server keys is
+         potentially vulnerable, as it trades a short-lived key (the rxgk
+         session key, which protects the key exchange) for a long-lived one
          (the server key).  There is precedent for this sort of key exchange,
          such as when using kadmin to extract a new kerberos keytab.
        </t>
@@ -511,23 +520,23 @@
    </references>
     <section title="Acknowledgements">
       <t>
-       RXGK has been the work of many contributors over the years. A partial
-       list is contained in the previous document. All errors and omissions
-       are, however, mine.
+       rxgk has been the work of many contributors over the years. A partial
+       list is contained in the <xref target="I-D.wilkinson-afs3-rxgk" />.
+       All errors and omissions are, however, mine.
      </t>
     </section>
     <section title="Changes">
       <section title="Since 00">
-        <t>Add references to RX and XDR specifications</t>
-        <t>Add introductory material on AFS</t>
-        <t>Change expirationTime to be expressed using the rxgkTime type</t>
+        <t>Add references to RX and XDR specifications.</t>
+        <t>Add introductory material on AFS.</t>
+        <t>Change expirationTime to be expressed using the rxgkTime type.</t>
         <t>Document how encryption types are chosen for printed tokens,
-	       and how they are used against fileservers</t>
-        <t>Expand security considerations section to cover combined tokens</t>
-        <t>Rename AFS_SetCallbackKey as RXAFS_SetCallbackKey</t>
+	       and how they are used against fileservers.</t>
+        <t>Expand security considerations section to cover combined tokens.</t>
+        <t>Rename AFS_SetCallbackKey as RXAFS_SetCallbackKey.</t>
       </section>
       <section title="Since 01">
-        <t>Rename RXAFS_SetCallbackKey to RXAFS_SetCallBackKey</t>
+        <t>Rename RXAFS_SetCallbackKey to RXAFS_SetCallBackKey.</t>
       </section>
     </section>
   </back>
