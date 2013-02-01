@@ -436,7 +436,8 @@
        that there is a strong connection between the key material used
        initially to perform the RPC, and that which is used to protect
        any resulting callback. We achieve this using the cache manager
-       token discussed earlier, which is required in order for a client to
+       token discussed in <xref target="cm-keying" />,
+       which is required in order for a client to
        accept secure callbacks.
      </t>
       <t>A cache manager may set a key for secure callbacks by issuing
