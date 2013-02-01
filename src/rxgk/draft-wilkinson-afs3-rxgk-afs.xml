@@ -449,7 +449,7 @@
       <list style="hanging" hangIndent="6">
         <t hangText="securityIndex:">The securityIndex of the mechanism for
          which this key is being set. In the rxgk case, this will be
-         rxgk's security index, as defined earlier.</t>
+         rxgk's security index, 4.</t>
         <t hangText="mech_data:">This contains the security object specific
          data. In rxgk's case this is an XDR encoded RXGK_Token structure.</t>
       </list>
