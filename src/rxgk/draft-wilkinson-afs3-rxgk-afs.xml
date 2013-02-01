@@ -136,10 +136,10 @@
 	rxgkTime   expirationtime;
     };
 
-    AFSCombineTokens(IN RXGK_Data *token0&lt;&gt;,
-                     IN RXGK_Data *token1&lt;&gt;,
+    AFSCombineTokens(IN RXGK_Data *token0,
+                     IN RXGK_Data *token1,
                      IN afsUUID destination,
-		     OUT RXGK_Data *new_token&lt;&gt;
+		     OUT RXGK_Data *new_token,
 		     OUT RXGK_TokenInfo *token_info) = 3;
 	</artwork>
         <list style="hanging" hangIndent="6">
@@ -368,13 +368,13 @@
 <artwork>
     struct RXGK_ServerKeyDataRequest {
 	afs_int32 enctypes&lt;&gt;;
-	opaque nonce1&lt;&gt;;
+	opaque nonce1[20];
     };
 
     struct RXGK_ServerKeyDataResponse {
         afs_int32 enctype;
         afs_int32 kvno;
-	opaque nonce2&lt;&gt;;
+	opaque nonce2[20];
     };
 
     VL_RegisterAddrsAndKey(
