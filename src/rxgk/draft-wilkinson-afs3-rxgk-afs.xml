@@ -43,7 +43,7 @@
         This document provides additional detail specific to integrating 
         rxgk with the AFS-3 distributed file system.
       </t>
-      <section title="The AFS-3 distributed file system">
+      <section title="The AFS-3 Distributed File System">
         <t>
           AFS-3 is a global distributed network file system. The system is
           split into a number of cells, with a cell being the administrative
@@ -99,7 +99,7 @@
         of 4.
       </t>
     </section>
-    <section title="Key negotiation">
+    <section title="Key Negotiation">
       <t>
         An AFS cell wishing to support rxgk MUST run an rxgk key negotiation
         service, as specified in <xref target="I-D.wilkinson-afs3-rxgk"/>, 
@@ -120,7 +120,7 @@
         Tokens returned from the GSSNegotiate call MUST only be used with
         database servers. Tokens for fileservers MUST be obtained by
         calling AFSCombineTokens before each server is contacted.</t>
-      <section title="The AFSCombineTokens operation">
+      <section title="The AFSCombineTokens Operation">
         <t>
           AFS extends the existing CombineTokens operation to provide a general
 	  token manipulation service. This operation takes a user
@@ -271,7 +271,7 @@
         </list>
       </section>
     </section>
-    <section title="Authenticator data">
+    <section title="Authenticator Data">
       <t>The appdata opaque within the RXGK_Authenticator structure contains the results
            of XDR encoding the RXGK_Authenticator_AFSAppData structure. The uuid field
 	   contains the UUID of the client.</t>
@@ -281,7 +281,7 @@
     };
         </artwork>
     </section>
-    <section title="Client tokens" anchor="client-tokens">
+    <section title="Client Tokens" anchor="client-tokens">
       <t>In order to protect users of a multi-user cache manager from each
         other, it must be impossible for an individual user to determine the
         key used to protect operations which affect the cache. This requires
@@ -290,7 +290,7 @@
         the AFSCombineTokens call specified earlier in this document. However,
         this call requires that a cache manager have access to a token for this
         purpose.</t>
-      <section title="Keyed clients" anchor="cm-keying">
+      <section title="Keyed Clients" anchor="cm-keying">
         <t>When a host already has key material for a GSSAPI mechanism
           supported by rxgk, that material MAY be used to key the client.
           The client simply calls the rxgk negotiation service using the
@@ -303,7 +303,7 @@
           &lt;hostname&gt; is the fully qualified domain name of the cache
           manager.</t>
       </section>
-      <section title="Unkeyed clients">
+      <section title="Unkeyed Clients">
         <t>When a client has no key material, it is possible that an
           anonymous GSSAPI connection may succeed. Clients MAY attempt to
           negotiate such a connection by calling GSS_Init_sec_context() 
@@ -311,7 +311,7 @@
           default credentials set.</t>
       </section>
     </section>
-    <section title="Server to server communication">
+    <section title="Server to Server Communication">
       <t>A number of portions of the AFS protocol require that servers
         communicate amongst themselves. To secure this with rxgk we require
         both a mechanism of generating tokens for these servers to use, and
@@ -319,7 +319,7 @@
 	purposes. We refer to the process of forging tokens for local use,
 	given access to the cell-wide pre-shared key as "token printing".
       </t>
-      <section title="Token printing" anchor="printing">
+      <section title="Token Printing" anchor="printing">
         <t>A server with access to the cell-wide pre-shared key may print its
           own tokens for server to server access. To do so, it should construct
           a token with suitable values. The list of identities in such a token
@@ -332,7 +332,7 @@
           they are using the correct key for the fileserver.</t>
       </section>
     </section>
-    <section title="Declaring rxgk support for a fileserver">
+    <section title="Declaring rxgk Support for a Fileserver">
       <t>The AFSCombineTokens call has specific behaviour when a destination
         endpoint does not support rxgk. Implementing this behaviour requires
         that the vlserver be aware of whether a fileserver supports rxgk.
@@ -352,7 +352,7 @@
       <!-- XXX - we need to define a VL_ RPC which can be used to remove
                   the rxgk capable marking -->
     </section>
-    <section title="Per server keys">
+    <section title="Per Server Keys">
       <t>The provisioning of servers with their own keys,
         rather than the cell-wide
         master key, requires the ability to maintain a directory of these keys
@@ -422,7 +422,7 @@
       <t>K is the key generation seed length as specified in enctype's RFC3961
        profile.</t>
     </section>
-    <section title="Securing the callback channel">
+    <section title="Securing the Callback Channel">
       <t>AFS has traditionally had an unprotected callback channel. However,
        extended callbacks <xref target="I-D.benjamin-extendedcallbackinfo" />
        require a mechanism for ensuring that callback
@@ -477,7 +477,7 @@
          should remove their afs@REALM and afs/cell@REALM Kerberos keys.
        </t>
       </section>
-      <section title="Per server keys" anchor="per-server-keys">
+      <section title="Per Server Keys" anchor="per-server-keys">
         <t>The mechanism for automatically registering per-server keys is
          potentially vulnerable, as it trades a short-lived key (the rxgk
          session key, which protects the key exchange) for a long-lived one
@@ -485,7 +485,7 @@
          such as when using kadmin to extract a new kerberos keytab.
        </t>
       </section>
-      <section title="Combined key materials">
+      <section title="Combined Key Materials">
         <t>As described in <xref target="client-tokens" />, combined tokens
          are used to prevent cache
          poisoning attacks on multi-user systems. In order for this protection
