@@ -295,8 +295,8 @@
           supported by rxgk, that material MAY be used to key the client.
           The client simply calls the rxgk negotiation service using the
           relevant material, and obtains a token. The client SHOULD frequently
-          renew this token, to avoid combined tokens having unnecessarily
-          close expiration times.  The client SHOULD NOT renew this token
+          regenerate this token, to avoid combined tokens having unnecessarily
+          close expiration times.  The client SHOULD NOT regenerate this token
           so often so as to place excessive load on the vlservers.</t>
         <t>It is recommended that identities created specifically for use by 
           a cache manager have the name afs3-callback@&lt;hostname&gt; where 
