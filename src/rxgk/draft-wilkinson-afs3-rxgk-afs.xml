@@ -317,7 +317,7 @@
         both a mechanism of generating tokens for these servers to use, and
         a definition of which identities are permitted for authorisation
 	purposes. We refer to the process of forging tokens for local use,
-	given access to the cell-wide pre-shared key as "token printing".
+	given access to the cell-wide pre-shared key, as "token printing".
       </t>
       <section title="Token Printing" anchor="printing">
         <t>A server with access to the cell-wide pre-shared key may print its
