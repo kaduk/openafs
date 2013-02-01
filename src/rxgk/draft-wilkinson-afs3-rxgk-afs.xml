@@ -204,7 +204,7 @@
       </section>
       <section title="Token Encryption">
         <t>Token contents are encrypted using a pre-shared key. rxgk supports
-          the use of both a single cell-wide key and the use of per-server
+          both the use of a single cell-wide key and the use of per-server
           keys. The cell-wide key must be installed on all servers which are
           capable of accepting cell-wide tokens. Cell-wide keys should be for
           a selected RFC3961 encryption mechanism that is supported by all
