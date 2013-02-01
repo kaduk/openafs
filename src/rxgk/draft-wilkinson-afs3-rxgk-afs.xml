@@ -196,7 +196,7 @@
       afs_int32 kvno;
       afs_int32 enctype;
       opaque    encrypted_token&lt;&gt;;
-    }
+    };
 	</artwork>
         <t>The RXGK_TokenContainer structure is XDR encoded and transported
 	   within the 'token' field of the RXGK_ClientInfo structure specified
@@ -238,7 +238,7 @@
       afs_int32 bytelife;
       rxgkTime expirationtime;
       struct PrAuthName identities&lt;&gt;;
-    }
+    };
         </artwork>
         <list style="hanging" hangIndent="6">
           <t hangText="enctype:">The RFC3961 encryption type of the session key
@@ -277,8 +277,8 @@
 	   contains the UUID of the client.</t>
       <artwork>
     struct RXGK_Authenticator_AFSAppData {
-    afsUUID uuid;/
-    }
+    afsUUID uuid;
+    };
         </artwork>
     </section>
     <section title="Client tokens" anchor="client-tokens">
@@ -367,14 +367,14 @@
         VL_RegisterAddrs RPC), described by the following RPC-L:
 <artwork>
     struct RXGK_ServerKeyDataRequest {
-	afs_int32 enctypes&lt;&gt;
-	opaque nonce1&lt;&gt;
+	afs_int32 enctypes&lt;&gt;;
+	opaque nonce1&lt;&gt;;
     };
 
     struct RXGK_ServerKeyDataResponse {
         afs_int32 enctype;
         afs_int32 kvno;
-	opaque nonce2&lt;&gt;
+	opaque nonce2&lt;&gt;;
     };
 
     VL_RegisterAddrsAndKey(
@@ -410,7 +410,7 @@
       then the server MUST fail the request.</t>
       <t>The server key can then be derived by both client and server using
 <artwork>
-     random-to-key(PRF+(K0, K, nonce1 || nonce2))
+     random-to-key(PRF+(K0, K, nonce1 || nonce2));
 </artwork>
      </t>
       <t>random-to-key is the function specified by the RFC3961 profile of the
