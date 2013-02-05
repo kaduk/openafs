@@ -392,13 +392,15 @@
 	opaque nonce2[20];
     };
 
+    typedef opaque keyDataRequest&lt;&gt;;
+    typedef opaque keyDataResponse&lt;&gt;;
     VL_RegisterAddrsAndKey(
         IN afsUUID *uuidp,
 	IN afs_int32 spare1,
 	IN bulkaddrs *ipaddr,
 	IN afs_int32 secIndex,
-	IN opaque *keyDataRequest&lt;&gt;,
-	OUT opaque *keyDataResponse&lt;&gt;) = XXX;
+	IN keyDataRequest *request,
+	OUT keyDataResponse *response) = XXX;
        </artwork>
      </t>
       <list style="hanging" hangIndent="6">
