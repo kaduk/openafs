@@ -284,6 +284,9 @@ struct nvldb_list {
 nvldblist node;
 };
 
+typedef opaque keyDataRequest<>;
+typedef opaque keyDataResponse<>;
+
 CreateEntry(
   IN vldbentry *newentry
 ) = VLCREATEENTRY;
@@ -424,5 +427,14 @@ ListAttributesN2(
   OUT nbulkentries *blkentries,
   OUT afs_int32 *nextstartindex
 ) = VLLISTATTRIBUTESN2;
+
+RegisterAddrsAndKey(
+  IN afsUUID *uuidp,
+  IN afs_int32 spare1,
+  IN bulkaddrs *ipaddr,
+  IN afs_int32 secIndex,
+  IN keyDataRequest *request,
+  OUT keyDataResponse *response
+) = 65536; /* XXX not registered */
 
 %#endif /* !defined(KERNEL) */

@@ -2508,6 +2508,16 @@ abort:
 }
 
 afs_int32
+SVL_RegisterAddrsAndKey(struct rx_call *rxcall, afsUUID *uuidp, afs_int32 spare1,
+			bulkaddrs *ipaddr, afs_int32 secIndex,
+			keyDataRequest *request, keyDataResponse *response)
+{
+    /* XXXBJK This routine is a stub implementation. */
+
+    return 0;
+}
+
+afs_int32
 SVL_GetAddrsU(struct rx_call *rxcall,
 	      struct ListAddrByAttributes *attributes,
 	      afsUUID *uuidpo,

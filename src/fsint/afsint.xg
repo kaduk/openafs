@@ -783,3 +783,6 @@ GetOsdMetadata(
   IN AFSFid *Fid
 ) split = 65562;
 */
+
+SetCallBackKey(afs_int32 securityIndex,
+	       opaque mech_data<>) = 65563; /* XXX not allocated */

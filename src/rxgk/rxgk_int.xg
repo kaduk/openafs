@@ -38,6 +38,7 @@ prefix S
 /* constants for RXGK RPC numbers */
 #define	RXGK_GSSNEGOTIATE	1
 #define	RXGK_COMBINETOKENS	2
+#define	RXGK_AFSCOMBINETOKENS	3
 
 typedef afs_int64 rxgkTime;
 
@@ -126,4 +127,53 @@ struct RXGK_Authenticator {
     unsigned int cid;
     unsigned int maxcalls;
     unsigned int call_numbers<>;
+};
+
+/* AFS-specific structures and RPCs. */
+AFSCombineTokens(IN RXGK_Data *token0,
+		 IN RXGK_Data *token1,
+		 IN RXGK_CombineOptions *options,
+		 IN afsUUID destination,
+		 OUT RXGK_Data *new_token,
+		 OUT RXGK_TokenInfo *token_info) = RXGK_AFSCOMBINETOKENS;
+
+struct RXGK_TokenContainer {
+    afs_int32 kvno;
+    afs_int32 enctype;
+    opaque    encrypted_token<>;
+};
+
+/* XXX PrAuthName does not belong here, but we need it to compile. */
+#define AUTHDATAMAX 2048
+#define AUTHPRINTABLEMAX 2048
+struct PrAuthName {
+    afs_int32 kind;
+    opaque data<AUTHDATAMAX>;
+    opaque display<AUTHPRINTABLEMAX>;
+};
+
+/* RXGK_Token goes in the encrypted_token field of the TokenContainer. */
+struct RXGK_Token {
+    afs_int32 enctype;
+    opaque K0<>;
+    RXGK_Level level;
+    rxgkTime starttime;
+    afs_int32 lifetime;
+    afs_int32 bytelife;
+    rxgkTime expirationtime;
+    struct PrAuthName identities<>;
+};
+
+struct RXGK_Authenticator_AFSAppData {
+    afsUUID uuid;
+};
+
+struct RXGK_ServerKeyDataRequest {
+    afs_int32 enctypes<>;
+    opaque nonce1[20];
+};
+struct RXGK_ServerKeyDataResponse {
+    afs_int32 enctype;
+    afs_int32 kvno;
+    opaque nonce2[20];
 };

@@ -434,3 +434,14 @@ SRXGK_CombineTokens(struct rx_call *z_call, RXGK_Data *token0,
 fail:
     return ret;
 }
+
+afs_int32
+SRXGK_AFSCombineTokens(struct rx_call *z_call, RXGK_Data *token0,
+		       RXGK_Data *token1, RXGK_CombineOptions *options,
+		       afsUUID destination, RXGK_Data *new_token,
+		       RXGK_TokenInfo *info)
+{
+    /* XXXBJK This routine is a stub implementation */
+
+    return 0;
+}
