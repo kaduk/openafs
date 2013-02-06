@@ -67,6 +67,8 @@ AS_IF([test x"$KRB5_LIBS" != x],
         krb5_enctype_enable \
         krb5_get_init_creds_opt_alloc \
         krb5_get_prompt_types \
+	krb5_init_keyblock \
+	krb5_keyblock_init \
         krb5_princ_size \
         krb5_principal_get_comp_string])
      AC_CHECK_FUNCS([krb5_524_convert_creds], ,
