@@ -222,6 +222,119 @@ out:
     return ret;
 }
 
+static afs_int32
+make_wrap_token(RXGK_Token *token, RXGK_Data *out)
+{
+    RXGK_Data packed_token, encrypted_token;
+    RXGK_TokenContainer container;
+    XDR xdrs;
+    rxgk_key server_key;
+    u_int len;
+    afs_int32 ret, kvno, enctype;
+
+    zero_rxgkdata(&packed_token);
+    zero_rxgkdata(&encrypted_token);
+    server_key = NULL;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+    xdrlen_create(&xdrs);
+    if (!xdr_RXGK_Token(&xdrs, token)) {
+	ret = GSS_S_FAILURE;
+	dprintf(2, "xdrlen for Token says it is invalid\n");
+	goto out;
+    }
+    len = xdr_getpos(&xdrs);
+    xdr_destroy(&xdrs);
+
+    packed_token.val = malloc(len);
+    if (packed_token.val == NULL) {
+	dprintf(2, "Couldn't allocate for encoding Token\n");
+	return GSS_S_FAILURE;
+    }
+    packed_token.len = len;
+    xdrmem_create(&xdrs, packed_token.val, len, XDR_ENCODE);
+    if (!xdr_RXGK_Token(&xdrs, token)) {
+	ret = GSS_S_FAILURE;
+	dprintf(2, "xdrmem for Token says it is invalid\n");
+	goto out;
+    }
+    xdr_destroy(&xdrs);
+
+    /* Get the default key. */
+    kvno = enctype = 0;
+    get_server_key(&server_key, &kvno, &enctype);
+    encrypt_in_key(server_key, RXGK_SERVER_ENC_TOKEN,
+		   &packed_token, &encrypted_token);
+    ret = rx_opaque_populate(&container.encrypted_token, encrypted_token.val,
+			     encrypted_token.len);
+    if (ret != 0)
+	goto out;
+    container.kvno = kvno;
+    container.enctype = enctype;
+
+    /* Now the token container is populated; time to encode it into 'out'. */
+    memset(&xdrs, 0, sizeof(xdrs));
+    xdrlen_create(&xdrs);
+    if (!xdr_RXGK_TokenContainer(&xdrs, &container)) {
+	ret = GSS_S_FAILURE;
+	dprintf(2, "xdrlen for TokenContainer says it is invalid\n");
+	goto out;
+    }
+    len = xdr_getpos(&xdrs);
+    xdr_destroy(&xdrs);
+
+    out->val = xdr_alloc(len);
+    if (out->val == NULL) {
+	dprintf(2, "Couldn't allocate for encoding TokenContainer\n");
+	return GSS_S_FAILURE;
+    }
+    out->len = len;
+    xdrmem_create(&xdrs, out->val, len, XDR_ENCODE);
+    if (!xdr_RXGK_TokenContainer(&xdrs, &container)) {
+	ret = GSS_S_FAILURE;
+	dprintf(2, "xdrmem for TokenContainer says it is invalid\n");
+	goto out;
+    }
+    ret = 0;
+
+out:
+    xdr_destroy(&xdrs);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &encrypted_token);
+    xdr_free((xdrproc_t)xdr_RXGK_TokenContainer, &container);
+    release_key(&server_key);
+    free(packed_token.val);
+    return ret;
+}
+
+static afs_int32
+fill_token_identity(afs_int32 *minor, PrAuthName *identity, gss_name_t name)
+{
+    gss_buffer_desc exported_name, display_name;
+    afs_int32 ret;
+
+    memset(&exported_name, 0, sizeof(exported_name));
+    memset(&display_name, 0, sizeof(display_name));
+
+    ret = gss_export_name(minor, name, &exported_name);
+    if (ret != 0)
+	goto out;
+    ret = gss_display_name(minor, name, &display_name, NULL);
+    if (ret != 0)
+	goto out;
+
+    identity->kind = 2;		/* PRAUTHTYPE_GSS */
+    ret = rx_opaque_populate(&identity->data, exported_name.value,
+			     exported_name.length);
+    if (ret != 0)
+	goto out;
+    ret = rx_opaque_populate(&identity->display, display_name.value,
+			     display_name.length);
+out:
+    (void)gss_release_buffer(minor, &exported_name);
+    (void)gss_release_buffer(minor, &display_name);
+    return ret;
+}
+
 afs_int32
 SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 		   RXGK_Data *input_token_buffer, RXGK_Data *opaque_in,
@@ -236,6 +349,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     struct rxgk_opaque local_opaque;
     RXGK_ClientInfo info;
     RXGK_Level level;
+    RXGK_Token new_token;
     rxgkTime start_time;
     afs_int32 ret = 0;
     afs_uint32 time_rec;
@@ -376,12 +490,33 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     ret = mic_startparams(gss_minor_status, gss_ctx, &info.mic, client_start);
     if (ret != 0)
 	goto out;
-    /* Token not implemented yet. */
     ret = rxgk_make_k0(gss_minor_status, gss_ctx, &client_start->client_nonce,
 		       &info.server_nonce, enctype, &k0);
     if (ret != 0)
 	goto out;
-    zero_rxgkdata(&info.token);
+    new_token.enctype = enctype;
+    new_token.K0.val = xdr_alloc(k0.length);
+    if (new_token.K0.val == NULL)
+	goto out;
+    memcpy(new_token.K0.val, k0.value, k0.length);
+    new_token.K0.len = k0.length;
+    new_token.level = level;
+    new_token.starttime = start_time;
+    new_token.lifetime = lifetime;
+    new_token.bytelife = bytelife;
+    new_token.expirationtime = info.expiration;
+    new_token.identities.len = 1;
+    new_token.identities.val = xdr_alloc(sizeof(struct PrAuthName));
+    if (new_token.identities.val == NULL) {
+	ret = 1;
+	goto out;
+    }
+    *gss_major_status = fill_token_identity(gss_minor_status,
+					    new_token.identities.val,
+					    client_name);
+    ret = make_wrap_token(&new_token, &info.token);
+    if (ret != 0)
+	goto out;
 
     /* Wrap the ClientInfo response and pack it as an RXGK_Data. */
     ret = pack_clientinfo(gss_minor_status, gss_ctx, rxgk_info, &info);
@@ -396,6 +531,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 
 out:
     xdr_free((xdrproc_t)xdr_RXGK_ClientInfo, &info);
+    xdr_free((xdrproc_t)xdr_RXGK_Token, &new_token);
     (void)gss_release_cred(gss_minor_status, &creds);
     return ret;
 }
