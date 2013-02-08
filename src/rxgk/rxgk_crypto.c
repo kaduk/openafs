@@ -36,6 +36,9 @@
  * compatible with other backends in the future.
  *
  * typedef krb5_keyblock * rxgk_key;
+ *
+ * Public functions in this file should return RXGK error codes, converting
+ * from the krb5 error codes used internally.
  */
 
 #include <afsconfig.h>
@@ -44,6 +47,32 @@
 #include <rx/rxgk.h>
 
 #include <krb5.h>
+
+/*
+ * Convert krb5 error code to RXGK error code.  Don't let the krb5 codes excape.
+ */
+static_inline afs_int32
+ktor(afs_int32 err)
+{
+
+    if (err >= ERROR_TABLE_BASE_RXGK && err < (ERROR_TABLE_BASE_RXGK + 256))
+	return err;
+    switch (err) {
+	case 0:
+	    return 0;
+	case KRB5_RCACHE_BADVNO:
+	case KRB5_CCACHE_BADVNO:
+	case KRB5_KEYTAB_BADVNO:
+	case KRB5_BAD_ENCTYPE:
+	    return RXGK_BADKEYNO;
+	case KRB5_CRYPTO_INTERNAL:
+	case KRB5_BAD_MSIZE:
+	case KRB5_BADMSGTYPE:
+	    return RXGK_SEALED_INCON;
+	default:
+	    return RXGK_INCONSISTENCY;
+    }
+}
 
 /*
  * Take a raw key from some external source and produce an rxgk_key from it.
@@ -64,7 +93,7 @@ make_key(rxgk_key *key_out, void *raw_key, afs_int32 length, afs_int32 enctype)
 
     ret = krb5_init_context(&ctx);
     if (ret != 0)
-	return ret;
+	return ktor(ret);
 #ifdef HAVE_KRB5_INIT_KEYBLOCK
     /* free with krb5_free_keyblock */
     ret = krb5_init_keyblock(ctx, enctype, length, &new_key);
@@ -75,13 +104,17 @@ make_key(rxgk_key *key_out, void *raw_key, afs_int32 length, afs_int32 enctype)
     new_key = malloc(sizeof(*new_key));
     /* free with krb5_free_keyblock_contents + free */
     ret = krb5_keyblock_init(ctx, enctype, raw_key, length, new_key)
+    if (ret != 0) {
+	free(new_key);
+	goto out;
+    }
 #else
 #error "No RFC3961 implementation available"
 #endif
     *key_out = (rxgk_key)new_key;
 out:
     krb5_free_context(ctx);
-    return ret;
+    return ktor(ret);
 }
 
 /*
@@ -109,7 +142,7 @@ get_server_key(rxgk_key *key, afs_int32 *kvno, afs_int32 *enctype)
 
     ret = krb5_init_context(&ctx);
     if (ret != 0)
-	return ret;
+	return ktor(ret);
     ret = krb5_kt_resolve(ctx, "FILE:/Users/kaduk/openafs/perfluence.keytab",
 			  &keytab);
     if (ret != 0)
@@ -143,7 +176,7 @@ out:
     krb5_free_principal(ctx, principal);
     (void)krb5_kt_close(ctx, keytab);
     krb5_free_context(ctx);
-    return ret;
+    return ktor(ret);
 }
 
 /*
@@ -194,19 +227,14 @@ encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
 
     kd_in.data = NULL;
     kd_out.ciphertext.data = NULL;
-    out->val = NULL;
+    zero_rxgkdata(out);
 
     ret = krb5_init_context(&ctx);
     if (ret != 0)
-	return ret;
+	return ktor(ret);
 
-    kd_in.data = malloc(in->len);
-    if (kd_in.data == NULL) {
-	ret = 1;
-	goto out;
-    }
     kd_in.length = in->len;
-    memcpy(kd_in.data, in->val, in->len);
+    kd_in.data = in->val;
 
 #ifdef HAVE_KRB5_INIT_KEYBLOCK
     enctype = keyblock->enctype;
@@ -217,28 +245,17 @@ encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
     ret = krb5_c_encrypt_length(ctx, enctype, in->len, &length);
     if (ret != 0)
 	goto out;
-    kd_out.ciphertext.data = malloc(length);
-    if (kd_out.ciphertext.data == NULL) {
-	ret = 1;
+    out->val = xdr_alloc(length);
+    if (out->val == NULL) {
+	ret = RXGK_INCONSISTENCY;	/* Should be something better, but... */
 	goto out;
     }
     kd_out.ciphertext.length = length;
+    kd_out.ciphertext.data = out->val;
 
     ret = krb5_c_encrypt(ctx, keyblock, usage, NULL, &kd_in, &kd_out);
-    if (ret != 0)
-	goto out;
-
-    out->val = xdr_alloc(kd_out.ciphertext.length);
-    if (out->val == NULL) {
-	ret = 1;
-	goto out;
-    }
-    memcpy(out->val, kd_out.ciphertext.data, kd_out.ciphertext.length);
-    out->len = kd_out.ciphertext.length;
 
 out:
-    free(kd_in.data);
-    free(kd_out.ciphertext.data);
     krb5_free_context(ctx);
-    return ret;
+    return ktor(ret);
 }
