@@ -35,6 +35,7 @@
 
 #include <gssapi/gssapi.h>
 #include <gssapi/gssapi_krb5.h>
+#include <errno.h>
 
 #include <rx/rxgk.h>
 #include <hcrypto/rand.h>
@@ -169,8 +170,16 @@ out:
     return ret;
 }
 
+/*
+ * XDR-encode the proviced ClientInfo structure, and encrypt it to
+ * the client using the provided GSS context.
+ * The contents of rxgk_info are allocated and the caller must arrange for
+ * them to be freed.
+ * Returns a GSS error code, with corresponding minor status.  We fake up
+ * a minor status for non-GSS failures (e.g., XDR encoding issues).
+ */
 static afs_uint32
-pack_clientinfo(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
+pack_clientinfo(afs_uint32 *minor_status, gss_ctx_id_t gss_ctx,
 		RXGK_Data *rxgk_info, RXGK_ClientInfo *info)
 {
     XDR xdrs;
@@ -184,6 +193,7 @@ pack_clientinfo(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
     xdrlen_create(&xdrs);
     if (!xdr_RXGK_ClientInfo(&xdrs, info)) {
 	ret = GSS_S_FAILURE;
+	*minor_status = RXGEN_SS_MARSHAL;
 	dprintf(2, "xdrlen for ClientInfo says they are invalid\n");
 	goto out;
     }
@@ -193,22 +203,25 @@ pack_clientinfo(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
     tmp = malloc(len);
     if (tmp == NULL) {
 	dprintf(2, "Couldn't allocate for encoding ClientInfo\n");
+	*minor_status = ENOMEM;
 	return GSS_S_FAILURE;
     }
     xdrmem_create(&xdrs, tmp, len, XDR_ENCODE);
     if (!xdr_RXGK_ClientInfo(&xdrs, info)) {
 	ret = GSS_S_FAILURE;
+	*minor_status = RXGEN_SS_MARSHAL;
 	dprintf(2, "xdrmem for ClientInfo says they are invalid\n");
 	goto out;
     }
 
     info_buffer.length = len;
     info_buffer.value = tmp;
-    ret = gss_wrap(gss_minor_status, gss_ctx, TRUE, GSS_C_QOP_DEFAULT,
+    ret = gss_wrap(minor_status, gss_ctx, TRUE, GSS_C_QOP_DEFAULT,
 		   &info_buffer, &conf_state, &wrapped);
     if (ret == 0 && conf_state == 0) {
-	(void)gss_release_buffer(gss_minor_status, &wrapped);
+	(void)gss_release_buffer(minor_status, &wrapped);
 	ret = GSS_S_FAILURE;
+	*minor_status = GSS_S_BAD_QOP;
     }
     if (ret != 0)
 	goto out;
@@ -216,12 +229,14 @@ pack_clientinfo(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
     rxgk_info->val = xdr_alloc(wrapped.length);
     if (rxgk_info->val == NULL) {
 	dprintf(2, "No memory for wrapped ClientInfo\n");
+	(void)gss_release_buffer(minor_status, &wrapped);
 	ret = GSS_S_FAILURE;
+	*minor_status = ENOMEM;
 	goto out;
     }
     rxgk_info->len = wrapped.length;
     memcpy(rxgk_info->val, wrapped.value, wrapped.length);
-    ret = gss_release_buffer(gss_minor_status, &wrapped);
+    ret = gss_release_buffer(minor_status, &wrapped);
 
 out:
     free(tmp);
