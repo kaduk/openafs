@@ -109,7 +109,11 @@ get_creds(afs_uint32 *minor_status, gss_cred_id_t *creds)
     return 0;
 }
 
-/* Allocates its mic parameter, the caller must arrange for it to be freed. */
+/*
+ * XDR-encode the StartPArams structure, and compute a MIC of it using the
+ * provided gss context.
+ * Allocates its mic parameter, the caller must arrange for it to be freed.
+ */
 static afs_uint32
 mic_startparams(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
 		RXGK_Data *mic, RXGK_StartParams *client_start)
@@ -118,7 +122,8 @@ mic_startparams(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
     gss_buffer_desc startparams, mic_buffer;
     afs_uint32 ret;
     u_int len;
-    void *tmp = NULL;
+
+    memset(&startparams, 0, sizeof(startparams));
 
     memset(&xdrs, 0, sizeof(xdrs));
     xdrlen_create(&xdrs);
@@ -130,36 +135,36 @@ mic_startparams(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
     len = xdr_getpos(&xdrs);
     xdr_destroy(&xdrs);
 
-    tmp = malloc(len);
-    if (tmp == NULL) {
+    startparams.value = malloc(len);
+    if (startparams.value == NULL) {
 	dprintf(2, "Couldn't allocate for encoding StartParams\n");
 	return GSS_S_FAILURE;
     }
-    xdrmem_create(&xdrs, tmp, len, XDR_ENCODE);
+    startparams.length = len;
+    xdrmem_create(&xdrs, startparams.value, len, XDR_ENCODE);
     if (!xdr_RXGK_StartParams(&xdrs, client_start)) {
 	ret = GSS_S_FAILURE;
 	dprintf(2, "xdrmem for StartParams says they are invalid\n");
 	goto out;
     }
 
-    /* We have the StartParams encoded in tmp, now get the mic. */
-    startparams.length = len;
-    startparams.value = tmp;
+    /* We have the StartParams encoded, now get the mic. */
     ret = gss_get_mic(gss_minor_status, gss_ctx, GSS_C_QOP_DEFAULT, &startparams,
 		      &mic_buffer);
     if (ret != 0)
 	goto out;
-    mic->len = mic_buffer.length;
-    mic->val = xdr_alloc(mic->len);
+    /* Must double-buffer here, as GSS allocations might not be freed by XDR. */
+    mic->val = xdr_alloc(mic_buffer.length);
     if (mic->val == NULL) {
 	dprintf(2, "No memory for RXGK_Data mic\n");
 	goto out;
     }
+    mic->len = mic_buffer.length;
     memcpy(mic->val, mic_buffer.value, mic->len);
     ret = gss_release_buffer(gss_minor_status, &mic_buffer);
 
 out:
-    free(tmp);
+    free(startparams.value);
     xdr_destroy(&xdrs);
     return ret;
 }
