@@ -75,12 +75,16 @@ process_client_params(RXGK_StartParams *params, int *enctype,
     return 0;
 }
 
-static afs_int32
-get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
+/*
+ * Acquire GSS acceptor credentials in creds.
+ * Returns GSS error codes with corresponding minor status.
+ */
+static afs_uint32
+get_creds(afs_uint32 *minor_status, gss_cred_id_t *creds)
 {
     gss_buffer_desc name_buf;
     gss_name_t sname;
-    afs_int32 ret;
+    afs_uint32 ret, dummy;
     char *name = "afs-rxgk@_afs.perfluence.mit.edu";
 
     /* Tell gssapi-krb5 where to find the keytab. */
@@ -101,9 +105,7 @@ get_creds(afs_int32 *minor_status, gss_cred_id_t *creds)
     if (ret != 0)
 	return ret;
 
-    (void)gss_release_name(minor_status, &sname);
-
-    *minor_status = 0;
+    (void)gss_release_name(&dummy, &sname);
     return 0;
 }
 
