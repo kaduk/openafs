@@ -113,6 +113,23 @@ get_creds(afs_uint32 *minor_status, gss_cred_id_t *creds)
 }
 
 /*
+ * Copy the fields from a TokenInfo into a ClientInfo.
+ * ClientInfo is a superset of TokenInfo.
+ */
+static void
+tokeninfo_to_clientinfo(RXGK_ClientInfo *client, RXGK_TokenInfo *local)
+{
+
+    client->errorcode = local->errorcode;
+    client->enctype = local->enctype;
+    client->level = local->level;
+    client->lifetime = local->lifetime;
+    client->bytelife = local->bytelife;
+    client->expiration = local->expiration;
+    return;
+}
+
+/*
  * XDR-encode the StartPArams structure, and compute a MIC of it using the
  * provided gss context.
  * Allocates its mic parameter, the caller must arrange for it to be freed.
@@ -539,11 +556,6 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     /* We're done and can generate a token, and fill in rxgk_info. */
     printf("time_rec is %u\n", time_rec);
     printf("start_time is %llu\n", start_time);
-    info.errorcode = localinfo.errorcode;
-    info.enctype = localinfo.enctype;
-    info.level = localinfo.level;
-    info.lifetime = localinfo.lifetime;
-    info.bytelife = localinfo.bytelife;
     localinfo.expiration = start_time + time_rec * 1000 * 10;
     if ((RXGK_NOW() - start_time) > 50000) {
 	/* We've been processing for 5 seconds?! */
@@ -555,7 +567,10 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 	/* time went backwards */
 	localinfo.expiration = RXGK_NOW() + 5 * 60 * 1000 * 10;
     }
-    info.expiration = localinfo.expiration;
+
+    /* Fill the ClientInfo from the source of truth. */
+    tokeninfo_to_clientinfo(&info, &localinfo);
+
     /* 20-byte nonce is UUID length, used elsewhere. */
     ret = rxgk_nonce(&info.server_nonce, 20);
     if (ret != 0)
