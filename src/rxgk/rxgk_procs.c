@@ -684,6 +684,9 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 	xdr_free((xdrproc_t)xdr_PrAuthName, &identity);
 	goto out;
     }
+    /* Do not bother making a token if we have a policy error. */
+    if (localinfo.errorcode != 0)
+	goto out;
     ret = make_token(&info.token, &localinfo, &k0, start_time, identity, 1);
     if (ret != 0)
 	goto out;
