@@ -113,6 +113,13 @@ get_server_name(afs_uint32 *minor_status, gss_name_t *target_name)
 			   target_name);
 }
 
+/*
+ * Decrypt the encrypted reply from the server containing the ClientInfo
+ * structure using gss_unwrap, and decode the XDR representation into an
+ * actual ClientInfo structure.
+ *
+ * Returns GSS major/minor pairs.
+ */
 static afs_uint32
 decode_clientinfo(afs_uint32 *minor_status, gss_ctx_id_t gss_ctx,
 		  RXGK_Data *info_in, RXGK_ClientInfo *info_out)
@@ -120,10 +127,11 @@ decode_clientinfo(afs_uint32 *minor_status, gss_ctx_id_t gss_ctx,
     XDR xdrs;
     gss_buffer_desc info_buf, clientinfo_buf;
     gss_qop_t qop_state;
-    afs_uint32 ret;
+    afs_uint32 ret, dummy;
     int conf_state;
 
     memset(&xdrs, 0, sizeof(xdrs));
+    memset(&clientinfo_buf, 0, sizeof(clientinfo_buf));
     info_buf.length = info_in->len;
     info_buf.value = info_in->val;
     ret = gss_unwrap(minor_status, gss_ctx, &info_buf, &clientinfo_buf,
@@ -131,14 +139,17 @@ decode_clientinfo(afs_uint32 *minor_status, gss_ctx_id_t gss_ctx,
     if (ret != 0)
 	return ret;
     if (conf_state == 0 || qop_state != GSS_C_QOP_DEFAULT) {
-	ret = GSS_S_FAILURE;
-	goto out;
+	/* Cannot goto out as xdrs are not instantiated yet. */
+	(void)gss_release_buffer(&dummy, &clientinfo_buf);
+	*minor_status = GSS_S_BAD_QOP;
+	return GSS_S_FAILURE;
     }
 
     /* We don't know how long it should be until we decode it. */
     xdrmem_create(&xdrs, clientinfo_buf.value, clientinfo_buf.length, XDR_DECODE);
     if (!xdr_RXGK_ClientInfo(&xdrs, info_out)) {
 	ret = GSS_S_FAILURE;
+	*minor_status = RXGEN_CC_UNMARSHAL;
 	dprintf(2, "xdrmem for ClientInfo says they are invalid\n");
 	goto out;
     }
@@ -146,7 +157,7 @@ decode_clientinfo(afs_uint32 *minor_status, gss_ctx_id_t gss_ctx,
     ret = 0;
 
 out:
-    (void)gss_release_buffer(minor_status, &clientinfo_buf);
+    (void)gss_release_buffer(&dummy, &clientinfo_buf);
     xdr_destroy(&xdrs);
     return ret;
 }
