@@ -44,15 +44,6 @@
 /* One TiB */
 #define MAX_BYTELIFE	40
 
-/* The layout of the opaque blob we expect the client to return to us. */
-struct rxgk_opaque {
-    afs_int32 enctype;
-    afs_int32 level;
-    afs_int32 lifetime;
-    afs_int32 bytelife;
-    gss_ctx_id_t gss_ctx;
-} __attribute((packed));
-
 /* Must use xdr_alloc to allocate data for output structures.
  * It will be freed by the server-side stub code using osi_free. */
 
@@ -445,7 +436,6 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     gss_cred_id_t creds;
     gss_ctx_id_t gss_ctx;
     gss_name_t client_name;
-    struct rxgk_opaque local_opaque;
     RXGK_ClientInfo info;
     RXGK_Level level;
     RXGK_Token new_token;
@@ -469,10 +459,6 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 
     ret = process_client_params(client_start, &enctype, &level, &lifetime,
 				&bytelife);
-    local_opaque.enctype = enctype;
-    local_opaque.level = level;
-    local_opaque.lifetime = lifetime;
-    local_opaque.bytelife = bytelife;
     /* XXX compare against input token, further validation */
 
     /* Need credentials before we can accept a security context. */
