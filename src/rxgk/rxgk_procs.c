@@ -244,49 +244,132 @@ out:
     return ret;
 }
 
+/*
+ * Take the input RXGK_Token and XDR-encode it, returning the result in
+ * packed_token.  The caller is responsible for freeing the memory contained
+ * in packed_token.
+ *
+ * Returns RX errors.
+ */
+static afs_int32
+pack_token(RXGK_Token *token, RXGK_Data *packed_token)
+{
+    XDR xdrs;
+    afs_int32 ret;
+    u_int len;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+    xdrlen_create(&xdrs);
+    if (!xdr_RXGK_Token(&xdrs, token)) {
+	dprintf(2, "xdrlen for Token says it is invalid\n");
+	ret = RXGEN_SS_MARSHAL;
+	goto out;
+    }
+    len = xdr_getpos(&xdrs);
+
+    packed_token->val = xdr_alloc(len);
+    if (packed_token->val == NULL) {
+	dprintf(2, "Couldn't allocate for encoding Token\n");
+	ret = RXGEN_SS_MARSHAL;
+	goto out;
+    }
+    packed_token->len = len;
+
+    xdr_destroy(&xdrs);
+    xdrmem_create(&xdrs, packed_token->val, len, XDR_ENCODE);
+    if (!xdr_RXGK_Token(&xdrs, token)) {
+	dprintf(2, "xdrmem for Token says it is invalid\n");
+	ret = RXGEN_SS_MARSHAL;
+	goto out;
+    }
+    ret = 0;
+
+out:
+    xdr_destroy(&xdrs);
+    return ret;
+}
+
+/*
+ * Take the input TokenContainer and XDR-encode it, returning the result
+ * in 'out'.  The caller is responsible for freeing the memory contained
+ * in 'out'.
+ *
+ * Returns RX errors.
+ */
+static afs_int32
+pack_container(RXGK_TokenContainer *container, RXGK_Data *out)
+{
+    XDR xdrs;
+    afs_int32 ret;
+    u_int len;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+    xdrlen_create(&xdrs);
+    if (!xdr_RXGK_TokenContainer(&xdrs, container)) {
+	dprintf(2, "xdrlen for TokenContainer says it is invalid\n");
+	ret = RXGEN_SS_MARSHAL;
+	goto out;
+    }
+    len = xdr_getpos(&xdrs);
+
+    out->val = xdr_alloc(len);
+    if (out->val == NULL) {
+	dprintf(2, "Couldn't allocate for encoding TokenContainer\n");
+	ret = RXGEN_SS_MARSHAL;
+	goto out;
+    }
+    out->len = len;
+
+    xdr_destroy(&xdrs);
+    xdrmem_create(&xdrs, out->val, len, XDR_ENCODE);
+    if (!xdr_RXGK_TokenContainer(&xdrs, container)) {
+	dprintf(2, "xdrmem for TokenContainer says it is invalid\n");
+	ret = RXGEN_SS_MARSHAL;
+	goto out;
+    }
+    ret = 0;
+
+out:
+    xdr_destroy(&xdrs);
+    return ret;
+}
+
+/*
+ * Take the input token, encode it, encrypt that blob, populate a
+ * TokenContainer with the encrypted token, kvno, and enctype, and encode
+ * the resulting TokenContainer into 'out'.
+ *
+ * Returns RX errors.
+ */
 static afs_int32
 make_wrap_token(RXGK_Token *token, RXGK_Data *out)
 {
     RXGK_Data packed_token, encrypted_token;
     RXGK_TokenContainer container;
-    XDR xdrs;
     rxgk_key server_key;
-    u_int len;
     afs_int32 ret, kvno, enctype;
 
     zero_rxgkdata(&packed_token);
     zero_rxgkdata(&encrypted_token);
+    zero_rxgkdata(out);
+    container.encrypted_token.len = 0;
+    container.encrypted_token.val = NULL;
     server_key = NULL;
 
-    memset(&xdrs, 0, sizeof(xdrs));
-    xdrlen_create(&xdrs);
-    if (!xdr_RXGK_Token(&xdrs, token)) {
-	ret = GSS_S_FAILURE;
-	dprintf(2, "xdrlen for Token says it is invalid\n");
+    /* XDR-encode the token in to packed_token. */
+    ret = pack_token(token, &packed_token);
+    if (ret != 0)
 	goto out;
-    }
-    len = xdr_getpos(&xdrs);
-    xdr_destroy(&xdrs);
-
-    packed_token.val = malloc(len);
-    if (packed_token.val == NULL) {
-	dprintf(2, "Couldn't allocate for encoding Token\n");
-	return GSS_S_FAILURE;
-    }
-    packed_token.len = len;
-    xdrmem_create(&xdrs, packed_token.val, len, XDR_ENCODE);
-    if (!xdr_RXGK_Token(&xdrs, token)) {
-	ret = GSS_S_FAILURE;
-	dprintf(2, "xdrmem for Token says it is invalid\n");
-	goto out;
-    }
-    xdr_destroy(&xdrs);
 
     /* Get the default key. */
     kvno = enctype = 0;
-    get_server_key(&server_key, &kvno, &enctype);
-    encrypt_in_key(server_key, RXGK_SERVER_ENC_TOKEN,
-		   &packed_token, &encrypted_token);
+    ret = get_server_key(&server_key, &kvno, &enctype);
+    if (ret != 0)
+	goto out;
+    ret = encrypt_in_key(server_key, RXGK_SERVER_ENC_TOKEN, &packed_token,
+			 &encrypted_token);
+    if (ret != 0)
+	goto out;
     ret = rx_opaque_populate(&container.encrypted_token, encrypted_token.val,
 			     encrypted_token.len);
     if (ret != 0)
@@ -295,36 +378,15 @@ make_wrap_token(RXGK_Token *token, RXGK_Data *out)
     container.enctype = enctype;
 
     /* Now the token container is populated; time to encode it into 'out'. */
-    memset(&xdrs, 0, sizeof(xdrs));
-    xdrlen_create(&xdrs);
-    if (!xdr_RXGK_TokenContainer(&xdrs, &container)) {
-	ret = GSS_S_FAILURE;
-	dprintf(2, "xdrlen for TokenContainer says it is invalid\n");
+    ret = pack_container(&container, out);
+    if (ret != 0)
 	goto out;
-    }
-    len = xdr_getpos(&xdrs);
-    xdr_destroy(&xdrs);
-
-    out->val = xdr_alloc(len);
-    if (out->val == NULL) {
-	dprintf(2, "Couldn't allocate for encoding TokenContainer\n");
-	return GSS_S_FAILURE;
-    }
-    out->len = len;
-    xdrmem_create(&xdrs, out->val, len, XDR_ENCODE);
-    if (!xdr_RXGK_TokenContainer(&xdrs, &container)) {
-	ret = GSS_S_FAILURE;
-	dprintf(2, "xdrmem for TokenContainer says it is invalid\n");
-	goto out;
-    }
-    ret = 0;
 
 out:
-    xdr_destroy(&xdrs);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &packed_token);
     xdr_free((xdrproc_t)xdr_RXGK_Data, &encrypted_token);
     xdr_free((xdrproc_t)xdr_RXGK_TokenContainer, &container);
     release_key(&server_key);
-    free(packed_token.val);
     return ret;
 }
 
