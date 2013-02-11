@@ -497,6 +497,54 @@ out:
     return ret;
 }
 
+/*
+ * Create a single PrAuthName structure containing the specified identity.
+ * Will be used to create a token (with that single identity).
+ *
+ * Returns GSS major/minor pairs.
+ */
+static afs_uint32
+make_single_identity(afs_uint32 *minor, PrAuthName **identity, gss_name_t name)
+{
+    *identity = xdr_alloc(sizeof(**identity));
+    if (*identity == NULL) {
+	*minor = ENOMEM;
+	return GSS_S_FAILURE;
+    }
+    return fill_token_identity(minor, *identity, name);
+}
+
+/*
+ * Create a token from the specified TokenInfo, key, start time, and list
+ * of identities.  Encrypts the token and stores it as an rx_opaque.
+ * Returns RX errors.
+ */
+static afs_int32
+make_token(struct rx_opaque *out, RXGK_TokenInfo *info, gss_buffer_t k0,
+	   rxgkTime start, PrAuthName *identities, int nids)
+{
+    RXGK_Token token;
+    afs_int32 ret;
+
+    memset(&token, 0, sizeof(token));
+
+    /* Get the tokeninfo values from the authoritative source. */
+    tokeninfo_to_token(&token, info);
+
+    /* Create the rest of the token. */
+    token.starttime = start;
+    token.K0.val = xdr_alloc(k0->length);
+    if (token.K0.val == NULL)
+	return RXGEN_SS_MARSHAL;
+    memcpy(token.K0.val, k0->value, k0->length);
+    token.K0.len = k0->length;
+    token.identities.len = nids;
+    token.identities.val = identities;
+    ret = make_wrap_token(&token, out);
+    xdr_free((xdrproc_t)xdr_RXGK_Token, &token);
+    return ret;
+}
+
 afs_int32
 SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 		   RXGK_Data *input_token_buffer, RXGK_Data *opaque_in,
@@ -509,8 +557,8 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     gss_ctx_id_t gss_ctx;
     gss_name_t client_name;
     RXGK_ClientInfo info;
-    RXGK_Token new_token;
     RXGK_TokenInfo localinfo;
+    PrAuthName *identity;
     rxgkTime start_time;
     afs_int32 ret = 0;
     afs_uint32 time_rec;
@@ -614,25 +662,11 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     if (ret != 0)
 	goto out;
 
-    /* Get the tokeninfo values from the authoritative source. */
-    tokeninfo_to_token(&new_token, &localinfo);
-    /* Create the rest of the token. */
-    new_token.starttime = start_time;
-    new_token.K0.val = xdr_alloc(k0.length);
-    if (new_token.K0.val == NULL)
+    *gss_major_status = make_single_identity(gss_minor_status, &identity, 
+					     client_name);
+    if (GSS_ERROR(*gss_major_status))
 	goto out;
-    memcpy(new_token.K0.val, k0.value, k0.length);
-    new_token.K0.len = k0.length;
-    new_token.identities.len = 1;
-    new_token.identities.val = xdr_alloc(sizeof(struct PrAuthName));
-    if (new_token.identities.val == NULL) {
-	ret = 1;
-	goto out;
-    }
-    *gss_major_status = fill_token_identity(gss_minor_status,
-					    new_token.identities.val,
-					    client_name);
-    ret = make_wrap_token(&new_token, &info.token);
+    ret = make_token(&info.token, &localinfo, &k0, start_time, identity, 1);
     if (ret != 0)
 	goto out;
 
@@ -649,7 +683,6 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 
 out:
     xdr_free((xdrproc_t)xdr_RXGK_ClientInfo, &info);
-    xdr_free((xdrproc_t)xdr_RXGK_Token, &new_token);
     (void)gss_release_cred(gss_minor_status, &creds);
     return ret;
 }
