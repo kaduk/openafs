@@ -559,18 +559,30 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     RXGK_ClientInfo info;
     RXGK_TokenInfo localinfo;
     PrAuthName *identity;
+    RXGK_Level level;
     rxgkTime start_time;
     afs_int32 ret = 0;
     afs_uint32 time_rec;
     size_t len;
     char *tmp;
 
+    /* Zero out all the stack-allocated stuff so we can unconditionally free
+     * their contents at the end. */
+    memset(&gss_token_in, 0, sizeof(gss_token_in));
+    memset(&gss_token_out, 0, sizeof(gss_token_out));
+    memset(&k0, 0, sizeof(k0));
+    creds = GSS_C_NO_CREDENTIAL;
+    gss_ctx = GSS_C_NO_CONTEXT;
+    client_name = GSS_C_NO_NAME;
+    memset(&info, 0, sizeof(info));
+    memset(&localinfo, 0, sizeof(localinfo));
+    identity = NULL;
+    *gss_major_status = *gss_minor_status = 0;
+
     start_time = RXGK_NOW();
 
     /* See what the client sent us. */
-    if (opaque_in->len == 0) {
-	gss_ctx = GSS_C_NO_CONTEXT;
-    } else {
+    if (opaque_in->len != 0) {
 	/* We don't support multi-round negotiation yet.  Abort. */
 	ret = RX_INVALID_OPERATION;
 	goto out;
@@ -578,15 +590,17 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 
     /* Get a validated local copy of the various parameters in localinfo. */
     ret = process_client_params(client_start, &localinfo);
-    /* XXX compare against input token, further validation */
+    if (ret != 0)
+	goto out;
 
     /* Need credentials before we can accept a security context. */
-    ret = get_creds(gss_minor_status, &creds);
-    if (ret != 0) {
+    *gss_major_status = get_creds(gss_minor_status, &creds);
+    if (GSS_ERROR(*gss_major_status)) {
 	dprintf(2, "No credentials!\n");
 	printf("get_creds gives major %i minor %i\n",
 	       ret, *gss_minor_status);
-	return RXGK_INCONSISTENCY;
+	ret = RXGK_INCONSISTENCY;
+	goto out;
     }
 
     /* prepare the input token */
@@ -596,9 +610,8 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 	gss_token_in.length = input_token_buffer->len;
 	gss_token_in.value = input_token_buffer->val;
     } else {
+	/* Already initialized to zero. */
 	printf("no input token\n");
-	gss_token_in.length = 0;
-	gss_token_in.value = NULL;
     }
 
     /* Call into GSS */
@@ -631,7 +644,6 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 	memcpy(tmp, gss_token_out.value, len);
 	output_token_buffer->len = len;
 	output_token_buffer->val = tmp;
-	(void)gss_release_buffer(gss_minor_status, &gss_token_out);
     }
 
     /* If our side is done, we don't need to give anything to the client
@@ -654,36 +666,44 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     ret = rxgk_nonce(&info.server_nonce, 20);
     if (ret != 0)
 	goto out;
-    ret = mic_startparams(gss_minor_status, gss_ctx, &info.mic, client_start);
-    if (ret != 0)
+    *gss_major_status = mic_startparams(gss_minor_status, gss_ctx, &info.mic,
+					client_start);
+    if (GSS_ERROR(*gss_major_status))
 	goto out;
-    ret = rxgk_make_k0(gss_minor_status, gss_ctx, &client_start->client_nonce,
-		       &info.server_nonce, localinfo.enctype, &k0);
-    if (ret != 0)
+    *gss_major_status = rxgk_make_k0(gss_minor_status, gss_ctx,
+				     &client_start->client_nonce,
+				     &info.server_nonce, localinfo.enctype, &k0);
+    if (GSS_ERROR(*gss_major_status))
 	goto out;
 
     *gss_major_status = make_single_identity(gss_minor_status, &identity, 
 					     client_name);
-    if (GSS_ERROR(*gss_major_status))
+    if (GSS_ERROR(*gss_major_status)) {
+	/* Must free here, as the success case will be freed when make_token()
+	 * frees its identity field. */
+	xdr_free((xdrproc_t)xdr_PrAuthName, &identity);
 	goto out;
+    }
     ret = make_token(&info.token, &localinfo, &k0, start_time, identity, 1);
     if (ret != 0)
 	goto out;
 
     /* Wrap the ClientInfo response and pack it as an RXGK_Data. */
-    ret = pack_clientinfo(gss_minor_status, gss_ctx, rxgk_info, &info);
-    if (ret != 0)
+    *gss_major_status = pack_clientinfo(gss_minor_status, gss_ctx, rxgk_info,
+					&info);
+    if (GSS_ERROR(*gss_major_status))
 	goto out;
 
-    /* Free memory allocated for k0 */
+out:
+    /* gss_token_in aliases XDR-allocated storage */
+    (void)gss_release_buffer(gss_minor_status, &gss_token_out);
     (void)gss_release_buffer(gss_minor_status, &k0);
-
+    (void)gss_release_cred(gss_minor_status, &creds);
     (void)gss_delete_sec_context(gss_minor_status, &gss_ctx, GSS_C_NO_BUFFER);
     (void)gss_release_name(gss_minor_status, &client_name);
-
-out:
     xdr_free((xdrproc_t)xdr_RXGK_ClientInfo, &info);
-    (void)gss_release_cred(gss_minor_status, &creds);
+    /* localinfo is entirely scalar types and need not be freed. */
+
     return ret;
 }
 
