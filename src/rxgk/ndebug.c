@@ -94,6 +94,12 @@ fill_start_params(RXGK_StartParams *params)
     return 0;
 }
 
+/*
+ * Determine the (GSS) name of the remote server to contact.
+ * For now, hardcoded.
+ *
+ * Returns GSS major/minor pairs.
+ */
 static afs_uint32
 get_server_name(afs_uint32 *minor_status, gss_name_t *target_name)
 {
