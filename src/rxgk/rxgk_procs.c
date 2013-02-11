@@ -390,11 +390,19 @@ out:
     return ret;
 }
 
-static afs_int32
-fill_token_identity(afs_int32 *minor, PrAuthName *identity, gss_name_t name)
+/*
+ * Convert the given gss_name_t into both an exported name used for
+ * authorization comparisons and a display name for display, placing
+ * those in the appropriate fields of the PrAuthName structure, and
+ * setting its type appropriately.
+ *
+ * Returns GSS-API major/minor pairs.
+ */
+static afs_uint32
+fill_token_identity(afs_uint32 *minor, PrAuthName *identity, gss_name_t name)
 {
     gss_buffer_desc exported_name, display_name;
-    afs_int32 ret;
+    afs_uint32 ret, dummy;
 
     memset(&exported_name, 0, sizeof(exported_name));
     memset(&display_name, 0, sizeof(display_name));
@@ -409,13 +417,21 @@ fill_token_identity(afs_int32 *minor, PrAuthName *identity, gss_name_t name)
     identity->kind = 2;		/* PRAUTHTYPE_GSS */
     ret = rx_opaque_populate(&identity->data, exported_name.value,
 			     exported_name.length);
-    if (ret != 0)
+    if (ret != 0) {
+	ret = GSS_S_FAILURE;
+	*minor = ENOMEM;
 	goto out;
+    }
     ret = rx_opaque_populate(&identity->display, display_name.value,
 			     display_name.length);
+    if (ret != 0) {
+	ret = GSS_S_FAILURE;
+	*minor = ENOMEM;
+	goto out;
+    }
 out:
-    (void)gss_release_buffer(minor, &exported_name);
-    (void)gss_release_buffer(minor, &display_name);
+    (void)gss_release_buffer(&dummy, &exported_name);
+    (void)gss_release_buffer(&dummy, &display_name);
     return ret;
 }
 
