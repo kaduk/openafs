@@ -43,7 +43,13 @@
 #include <rx/rx.h>
 #include <rx/rxgk.h>
 
-static int
+/*
+ * Populate a StartParams structure.
+ * Just use fixed values for now.
+ *
+ * Returns RX error codes.
+ */
+static afs_int32
 fill_start_params(RXGK_StartParams *params)
 {
     void *tmp;
@@ -52,10 +58,10 @@ fill_start_params(RXGK_StartParams *params)
 
     /* enctypes */
     len = 3;
-    tmp = malloc(len * sizeof(int));
+    tmp = xdr_alloc(len * sizeof(int));
     if (tmp == NULL) {
 	dprintf(2, "couldn't allocate for params.enctypes\n");
-	return 1;
+	return RXGEN_CC_MARSHAL;
     }
     params->enctypes.len = len;
     params->enctypes.val = tmp;
@@ -65,10 +71,10 @@ fill_start_params(RXGK_StartParams *params)
    
     /* security levels */
     len = 3;
-    tmp = malloc(len * sizeof(RXGK_Level));
+    tmp = xdr_alloc(len * sizeof(RXGK_Level));
     if (tmp == NULL) {
 	dprintf(2, "couldn't allocate for params.levels\n");
-	return 1;
+	return RXGEN_CC_MARSHAL;
     }
     params->levels.len = len;
     params->levels.val = tmp;
