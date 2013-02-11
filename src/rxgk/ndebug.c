@@ -39,7 +39,6 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
-#include <hcrypto/rand.h>
 
 #include <rx/rx.h>
 #include <rx/rxgk.h>
@@ -81,21 +80,10 @@ fill_start_params(RXGK_StartParams *params)
     params->lifetime = 60 * 60 * 10;	/* 10 hours */
     params->bytelife = 30;		/* 1 GiB */
 
-    /* use a random nonce */
-    len = 20;
-    tmp = malloc(len);
-    if (tmp == NULL) {
-	dprintf(2, "couldn't allocate for params.client_nonce\n");
-	return 1;
-    }
-    ret = RAND_bytes(tmp, len);
-    /* RAND_bytes returns 1 on success, sigh. */
-    if (ret != 1) {
-	dprintf(2, "no random data for client_nonce\n");
-	return 1;
-    }
-    params->client_nonce.len = len;
-    params->client_nonce.val = tmp;
+    /* Use a random nonce; 20 bytes is UUID-length. */
+    ret = rxgk_nonce(&params->client_nonce, 20);
+    if (ret != 0)
+	return ret;
 
     return 0;
 }

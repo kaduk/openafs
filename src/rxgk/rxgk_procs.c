@@ -38,7 +38,6 @@
 #include <errno.h>
 
 #include <rx/rxgk.h>
-#include <hcrypto/rand.h>
 
 /* One week */
 #define MAX_LIFETIME	(60 * 60 * 24 * 7)
@@ -573,20 +572,10 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 	/* time went backwards */
 	info.expiration = RXGK_NOW() + 5 * 60 * 1000 * 10;
     }
-    len = 20;
-    tmp = xdr_alloc(len);
-    if (tmp == NULL) {
-	ret = RXGEN_SS_MARSHAL;
+    /* 20-byte nonce is UUID length, used elsewhere. */
+    ret = rxgk_nonce(&info.server_nonce, 20);
+    if (ret != 0)
 	goto out;
-    }
-    ret = RAND_bytes(tmp, len);
-    /* RAND_bytes returns 1 on success, sigh. */
-    if (ret != 1) {
-	dprintf(2, "no random data for server_nonce\n");
-	return 1;
-    }
-    info.server_nonce.len = len;
-    info.server_nonce.val = tmp;
     ret = mic_startparams(gss_minor_status, gss_ctx, &info.mic, client_start);
     if (ret != 0)
 	goto out;

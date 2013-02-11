@@ -37,6 +37,7 @@
 
 #include <gssapi/gssapi.h>
 #include <rx/rxgk.h>
+#include <hcrypto/rand.h>
 
 static ssize_t
 etype_to_len(int etype)
@@ -88,6 +89,24 @@ rxgk_make_k0(afs_uint32 *minor_status, gss_ctx_id_t gss_ctx,
 
     free(seed.value);
     return ret;
+}
+
+afs_int32
+rxgk_nonce(RXGK_Data *nonce, int len)
+{
+
+    zero_rxgkdata(nonce);
+    nonce->val = xdr_alloc(len);
+    if (nonce->val == NULL)
+	return RXGEN_SS_MARSHAL;
+    nonce->len = len;
+
+    /* RAND_bytes returns 1 on success, sigh. */
+    if (RAND_bytes(nonce->val, len) != 1) {
+	dprintf(2, "no random data for server_nonce\n");
+	return RXGEN_SS_MARSHAL;
+    }
+    return 0;
 }
 
 void
