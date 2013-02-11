@@ -157,6 +157,22 @@ tokeninfo_to_clientinfo(RXGK_ClientInfo *client, RXGK_TokenInfo *local)
 }
 
 /*
+ * Copy the fields from a TokenInfo to a Token.
+ * Token is not a complete superset of TokenInfo; errorcode is ignored.
+ */
+static void
+tokeninfo_to_token(RXGK_Token *token, RXGK_TokenInfo *info)
+{
+
+    token->enctype = info->enctype;
+    token->level = info->level;
+    token->lifetime = info->lifetime;
+    token->bytelife = info->bytelife;
+    token->expirationtime = info->expiration;
+    return;
+}
+
+/*
  * XDR-encode the StartPArams structure, and compute a MIC of it using the
  * provided gss context.
  * Allocates its mic parameter, the caller must arrange for it to be freed.
@@ -597,17 +613,16 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 		       &info.server_nonce, localinfo.enctype, &k0);
     if (ret != 0)
 	goto out;
-    new_token.enctype = localinfo.enctype;
+
+    /* Get the tokeninfo values from the authoritative source. */
+    tokeninfo_to_token(&new_token, &localinfo);
+    /* Create the rest of the token. */
+    new_token.starttime = start_time;
     new_token.K0.val = xdr_alloc(k0.length);
     if (new_token.K0.val == NULL)
 	goto out;
     memcpy(new_token.K0.val, k0.value, k0.length);
     new_token.K0.len = k0.length;
-    new_token.level = localinfo.level;
-    new_token.starttime = start_time;
-    new_token.lifetime = localinfo.lifetime;
-    new_token.bytelife = localinfo.bytelife;
-    new_token.expirationtime = localinfo.expiration;
     new_token.identities.len = 1;
     new_token.identities.val = xdr_alloc(sizeof(struct PrAuthName));
     if (new_token.identities.val == NULL) {
