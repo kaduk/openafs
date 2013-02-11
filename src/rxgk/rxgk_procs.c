@@ -52,6 +52,8 @@
  * actual values of the parameters will be (or that the client's suggestion
  * was unacceptable).
  * Final values are stored in the TokenInfo struct for convenience.
+ * This "local tokeninfo" will be the source of truth for information about
+ * the token being constructed.
  *
  * Returns an RX error code.
  */
@@ -59,7 +61,6 @@ static afs_int32
 process_client_params(RXGK_StartParams *params, RXGK_TokenInfo *info)
 {
 
-    /* errorcode and expiration are not currently used in the local tokeninfo. */
     info->errorcode = 0;
     info->expiration = -1;
     if (params->enctypes.len == 0)
@@ -538,22 +539,23 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     /* We're done and can generate a token, and fill in rxgk_info. */
     printf("time_rec is %u\n", time_rec);
     printf("start_time is %llu\n", start_time);
-    info.errorcode = 0;
+    info.errorcode = localinfo.errorcode;
     info.enctype = localinfo.enctype;
     info.level = localinfo.level;
     info.lifetime = localinfo.lifetime;
     info.bytelife = localinfo.bytelife;
-    info.expiration = start_time + time_rec * 1000 * 10;
+    localinfo.expiration = start_time + time_rec * 1000 * 10;
     if ((RXGK_NOW() - start_time) > 50000) {
 	/* We've been processing for 5 seconds?! */
 	dprintf(2, "extended SRXGK_GSSNegotiation processing\n");
 	/* five minutes only */
-	info.expiration = start_time + 5 * 60 * 1000 * 10;
+	localinfo.expiration = start_time + 5 * 60 * 1000 * 10;
     }
     if (RXGK_NOW() < start_time) {
 	/* time went backwards */
-	info.expiration = RXGK_NOW() + 5 * 60 * 1000 * 10;
+	localinfo.expiration = RXGK_NOW() + 5 * 60 * 1000 * 10;
     }
+    info.expiration = localinfo.expiration;
     /* 20-byte nonce is UUID length, used elsewhere. */
     ret = rxgk_nonce(&info.server_nonce, 20);
     if (ret != 0)
@@ -575,7 +577,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     new_token.starttime = start_time;
     new_token.lifetime = localinfo.lifetime;
     new_token.bytelife = localinfo.bytelife;
-    new_token.expirationtime = info.expiration;
+    new_token.expirationtime = localinfo.expiration;
     new_token.identities.len = 1;
     new_token.identities.val = xdr_alloc(sizeof(struct PrAuthName));
     if (new_token.identities.val == NULL) {
