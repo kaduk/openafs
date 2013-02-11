@@ -47,22 +47,33 @@
 /* Must use xdr_alloc to allocate data for output structures.
  * It will be freed by the server-side stub code using osi_free. */
 
+/*
+ * Process the client's suggested starting parameters and determine what the
+ * actual values of the parameters will be (or that the client's suggestion
+ * was unacceptable).
+ * Final values are stored in the TokenInfo struct for convenience.
+ *
+ * Returns an RX error code.
+ */
 static afs_int32
-process_client_params(RXGK_StartParams *params, int *enctype,
-		      RXGK_Level *level, int *lifetime, int *bytelife)
+process_client_params(RXGK_StartParams *params, RXGK_TokenInfo *info)
 {
+
+    /* errorcode and expiration are not currently used in the local tokeninfo. */
+    info->errorcode = 0;
+    info->expiration = -1;
     if (params->enctypes.len == 0)
 	return RXGK_BADETYPE;
-    *enctype = params->enctypes.val[0];
+    info->enctype = params->enctypes.val[0];
     if (params->levels.len == 0)
 	return RXGK_BADLEVEL;
-    *level = params->levels.val[0];
-    *lifetime = params->lifetime;
-    if (*lifetime < 0 || *lifetime > MAX_LIFETIME)
-	*lifetime = MAX_LIFETIME;
-    *bytelife = params->bytelife;
-    if (*bytelife < 0 || *bytelife > MAX_BYTELIFE)
-	*bytelife = MAX_BYTELIFE;
+    info->level = params->levels.val[0];
+    info->lifetime = params->lifetime;
+    if (info->lifetime < 0 || info->lifetime > MAX_LIFETIME)
+	info->lifetime = MAX_LIFETIME;
+    info->bytelife = params->bytelife;
+    if (info->bytelife < 0 || info->bytelife > MAX_BYTELIFE)
+	info->bytelife = MAX_BYTELIFE;
     return 0;
 }
 
@@ -437,14 +448,13 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     gss_ctx_id_t gss_ctx;
     gss_name_t client_name;
     RXGK_ClientInfo info;
-    RXGK_Level level;
     RXGK_Token new_token;
+    RXGK_TokenInfo localinfo;
     rxgkTime start_time;
     afs_int32 ret = 0;
     afs_uint32 time_rec;
     size_t len;
     char *tmp;
-    int enctype, lifetime, bytelife;
 
     start_time = RXGK_NOW();
 
@@ -457,8 +467,8 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 	goto out;
     }
 
-    ret = process_client_params(client_start, &enctype, &level, &lifetime,
-				&bytelife);
+    /* Get a validated local copy of the various parameters in localinfo. */
+    ret = process_client_params(client_start, &localinfo);
     /* XXX compare against input token, further validation */
 
     /* Need credentials before we can accept a security context. */
@@ -529,10 +539,10 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     printf("time_rec is %u\n", time_rec);
     printf("start_time is %llu\n", start_time);
     info.errorcode = 0;
-    info.enctype = enctype;
-    info.level = level;
-    info.lifetime = lifetime;
-    info.bytelife = bytelife;
+    info.enctype = localinfo.enctype;
+    info.level = localinfo.level;
+    info.lifetime = localinfo.lifetime;
+    info.bytelife = localinfo.bytelife;
     info.expiration = start_time + time_rec * 1000 * 10;
     if ((RXGK_NOW() - start_time) > 50000) {
 	/* We've been processing for 5 seconds?! */
@@ -552,19 +562,19 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     if (ret != 0)
 	goto out;
     ret = rxgk_make_k0(gss_minor_status, gss_ctx, &client_start->client_nonce,
-		       &info.server_nonce, enctype, &k0);
+		       &info.server_nonce, localinfo.enctype, &k0);
     if (ret != 0)
 	goto out;
-    new_token.enctype = enctype;
+    new_token.enctype = localinfo.enctype;
     new_token.K0.val = xdr_alloc(k0.length);
     if (new_token.K0.val == NULL)
 	goto out;
     memcpy(new_token.K0.val, k0.value, k0.length);
     new_token.K0.len = k0.length;
-    new_token.level = level;
+    new_token.level = localinfo.level;
     new_token.starttime = start_time;
-    new_token.lifetime = lifetime;
-    new_token.bytelife = bytelife;
+    new_token.lifetime = localinfo.lifetime;
+    new_token.bytelife = localinfo.bytelife;
     new_token.expirationtime = info.expiration;
     new_token.identities.len = 1;
     new_token.identities.val = xdr_alloc(sizeof(struct PrAuthName));
