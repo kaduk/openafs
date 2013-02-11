@@ -561,8 +561,8 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     PrAuthName *identity;
     RXGK_Level level;
     rxgkTime start_time;
-    afs_int32 ret = 0;
-    afs_uint32 time_rec;
+    afs_int32 ret;
+    afs_uint32 time_rec, dummy;
     size_t len;
     char *tmp;
 
@@ -699,11 +699,11 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 
 out:
     /* gss_token_in aliases XDR-allocated storage */
-    (void)gss_release_buffer(gss_minor_status, &gss_token_out);
-    (void)gss_release_buffer(gss_minor_status, &k0);
-    (void)gss_release_cred(gss_minor_status, &creds);
-    (void)gss_delete_sec_context(gss_minor_status, &gss_ctx, GSS_C_NO_BUFFER);
-    (void)gss_release_name(gss_minor_status, &client_name);
+    (void)gss_release_buffer(&dummy, &gss_token_out);
+    (void)gss_release_buffer(&dummy, &k0);
+    (void)gss_release_cred(&dummy, &creds);
+    (void)gss_delete_sec_context(&dummy, &gss_ctx, GSS_C_NO_BUFFER);
+    (void)gss_release_name(&dummy, &client_name);
     xdr_free((xdrproc_t)xdr_RXGK_ClientInfo, &info);
     /* localinfo is entirely scalar types and need not be freed. */
 
