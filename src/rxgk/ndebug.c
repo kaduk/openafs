@@ -162,8 +162,14 @@ out:
     return ret;
 }
 
-int
-main(int argc, char *argv[])
+/*
+ * Obtain a token over the RXGK negotiation service, using the provided
+ * security object.
+ *
+ * Returns RX errors.
+ */
+static afs_int32
+get_token(struct rx_securityClass *secobj)
 {
     /*
      * We have both gss_buffer and RXGK_Data copies of the token_in and
@@ -179,21 +185,12 @@ main(int argc, char *argv[])
     RXGK_StartParams params;
     RXGK_Data token_out, token_in, opaque_in, opaque_out, info;
     RXGK_ClientInfo clientinfo;
-    struct rx_securityClass *secobj;
     struct rx_connection *conn;
     afs_uint32 gss_flags, ret_flags;
     unsigned int major_status, minor_status;
     int ret;
     u_short port = 8888;
     u_short svc = 34567;
-
-    ret = rx_Init(0);
-    if (ret != 0) {
-	dprintf(2, "Could not initialize RX\n");
-	exit(1);
-    }
-
-    secobj = rxnull_NewClientSecurityObject();
 
     conn = rx_NewConnection(htonl(INADDR_LOOPBACK), port,
 			    svc, secobj, RX_SECIDX_NULL);
@@ -311,9 +308,6 @@ main(int argc, char *argv[])
     if (ret != 0)
 	printf("Failed to generate k0\n");
 
-    /* Done. */
-    rx_Finalize();
-
     /* Free memory allocated for k0 */
     (void)gss_release_buffer(&minor_status, &k0);
 
@@ -323,4 +317,26 @@ main(int argc, char *argv[])
     xdr_free((xdrproc_t)xdr_RXGK_Data, &info);
 
     return 0;
+}
+
+int
+main(int argc, char *argv[])
+{
+    struct rx_securityClass *secobj;
+    afs_int32 ret;
+
+    ret = rx_Init(0);
+    if (ret != 0) {
+	dprintf(2, "Could not initialize RX\n");
+	exit(1);
+    }
+
+    secobj = rxnull_NewClientSecurityObject();
+
+    ret = get_token(secobj);
+
+    /* Done. */
+    rx_Finalize();
+
+    return ret;
 }
