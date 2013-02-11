@@ -462,14 +462,9 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     if (opaque_in->len == 0) {
 	gss_ctx = GSS_C_NO_CONTEXT;
     } else {
-	if (opaque_in->len != sizeof(local_opaque)) {
-	    dprintf(2, "Evil client detected\n");
-	    return RXGK_DATA_LEN;
-	}
-	memcpy(&local_opaque, opaque_in->val, sizeof(local_opaque));
-	/* XXX nefarious client will crash us */
-	/* XXX also we leak memory */
-	gss_ctx = local_opaque.gss_ctx;
+	/* We don't support multi-round negotiation yet.  Abort. */
+	ret = RX_INVALID_OPERATION;
+	goto out;
     }
 
     ret = process_client_params(client_start, &enctype, &level, &lifetime,
@@ -537,19 +532,10 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     /* If our side is done, we don't need to give anything to the client
      * for it to give back to us. */
     if (*gss_major_status != GSS_S_COMPLETE) {
-	/* Continue needed, since our GSS is not in error.
-	 * Fill opaque_out so we have state when the client calls back. */
-	local_opaque.gss_ctx = gss_ctx;
-	len = sizeof(local_opaque);
-	tmp = xdr_alloc(len);
-	if (tmp == NULL) {
-	    ret = RXGEN_SS_MARSHAL;
-	    goto out;
-	}
-	memcpy(tmp, &local_opaque, len);
-	opaque_out->len = len;
-	opaque_out->val = tmp;
-	ret = 0;
+	/* Continue needed, since our GSS is not in error. */
+	/* We *should* fill opaque_out, but instead return an error as we
+	 * do not support multi-round mechanism exchanges yet. */
+	ret = RX_INVALID_OPERATION;
 	goto out;
     }
     /* else */
