@@ -404,7 +404,7 @@ out:
  * Returns RX errors.
  */
 static afs_int32
-make_wrap_token(RXGK_Token *token, RXGK_Data *out)
+pack_wrap_token(RXGK_Token *token, RXGK_Data *out)
 {
     RXGK_Data packed_token, encrypted_token;
     RXGK_TokenContainer container;
@@ -540,7 +540,7 @@ make_token(struct rx_opaque *out, RXGK_TokenInfo *info, gss_buffer_t k0,
     token.K0.len = k0->length;
     token.identities.len = nids;
     token.identities.val = identities;
-    ret = make_wrap_token(&token, out);
+    ret = pack_wrap_token(&token, out);
     xdr_free((xdrproc_t)xdr_RXGK_Token, &token);
     return ret;
 }
