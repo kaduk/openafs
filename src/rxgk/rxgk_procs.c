@@ -113,6 +113,33 @@ get_creds(afs_uint32 *minor_status, gss_cred_id_t *creds)
 }
 
 /*
+ * Set a token expiration time.  Use the GSSAPI context lifetime as a guide,
+ * but also enforce local policy.
+ */
+static rxgkTime
+get_expiration(rxgkTime start, afs_uint32 gss_lifetime)
+{
+    rxgkTime ret;
+    rxgkTime now = RXGK_NOW();
+
+    printf("time_rec is %u\n", gss_lifetime);
+    printf("start_time is %llu\n", start);
+    ret = start + gss_lifetime * 1000 * 10;
+    if ((now - start) > 50000) {
+	/* We've been processing for 5 seconds?! */
+	dprintf(2, "extended SRXGK_GSSNegotiation processing\n");
+	/* five minutes only */
+	ret = start + 5 * 60 * 1000 * 10;
+    }
+    if (now < start) {
+	/* time went backwards */
+	ret = now + 5 * 60 * 1000 * 10;
+    }
+
+    return ret;
+}
+
+/*
  * Copy the fields from a TokenInfo into a ClientInfo.
  * ClientInfo is a superset of TokenInfo.
  */
@@ -553,20 +580,8 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 	goto out;
     }
     /* else */
-    /* We're done and can generate a token, and fill in rxgk_info. */
-    printf("time_rec is %u\n", time_rec);
-    printf("start_time is %llu\n", start_time);
-    localinfo.expiration = start_time + time_rec * 1000 * 10;
-    if ((RXGK_NOW() - start_time) > 50000) {
-	/* We've been processing for 5 seconds?! */
-	dprintf(2, "extended SRXGK_GSSNegotiation processing\n");
-	/* five minutes only */
-	localinfo.expiration = start_time + 5 * 60 * 1000 * 10;
-    }
-    if (RXGK_NOW() < start_time) {
-	/* time went backwards */
-	localinfo.expiration = RXGK_NOW() + 5 * 60 * 1000 * 10;
-    }
+    /* We're done and can generate a token and tokeninfo. */
+    localinfo.expiration = get_expiration(start_time, time_rec);
 
     /* Fill the ClientInfo from the source of truth. */
     tokeninfo_to_clientinfo(&info, &localinfo);
