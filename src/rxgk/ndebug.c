@@ -286,16 +286,6 @@ get_token(struct rx_securityClass *secobj)
 	    goto loop_cleanup;
 	}
 
-	/* Decode the reply and print it to the user */
-	if (major_status != GSS_S_COMPLETE) {
-	    printf("GSS negotiation incomplete, major %i minor %i\n",
-		   major_status, minor_status);
-	} else {
-	    printf("GSSNegotiate finished, major %i minor %i\n",
-		   major_status, minor_status);
-	    printf("Server gave us token of length %i\n", recv_token.len);
-	}
-
 loop_cleanup:
 	proceed = !GSS_ERROR(major_status) && ret == 0 &&
 	    ((major_status & GSS_S_CONTINUE_NEEDED) != 0 || recv_token.len > 0);
