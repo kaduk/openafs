@@ -266,8 +266,10 @@ get_token(struct rx_securityClass *secobj)
 	/* Done with recv_token. Must free here since GSSNegotiate allocs it.*/
 	xdr_free((xdrproc_t)xdr_RXGK_Data, &recv_token);
 	zero_rxgkdata(&recv_token);
-	if (major_status == GSS_S_COMPLETE && gss_send_token.length == 0)
+	if (major_status == GSS_S_COMPLETE && gss_send_token.length == 0) {
+	    /* Success! */
 	    goto loop_cleanup;
+	}
 
 	/* Translate from gss_buffer to RXGK_Data. GSS still owns the storage
 	 * and we must use gss_release_buffer() later. */
