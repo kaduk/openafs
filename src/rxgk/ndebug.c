@@ -338,7 +338,7 @@ cleanup:
     /* Free other memory */
     (void)gss_release_buffer(&dummy, &k0);
     (void)gss_release_name(&dummy, &target_name);
-    (void)gss_delete_sec_context(&dummy, gss_ctx, GSS_C_NO_BUFFER);
+    (void)gss_delete_sec_context(&dummy, &gss_ctx, GSS_C_NO_BUFFER);
     xdr_free((xdrproc_t)xdr_RXGK_StartParams, &params);
     xdr_free((xdrproc_t)xdr_RXGK_ClientInfo, &clientinfo);
     rx_DestroyConnection(conn);
