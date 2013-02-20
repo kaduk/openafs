@@ -162,7 +162,7 @@ out:
 }
 
 /*
- * Perform one round-trip of the GSS negotiation exchange.
+ * Perform up to one round-trip of the GSS negotiation exchange.
  * Call gss_init_sec_context locally, and send the output token to the
  * server using the GSSNegotiate RPC.  The server calls gss_accept_sec_context
  * and returns its output token to us when the RPC completes.
