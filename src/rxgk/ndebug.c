@@ -101,10 +101,9 @@ fill_start_params(RXGK_StartParams *params)
  * Returns GSS major/minor pairs.
  */
 static afs_uint32
-get_server_name(afs_uint32 *minor_status, gss_name_t *target_name)
+get_server_name(afs_uint32 *minor_status, char *sname, gss_name_t *target_name)
 {
     gss_buffer_desc name_tmp;
-    char *sname = "afs-rxgk@_afs.perfluence.mit.edu";
 
     name_tmp.value = sname;
     name_tmp.length = strlen(sname);
@@ -268,12 +267,13 @@ cleanup:
 
 /*
  * Obtain a token over the RXGK negotiation service, using the provided
- * security object.
+ * security object, using the server principal name from sname and target
+ * IPv4 address given in addr (host byte order).
  *
  * Returns RX errors.
  */
 static afs_int32
-get_token(struct rx_securityClass *secobj)
+get_token(struct rx_securityClass *secobj, char *sname, afs_uint32 addr)
 {
     gss_buffer_desc k0;
     gss_ctx_id_t gss_ctx;
@@ -302,7 +302,7 @@ get_token(struct rx_securityClass *secobj)
     conn = NULL;
     ret = 0;
 
-    conn = rx_NewConnection(htonl(INADDR_LOOPBACK), port,
+    conn = rx_NewConnection(htonl(addr), port,
 			    svc, secobj, RX_SECIDX_NULL);
     if (conn == NULL) {
 	dprintf(2, "Did not get RX connection\n");
@@ -313,7 +313,7 @@ get_token(struct rx_securityClass *secobj)
     /* Prepare things for gss_init_sec_context unchanged by the loop. */
     gss_flags = (GSS_C_MUTUAL_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG ) &
 		~GSS_C_DELEG_FLAG;
-    major_status = get_server_name(&minor_status, &target_name);
+    major_status = get_server_name(&minor_status, sname, &target_name);
     if (GSS_ERROR(major_status)) {
 	dprintf(2, "Could not import server name major %i minor %i\n",
 		major_status, minor_status);
@@ -397,6 +397,7 @@ int
 main(int argc, char *argv[])
 {
     struct rx_securityClass *secobj;
+    char *sname = "afs-rxgk@_afs.perfluence.mit.edu";
     afs_int32 ret;
 
     ret = rx_Init(0);
@@ -407,7 +408,7 @@ main(int argc, char *argv[])
 
     secobj = rxnull_NewClientSecurityObject();
 
-    ret = get_token(secobj);
+    ret = get_token(secobj, sname, INADDR_LOOPBACK);
 
     /* Done. */
     rx_Finalize();
