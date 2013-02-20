@@ -36,11 +36,28 @@
 #ifndef RXGK_PROTOTYPES_H
 #define RXGK_PROTOTYPES_H
 
+typedef enum {
+    RXGK_CLIENT,
+    RXGK_SERVER,
+    RXGK_DEAD
+} rxgk_type;
 
 
 /*
  * rgxk_server.c
  */
+
+/*
+ * type is common to client and server, and must be aliasable.
+ * Per-connection flags, and a way to get a decryption key for what the client
+ * sends us.
+ */
+struct rxgk_sprivate {
+    rxgk_type type;
+    afs_int32 flags;
+    void *rock;
+    rxgk_getkey_func getkey;
+};
 
 int rxgk_CheckAuthentication(struct rx_securityClass *aobj,
 			     struct rx_connection *aconn);

@@ -69,4 +69,10 @@ void release_key(rxgk_key *key);
 afs_int32 encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
 			 RXGK_Data *out);
 
+/* rxgk_server.c */
+typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 kvno,
+				      afs_int32 enctype, rxgk_key *key);
+struct rx_securityClass * rxgk_NewServerSecurityObject(void *getkey_rock,
+						       rxgk_getkey_func getkey);
+
 #endif /* OPENAFS_RXGK_H */

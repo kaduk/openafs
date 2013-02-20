@@ -70,6 +70,33 @@ static struct rx_securityOps rxgk_server_ops = {
     0,				/* spare 2 */
 };
 
+struct rx_securityClass *
+rxgk_NewServerSecurityObject(void *getkey_rock, rxgk_getkey_func getkey)
+{
+    struct rx_securityClass *sc;
+    struct rxgk_sprivate *sp;
+
+    sc = calloc(1, sizeof(*sc));
+    if (sc == NULL)
+	return NULL;
+    sp = calloc(1, sizeof(*sp));
+    if (sp == NULL) {
+	free(sc);
+	return NULL;
+    }
+    sc->ops = &rxgk_server_ops;
+    sc->refCount = 1;
+    sc->privateData = sp;
+
+    /* Now get the server-private data. */
+    sp->type = RXGK_SERVER;
+    sp->flags = 0;
+    sp->rock = getkey_rock;
+    sp->getkey = getkey;
+
+    return sc;
+}
+
 /* Did a connection properly authenticate? */
 int
 rxgk_CheckAuthentication(struct rx_securityClass *aobj,
