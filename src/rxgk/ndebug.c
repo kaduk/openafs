@@ -163,6 +163,110 @@ out:
 }
 
 /*
+ * Perform one round-trip of the GSS negotiation exchange.
+ * Call gss_init_sec_context locally, and send the output token to the
+ * server using the GSSNegotiate RPC.  The server calls gss_accept_sec_context
+ * and returns its output token to us when the RPC completes.
+ * If negotiation is complete after gss_init_sec_context, we return early;
+ * otherwise, we return our status and the caller is responsible for determining
+ * whether an additional (full- or half-) round-trip is necessary.
+ *
+ * We present an RXGK_Data interface for GSS tokens, as the output to the caller
+ * is allocated by XDR and must be freed by the caller using that interface,
+ * converting to/from gss_buffers internally as needed.
+ *
+ * Even though the RPC does not have in and out versions of the info argument,
+ * we have them, to present a more unified interface to the caller.  We actually
+ * do need the input info object from the previous round if using a mechanism
+ * that uses a half integral number of round trips, as in that case we will not
+ * make another RPC call.
+ *
+ * Allocates token_out, opaque_out, and info_out, to be freed by the caller.
+ *
+ * Returns zero for success, 1 if another (half) round-trip is needed, an RXGK
+ * error if the RPC failed, 2 if the local GSS state is in error, or 3 if the
+ * remote GSS state is in error.
+ */
+static afs_int32
+get_token_round_trip(afs_uint32 *major, afs_uint32 *minor, gss_ctx_id_t *gss_ctx,
+		     gss_name_t target_name, RXGK_Data *token_in,
+		     RXGK_Data *token_out, afs_uint32 in_flags,
+		     afs_uint32 *ret_flags, struct rx_connection *conn,
+		     RXGK_StartParams *params, RXGK_Data *opaque_in,
+		     RXGK_Data *opaque_out, RXGK_Data *info_in,
+		     RXGK_Data *info_out)
+{
+    RXGK_Data send_token;
+    gss_buffer_desc gss_send_token, gss_recv_token;
+    afs_uint32 dummy;
+    afs_int32 ret;
+
+    memset(&gss_send_token, 0, sizeof(gss_send_token));
+    memset(&gss_recv_token, 0, sizeof(gss_recv_token));
+    zero_rxgkdata(&send_token);
+    zero_rxgkdata(info_out);
+
+    /* Alias the input token to gss_recv_token for the GSS call. */
+    gss_recv_token.value = token_in->val;
+    gss_recv_token.length = token_in->len;
+    *major = gss_init_sec_context(minor, GSS_C_NO_CREDENTIAL, gss_ctx,
+				  target_name, (gss_OID)gss_mech_krb5, in_flags,
+				  0 /* time */, NULL /* channel bindings */,
+				  &gss_recv_token, NULL /* actual mech type */,
+				  &gss_send_token, ret_flags,
+				  NULL /* time_rec */);
+    if (GSS_ERROR(*major)) {
+	dprintf(2, "init sec context in error, major %i minor %i\n", *major,
+		*minor);
+	ret = 2;
+	goto cleanup;
+    }
+    if (*major == GSS_S_COMPLETE && gss_send_token.length == 0) {
+	/* Success!  Copy the info_in argument to info_out. */
+	ret = 0;
+	info_out->val = xdr_alloc(info_in->len);
+	if (info_out->val == NULL) {
+	    ret = RXGEN_CC_UNMARSHAL;
+	} else {
+	    info_out->len = info_in->len;
+	    memcpy(info_out->val, info_in->val, info_in->len);
+	}
+	goto cleanup;
+    }
+
+    /* Alias send_token to gss_send_token for the network call. */
+    send_token.len = gss_send_token.length;
+    send_token.val = gss_send_token.value;
+    printf("init_sec_context token length %i\n", gss_send_token.length);
+
+    /* Actual RPC call */
+    ret = RXGK_GSSNegotiate(conn, params, &send_token, opaque_in,
+			    token_out, opaque_out, major, minor, info_out);
+    if (ret != 0) {
+	dprintf(2, "GSSNegotiate returned %i\n", ret);
+	if (ret >= 1 && ret <= 3)
+	    ret = RXGK_INCONSISTENCY;
+	goto cleanup;
+    }
+    if (GSS_ERROR(*major)) {
+	ret = 3;
+	goto cleanup;
+    }
+    if (token_out->len > 0) {
+	/* Could check server's return here, but not formally needed. */
+	ret = 1;
+	goto cleanup;
+    }
+    /* else, ret is zero and we're done */
+
+cleanup:
+    /* send_token and gss_send_token alias the same storage */
+    zero_rxgkdata(&send_token);
+    (void)gss_release_buffer(&dummy, &gss_send_token);
+    return ret;
+}
+
+/*
  * Obtain a token over the RXGK negotiation service, using the provided
  * security object.
  *
@@ -171,36 +275,30 @@ out:
 static afs_int32
 get_token(struct rx_securityClass *secobj)
 {
-    /*
-     * We have both gss_buffer and RXGK_Data copies of the send_token and
-     * recv_token structures (named for which way they go on the wire).
-     * recv_token is allocated by the XDR routines and must be freed by them,
-     * and send_token is allocated in gss_init_sec_context and must be freed with
-     * gss_release_buffer.
-     */
-    gss_buffer_desc gss_send_token, gss_recv_token, *gss_token_ptr, k0;
+    gss_buffer_desc k0;
     gss_ctx_id_t gss_ctx;
     gss_name_t target_name;
     RXGK_StartParams params;
-    RXGK_Data recv_token, send_token, opaque_in, opaque_out, info;
+    /* These are in/out with respect to get_token_round_trip. */
+    RXGK_Data token_in, token_out, opaque_in, opaque_out, info_in, info_out;
     RXGK_ClientInfo clientinfo;
     struct rx_connection *conn;
     afs_uint32 gss_flags, ret_flags, major_status, minor_status, dummy;
     afs_int32 ret;
-    int proceed = 0;
     u_short port = 8888;
     u_short svc = 34567;
 
-    /* Loop-internal variables are initialized in the loop. */
     major_status = minor_status = 0;
     memset(&k0, 0, sizeof(k0));
     gss_ctx = GSS_C_NO_CONTEXT;
-    gss_token_ptr = (gss_buffer_desc *)GSS_C_NO_BUFFER;
     target_name = GSS_C_NO_NAME;
     memset(&params, 0, sizeof(params));
     memset(&clientinfo, 0, sizeof(clientinfo));
+    zero_rxgkdata(&token_in);
+    zero_rxgkdata(&token_out);
     zero_rxgkdata(&opaque_in);
     zero_rxgkdata(&opaque_out);
+    zero_rxgkdata(&info_in);
     conn = NULL;
     ret = 0;
 
@@ -228,10 +326,6 @@ get_token(struct rx_securityClass *secobj)
     if (ret != 0)
 	goto cleanup;
 
-    /* Tell the XDR decoder to allocate for us. */
-    zero_rxgkdata(&recv_token);
-    memset(&gss_recv_token, 0, sizeof(gss_recv_token));
-    zero_rxgkdata(&opaque_out);
 
     /*
      * The negotiation loop to establish a security context and generate
@@ -239,88 +333,39 @@ get_token(struct rx_securityClass *secobj)
      */
     do  {
 	/* Clear out things allocated during the loop here. */
-	/* Allocated by GSS */
-	memset(&gss_send_token, 0, sizeof(gss_send_token));
-	zero_rxgkdata(&send_token);
 	/* Allocated by XDR */
-	zero_rxgkdata(&info);
-	major_status = gss_init_sec_context(&minor_status,
-					    GSS_C_NO_CREDENTIAL,
-					    &gss_ctx, target_name,
-					    (gss_OID)gss_mech_krb5,
-					    gss_flags,
-					    0 /* time */,
-					    NULL /* channel bindings */,
-					    gss_token_ptr,
-					    NULL /* actual mech type */,
-					    &gss_send_token, &ret_flags,
-					    NULL /* time_rec */);
-
-	printf("GSS init sec context status major %i minor %i\n",
-	       major_status, minor_status);
-	if (GSS_ERROR(major_status)) {
-	    dprintf(2, "init sec context in error, major %i minor %i\n",
-		    major_status, minor_status);
-	    goto loop_cleanup;
-	}
-	/* Done with recv_token. Must free here since GSSNegotiate allocs it.*/
-	xdr_free((xdrproc_t)xdr_RXGK_Data, &recv_token);
-	zero_rxgkdata(&recv_token);
-	if (major_status == GSS_S_COMPLETE && gss_send_token.length == 0) {
-	    /* Success! */
-	    goto loop_cleanup;
-	}
-
-	/* Translate from gss_buffer to RXGK_Data. GSS still owns the storage
-	 * and we must use gss_release_buffer() later. */
-	send_token.len = gss_send_token.length;
-	send_token.val = gss_send_token.value;
-	printf("init_sec_context token length %i\n", gss_send_token.length);
-
-	/* Actual RPC call */
-	ret = RXGK_GSSNegotiate(conn, &params, &send_token, &opaque_in,
-				&recv_token, &opaque_out, &major_status,
-				&minor_status, &info);
-	if (ret != 0) {
-	    dprintf(2, "GSSNegotiate returned %i\n", ret);
-	    goto loop_cleanup;
-	}
-
-loop_cleanup:
-	proceed = !GSS_ERROR(major_status) && ret == 0 &&
-	    ((major_status & GSS_S_CONTINUE_NEEDED) != 0 || recv_token.len > 0);
-	if (!proceed) {
-	    /* Only free recv_token if we don't need it for the next cycle. */
-	    xdr_free((xdrproc_t)xdr_RXGK_Data, &recv_token);
-	    zero_rxgkdata(&recv_token);
-	}
-	/* send_token and gss_send_token alias the same storage */
-	zero_rxgkdata(&send_token);
-	ret = gss_release_buffer(&minor_status, &gss_send_token);
+	zero_rxgkdata(&token_out);
+	zero_rxgkdata(&info_out);
+	zero_rxgkdata(&opaque_out);
+	/* Call gss_init_sec_context and GSSNegotiate. */
+	ret = get_token_round_trip(&major_status, &minor_status, &gss_ctx,
+				   target_name, &token_in, &token_out,
+				   gss_flags, &ret_flags, conn, &params,
+				   &opaque_in, &opaque_out, &info_in, &info_out);
+	/* Always free the input arguments. */
+	xdr_free((xdrproc_t)xdr_RXGK_Data, &token_in);
 	xdr_free((xdrproc_t)xdr_RXGK_Data, &opaque_in);
-	if (proceed) {
-	    opaque_in.len = opaque_out.len;
-	    opaque_in.val = opaque_out.val;
-	} else
-	    xdr_free((xdrproc_t)xdr_RXGK_Data, &opaque_out);
-	/* Prepare for a possible next cycle */
-	gss_recv_token.length = recv_token.len;
-	gss_recv_token.value = recv_token.val;
-	gss_token_ptr = &gss_recv_token;
-	if (proceed)
-	    xdr_free((xdrproc_t)xdr_RXGK_Data, &info);
-    } while(proceed);
+	xdr_free((xdrproc_t)xdr_RXGK_Data, &info_in);
+	/* Swap things over for a possible next cycle. */
+	token_in.val = token_out.val;
+	token_in.len = token_out.len;
+	opaque_in.val = opaque_out.val;
+	opaque_in.len = opaque_out.len;
+	info_in.val = info_out.val;
+	info_in.len = info_out.len;
+    } while(ret == 1);
     /* end negotiation loop */
 
-    if (major_status != GSS_S_COMPLETE) {
-	dprintf(2, "GSS negotiation failed, major %i minor %i\n",
-		major_status, minor_status);
+    if (ret != 0) {
+	dprintf(2, "GSS negotiation failed, major %i minor %i RXGK %i\n",
+		major_status, minor_status, ret);
 	ret = RX_CALL_DEAD;
 	goto cleanup;
     }
 
-    printf("GSSNegotiate returned info of length %zu\n", info.len);
-    major_status = decode_clientinfo(&minor_status, gss_ctx, &info, &clientinfo);
+    printf("GSSNegotiate returned info of length %zu\n", info_out.len);
+    major_status = decode_clientinfo(&minor_status, gss_ctx, &info_out,
+				     &clientinfo);
     if (GSS_ERROR(major_status)) {
 	ret = RXGK_SEALED_INCON;
 	goto cleanup;
@@ -334,7 +379,9 @@ loop_cleanup:
 
 cleanup:
     /* Free memory allocated in the loop and returned */
-    xdr_free((xdrproc_t)xdr_RXGK_Data, &info);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &token_out);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &opaque_out);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &info_out);
     /* Free other memory */
     (void)gss_release_buffer(&dummy, &k0);
     (void)gss_release_name(&dummy, &target_name);
