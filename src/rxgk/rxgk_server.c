@@ -47,6 +47,7 @@
 #include <rx/rx_packet.h>
 #include <gssapi/gssapi.h>
 #include <rx/rxgk.h>
+#include <hcrypto/rand.h>
 #include <afs/afsutil.h>
 
 #include "rxgk_private.h"
@@ -102,8 +103,13 @@ int
 rxgk_CheckAuthentication(struct rx_securityClass *aobj,
 			 struct rx_connection *aconn)
 {
-    /* XXXBJK */
-    return 0;
+    struct rxgk_sconn *sc;
+
+    sc = rx_GetSecurityData(aconn);
+    if (sc == NULL)
+	return RXGK_INCONSISTENCY;
+
+    return !(sc->auth);
 }
 
 /* Generate a challenge to be used later. */
@@ -111,7 +117,16 @@ int
 rxgk_CreateChallenge(struct rx_securityClass *aobj,
 		     struct rx_connection *aconn)
 {
-    /* XXXBJK */
+    struct rxgk_sconn *sc;
+
+    sc = rx_GetSecurityData(aconn);
+    if (sc == NULL)
+	return RXGK_INCONSISTENCY;
+
+    /* The challenge is a 20-byte random nonce. */
+    if (RAND_bytes(sc->challenge, 20) != 1)
+	return RXGK_INCONSISTENCY;
+    sc->auth = 0;
     return 0;
 }
 
@@ -120,8 +135,50 @@ int
 rxgk_GetChallenge(struct rx_securityClass *aobj, struct rx_connection *aconn,
 		  struct rx_packet *apacket)
 {
-    /* XXXBJK */
-    return 0;
+    XDR xdrs;
+    struct rxgk_sconn *sc;
+    void *data;
+    RXGK_Challenge challenge;
+    int ret;
+    u_int len;
+
+    data = NULL;
+    memset(&xdrs, 0, sizeof(xdrs));
+    memset(&challenge, 0, sizeof(challenge));
+
+    sc = rx_GetSecurityData(aconn);
+    if (sc == NULL)
+	return RXGK_INCONSISTENCY;
+    rx_opaque_populate(&challenge.nonce, sc->challenge, 20);
+
+    xdrlen_create(&xdrs);
+    if (!xdr_RXGK_Challenge(&xdrs, &challenge)) {
+	ret = RXGK_BADCHALLENGE;
+	goto cleanup;
+    }
+    len = xdr_getpos(&xdrs);
+    xdr_destroy(&xdrs);
+
+    data = malloc(len);
+    if (data == NULL) {
+	ret = RXGK_INCONSISTENCY;
+	goto cleanup;
+    }
+    xdrmem_create(&xdrs, data, len, XDR_ENCODE);
+    if (!xdr_RXGK_Challenge(&xdrs, &challenge)) {
+	ret = RXGK_BADCHALLENGE;
+	goto cleanup;
+    }
+    rx_packetwrite(apacket, 0, len, data);
+    rx_SetDataSize(apacket, len);
+    sc->tried_auth = 1;
+    ret = 0;
+    
+cleanup:
+    free(data);
+    xdr_destroy(&xdrs);
+    rx_opaque_freeContents(&challenge.nonce);
+    return ret;
 }
 
 /* Process the response packet to a challenge */
