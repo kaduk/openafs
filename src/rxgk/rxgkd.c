@@ -48,7 +48,7 @@ int
 main(int argc, char *argv[])
 {
     struct rx_service *service;
-    struct rx_securityClass *secobj;
+    struct rx_securityClass *secobjs[5];
     int ret;
     u_short port = 8888;
     u_short svc = 34567;
@@ -59,9 +59,11 @@ main(int argc, char *argv[])
 	exit(1);
     }
 
-    secobj = rxnull_NewServerSecurityObject();
+    secobjs[0] = rxnull_NewServerSecurityObject();
+    secobjs[1] = secobjs[2] = secobjs[3] = NULL;
+    secobjs[RX_SECIDX_GK] = rxgk_NewServerSecurityObject(NULL, &dummy_getkey);
 
-    service = rx_NewService(port, svc, "rxgkd", &secobj, 1 /* nSecObjs */,
+    service = rx_NewService(port, svc, "rxgkd", secobjs, 5 /* nSecObjs */,
 			    RXGK_ExecuteRequest);
     if (service == NULL) {
 	dprintf(2, "Registering service failed\n");
