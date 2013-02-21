@@ -144,4 +144,11 @@ struct rxgk_cconn {
 int rxgk_GetResponse(struct rx_securityClass *aobj,
 		     struct rx_connection *aconn, struct rx_packet *apacket);
 
+/* Some hacks to satisfy the strict aliasing gods. */
+union rxgk_private {
+    struct rxgk_sprivate s;
+    struct rxgk_cprivate c;
+    rxgk_type type;
+};
+
 #endif /* RXGK_PROTOTYPES_H */
