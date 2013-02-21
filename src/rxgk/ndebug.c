@@ -277,7 +277,7 @@ cleanup:
  */
 static afs_int32
 get_token(struct rx_securityClass *secobj, int idx, char *sname, afs_uint32 addr,
-	  RXGK_TokenInfo *return_info, RXGK_Data *return_k0,
+	  RXGK_TokenInfo *return_info, rxgk_key *return_k0,
 	  RXGK_Data *return_token)
 {
     gss_buffer_desc k0;
@@ -305,7 +305,7 @@ get_token(struct rx_securityClass *secobj, int idx, char *sname, afs_uint32 addr
     zero_rxgkdata(&opaque_out);
     zero_rxgkdata(&info_in);
     memset(return_info, 0, sizeof(*return_info));
-    zero_rxgkdata(return_k0);
+    *return_k0 = NULL;
     zero_rxgkdata(return_token);
     conn = NULL;
     ret = 0;
@@ -398,13 +398,7 @@ get_token(struct rx_securityClass *secobj, int idx, char *sname, afs_uint32 addr
     }
     memcpy(return_token->val, clientinfo.token.val, clientinfo.token.len);
     return_token->len = clientinfo.token.len;
-    return_k0->val = xdr_alloc(k0.length);
-    if (return_k0->val == NULL) {
-	ret = RXGEN_CC_UNMARSHAL;
-	goto cleanup;
-    }
-    memcpy(return_k0->val, k0.value, k0.length);
-    return_k0->len = k0.length;
+    ret = make_key(return_k0, k0.value, k0.length, clientinfo.enctype);
 
 cleanup:
     /* Free memory allocated in the loop and returned */
@@ -427,12 +421,13 @@ main(int argc, char *argv[])
 {
     struct rx_securityClass *secobj;
     RXGK_TokenInfo info;
-    RXGK_Data k0, token;
+    RXGK_Data token;
+    rxgk_key k0;
     char *sname = "afs-rxgk@_afs.perfluence.mit.edu";
     afs_int32 ret;
 
     memset(&info, 0, sizeof(info));
-    zero_rxgkdata(&k0);
+    k0 = NULL;
     zero_rxgkdata(&token);
 
     ret = rx_Init(0);
@@ -450,7 +445,7 @@ main(int argc, char *argv[])
     rx_Finalize();
 
     xdr_free((xdrproc_t)xdr_RXGK_TokenInfo, &info);
-    xdr_free((xdrproc_t)xdr_RXGK_Data, &k0);
+    release_key(&k0);
     xdr_free((xdrproc_t)xdr_RXGK_Data, &token);
 
     return ret;
