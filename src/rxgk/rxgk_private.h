@@ -42,12 +42,20 @@ typedef enum {
     RXGK_DEAD
 } rxgk_type;
 
+/* Statistics about a connection.  Bytes and packets sent/received. */
+struct rxgkStats {
+    afs_uint32 brecv;
+    afs_uint32 bsent;
+    afs_uint32 precv;
+    afs_uint32 psent;
+};
 
 /*
  * rgxk_server.c
  */
 
 /*
+ * Security Object private data for the server.
  * type is common to client and server, and must be aliasable.
  * Per-connection flags, and a way to get a decryption key for what the client
  * sends us.
@@ -57,6 +65,23 @@ struct rxgk_sprivate {
     afs_int32 flags;
     void *rock;
     rxgk_getkey_func getkey;
+};
+/*
+ * Per-connection security data for the server.
+ * Security level, authentication state, expiration, the current challenge
+ * nonce, status, the connection start time and current key derivation key
+ * number.
+ */
+struct rxgk_sconn {
+    RXGK_Level level;
+    unsigned char tried_auth;
+    unsigned char auth;
+    rxgkTime expiration;
+    unsigned char challenge[20];
+    struct rxgkStats stats;
+    rxgkTime start_time;
+    afs_uint32 key_number;
+    rxgk_key k0;
 };
 
 int rxgk_CheckAuthentication(struct rx_securityClass *aobj,
@@ -93,6 +118,7 @@ int rxgk_GetStats(struct rx_securityClass *aobj, struct rx_connection *aconn,
  */
 
 /*
+ * Security Object private data for client.
  * type is common to client and server, and must be aliasable.
  * The session key ("token master key"), plust the enctype of the
  * token and the token itself.
@@ -104,6 +130,16 @@ struct rxgk_cprivate {
     afs_int32 enctype;
     RXGK_Level level;
     RXGK_Data token;
+};
+/*
+ * Per-connection security data for client.
+ * The start time of the connection and connection key number are used
+ * for key derivation, and the requisite connection statistics.
+ */
+struct rxgk_cconn {
+    rxgkTime start_time;
+    afs_uint32 key_number;
+    struct rxgkStats stats;
 };
 int rxgk_GetResponse(struct rx_securityClass *aobj,
 		     struct rx_connection *aconn, struct rx_packet *apacket);
