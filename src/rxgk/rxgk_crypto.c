@@ -75,6 +75,21 @@ ktor(afs_int32 err)
 }
 
 /*
+ * Hack of a function implementing the rxgk_getkey_func typedef.
+ * Always uses a hardcoded "cell-wide" identity in a hardcoded file, loading
+ * the key from file every time.
+ */
+afs_int32
+dummy_getkey(void *rock, afs_int32 kvno, afs_int32 enctype, rxgk_key *key)
+{
+    if (kvno <= 0)
+	return RXGK_BADKEYNO;
+    if (enctype <= 0)
+	return RXGK_BADETYPE;
+    return get_server_key(key, &kvno, &enctype);
+}
+
+/*
  * Take a raw key from some external source and produce an rxgk_key from it.
  * The raw_key and length are not an RXGK_Data because in some cases they will
  * come from a gss_buffer and there's no real need to do the conversion.

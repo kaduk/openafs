@@ -62,6 +62,8 @@ void print_data(void *p, int len);
 /* rxgk_key is an opaque type to wrap our RFC3961 implementation's concept
  * of a key.  It has (at least) the keyblock and length, kvno, and enctype. */
 typedef void * rxgk_key;
+afs_int32 dummy_getkey(void *rock, afs_int32 kvno, afs_int32 enctype,
+		       rxgk_key *key);
 afs_int32 make_key(rxgk_key *key_out, void *raw_key, afs_int32 length,
 		   afs_int32 enctype);
 afs_int32 get_server_key(rxgk_key *key, afs_int32 *kvno, afs_int32 *enctype);
