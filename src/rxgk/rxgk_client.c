@@ -65,6 +65,41 @@ static struct rx_securityOps rxgk_client_ops = {
     0,
 };
 
+struct rx_securityClass *
+rxgk_NewClientSecurityObject(RXGK_Level level, afs_int32 enctype, afs_int32 kvno,
+			     rxgk_key k0, RXGK_Data *token)
+{
+    struct rx_securityClass *sc;
+    struct rxgk_cprivate *cp;
+
+    sc = calloc(1, sizeof(*sc));
+    if (sc == NULL)
+	return NULL;
+    cp = calloc(1, sizeof(*cp));
+    if (cp == NULL) {
+	free(sc);
+	return NULL;
+    }
+    sc->ops = &rxgk_client_ops;
+    sc->refCount = 1;
+    sc->privateData = cp;
+
+    /* Now get the client-private data. */
+    cp->type = RXGK_CLIENT;
+    cp->flags = 0;
+    cp->k0 = k0;
+    cp->enctype = enctype;
+    cp->kvno = kvno;
+    cp->level = level;
+    if (copy_rxgkdata(&cp->token, token) != 0) {
+	free(sc);
+	free(cp);
+	return NULL;
+    }
+
+    return sc;
+}
+
 /* Respondn to a challenge packet */
 int
 rxgk_GetResponse(struct rx_securityClass *aobj, struct rx_connection *aconn,

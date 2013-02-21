@@ -91,6 +91,21 @@ int rxgk_GetStats(struct rx_securityClass *aobj, struct rx_connection *aconn,
 /*
  * rxgk_client.c
  */
+
+/*
+ * type is common to client and server, and must be aliasable.
+ * The session key ("token master key"), plust the enctype and kvno of the
+ * token and the token itself.
+ */
+struct rxgk_cprivate {
+    rxgk_type type;
+    afs_int32 flags;
+    rxgk_key k0;
+    afs_int32 enctype;
+    afs_int32 kvno;
+    RXGK_Level level;
+    RXGK_Data token;
+};
 int rxgk_GetResponse(struct rx_securityClass *aobj,
 		     struct rx_connection *aconn, struct rx_packet *apacket);
 
