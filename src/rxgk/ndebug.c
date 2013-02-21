@@ -267,13 +267,13 @@ cleanup:
 
 /*
  * Obtain a token over the RXGK negotiation service, using the provided
- * security object, using the server principal name from sname and target
- * IPv4 address given in addr (host byte order).
+ * security object of security index idx, using the server principal name from
+ * sname and target IPv4 address given in addr (host byte order).
  *
  * Returns RX errors.
  */
 static afs_int32
-get_token(struct rx_securityClass *secobj, char *sname, afs_uint32 addr)
+get_token(struct rx_securityClass *secobj, int idx, char *sname, afs_uint32 addr)
 {
     gss_buffer_desc k0;
     gss_ctx_id_t gss_ctx;
@@ -302,8 +302,7 @@ get_token(struct rx_securityClass *secobj, char *sname, afs_uint32 addr)
     conn = NULL;
     ret = 0;
 
-    conn = rx_NewConnection(htonl(addr), port,
-			    svc, secobj, RX_SECIDX_NULL);
+    conn = rx_NewConnection(htonl(addr), port, svc, secobj, idx);
     if (conn == NULL) {
 	dprintf(2, "Did not get RX connection\n");
 	ret = RX_CALL_DEAD;
@@ -408,7 +407,7 @@ main(int argc, char *argv[])
 
     secobj = rxnull_NewClientSecurityObject();
 
-    ret = get_token(secobj, sname, INADDR_LOOPBACK);
+    ret = get_token(secobj, RX_SECIDX_NULL, sname, INADDR_LOOPBACK);
 
     /* Done. */
     rx_Finalize();
