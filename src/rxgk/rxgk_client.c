@@ -66,8 +66,8 @@ static struct rx_securityOps rxgk_client_ops = {
 };
 
 struct rx_securityClass *
-rxgk_NewClientSecurityObject(RXGK_Level level, afs_int32 enctype, afs_int32 kvno,
-			     rxgk_key k0, RXGK_Data *token)
+rxgk_NewClientSecurityObject(RXGK_Level level, afs_int32 enctype, rxgk_key k0,
+			     RXGK_Data *token)
 {
     struct rx_securityClass *sc;
     struct rxgk_cprivate *cp;
@@ -89,7 +89,6 @@ rxgk_NewClientSecurityObject(RXGK_Level level, afs_int32 enctype, afs_int32 kvno
     cp->flags = 0;
     cp->k0 = k0;
     cp->enctype = enctype;
-    cp->kvno = kvno;
     cp->level = level;
     if (copy_rxgkdata(&cp->token, token) != 0) {
 	free(sc);
