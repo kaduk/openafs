@@ -441,6 +441,11 @@ main(int argc, char *argv[])
     ret = get_token(secobj, RX_SECIDX_NULL, sname, INADDR_LOOPBACK, &info,
 		    &k0, &token);
 
+    /* Now, do it again, but over rxgk instead of rxnull. */
+    secobj = rxgk_NewClientSecurityObject(info.level, info.enctype, k0, &token);
+    ret = get_token(secobj, RX_SECIDX_GK, sname, INADDR_LOOPBACK, &info,
+		    &k0, &token);
+
     /* Done. */
     rx_Finalize();
 
