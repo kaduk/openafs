@@ -47,6 +47,32 @@
 
 #include "rxgk_private.h"
 
+/* Helper functions. */
+static int
+release_object(struct rx_securityClass *secobj)
+{
+    union rxgk_private *priv;
+    struct rxgk_sprivate *sp;
+    struct rxgk_cprivate *cp;
+
+    if (secobj->refCount > 0) {
+	/* still in use; shouldn't happen. */
+	return 0;
+    }
+    priv = secobj->privateData;
+    free(secobj);
+    if (priv->type == RXGK_SERVER) {
+	sp = &priv->s;
+	free(sp);
+    } else if (priv->type == RXGK_CLIENT) {
+	cp = &priv->c;
+	/* XXX free k0 but it is not a copy yet */
+	free(cp);
+    }
+
+    return 0;
+}
+
 /* Discard the security object, freeing resources */
 int
 rxgk_Close(struct rx_securityClass *aobj)
@@ -60,8 +86,31 @@ int
 rxgk_NewConnection(struct rx_securityClass *aobj,
 		   struct rx_connection *aconn)
 {
-    /* XXXBJK */
+    struct rxgk_sconn *sc;
+    struct rxgk_cconn *cc;
+
+    /* Take a reference before we do anything else. */
+    aobj->refCount++;
+    if (rx_GetSecurityData(aconn) != NULL)
+	goto error;
+
+    if (rx_IsServerConn(aconn)) {
+	sc = calloc(1, sizeof(*sc));
+	if (sc == NULL)
+	    goto error;
+	rx_SetSecurityData(aconn, sc);
+    } else {
+	/* It's a client. */
+	cc = calloc(1, sizeof(*cc));
+	if (cc == NULL)
+	    goto error;
+	cc->start_time = RXGK_NOW();
+	rx_SetSecurityData(aconn, cc);
+    }
     return 0;
+error:
+    aobj->refCount--;
+    return RXGK_INCONSISTENCY;
 }
 
 /* Destroy a connection, freeing resources */
@@ -69,7 +118,26 @@ int
 rxgk_DestroyConnection(struct rx_securityClass *aobj,
 		       struct rx_connection *aconn)
 {
-    /* XXXBJK */
+    struct rxgk_sconn *sc;
+    struct rxgk_cconn *cc;
+    void *data;
+
+    data = rx_GetSecurityData(aconn);
+    rx_SetSecurityData(aconn, NULL);
+
+    if (rx_IsServerConn(aconn)) {
+	sc = data;
+	release_key(&sc->k0);
+	free(sc);
+    } else {
+	/* It's a client. */
+	cc = data;
+	free(cc);
+    }
+    aobj->refCount--;
+    if (aobj->refCount <= 0) {
+	return release_object(aobj);
+    }
     return 0;
 }
 
