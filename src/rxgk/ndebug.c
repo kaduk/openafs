@@ -270,10 +270,15 @@ cleanup:
  * security object of security index idx, using the server principal name from
  * sname and target IPv4 address given in addr (host byte order).
  *
+ * Returns information about the token in the supplied TokenInfo object, and
+ * the master key of the token in return_k0, and the token itself in return_token.
+ *
  * Returns RX errors.
  */
 static afs_int32
-get_token(struct rx_securityClass *secobj, int idx, char *sname, afs_uint32 addr)
+get_token(struct rx_securityClass *secobj, int idx, char *sname, afs_uint32 addr,
+	  RXGK_TokenInfo *return_info, RXGK_Data *return_k0,
+	  RXGK_Data *return_token)
 {
     gss_buffer_desc k0;
     gss_ctx_id_t gss_ctx;
@@ -299,6 +304,9 @@ get_token(struct rx_securityClass *secobj, int idx, char *sname, afs_uint32 addr
     zero_rxgkdata(&opaque_in);
     zero_rxgkdata(&opaque_out);
     zero_rxgkdata(&info_in);
+    memset(return_info, 0, sizeof(*return_info));
+    zero_rxgkdata(return_k0);
+    zero_rxgkdata(return_token);
     conn = NULL;
     ret = 0;
 
@@ -376,6 +384,28 @@ get_token(struct rx_securityClass *secobj, int idx, char *sname, afs_uint32 addr
 	goto cleanup;
     }
 
+    /* Copy data for output */
+    return_info->errorcode = clientinfo.errorcode;
+    return_info->enctype = clientinfo.enctype;
+    return_info->level = clientinfo.level;
+    return_info->lifetime = clientinfo.lifetime;
+    return_info->bytelife = clientinfo.bytelife;
+    return_info->expiration = clientinfo.expiration;
+    return_token->val = xdr_alloc(clientinfo.token.len);
+    if (return_token->val == NULL) {
+	ret = RXGEN_CC_UNMARSHAL;
+	goto cleanup;
+    }
+    memcpy(return_token->val, clientinfo.token.val, clientinfo.token.len);
+    return_token->len = clientinfo.token.len;
+    return_k0->val = xdr_alloc(k0.length);
+    if (return_k0->val == NULL) {
+	ret = RXGEN_CC_UNMARSHAL;
+	goto cleanup;
+    }
+    memcpy(return_k0->val, k0.value, k0.length);
+    return_k0->len = k0.length;
+
 cleanup:
     /* Free memory allocated in the loop and returned */
     xdr_free((xdrproc_t)xdr_RXGK_Data, &token_out);
@@ -396,8 +426,14 @@ int
 main(int argc, char *argv[])
 {
     struct rx_securityClass *secobj;
+    RXGK_TokenInfo info;
+    RXGK_Data k0, token;
     char *sname = "afs-rxgk@_afs.perfluence.mit.edu";
     afs_int32 ret;
+
+    memset(&info, 0, sizeof(info));
+    zero_rxgkdata(&k0);
+    zero_rxgkdata(&token);
 
     ret = rx_Init(0);
     if (ret != 0) {
@@ -407,10 +443,15 @@ main(int argc, char *argv[])
 
     secobj = rxnull_NewClientSecurityObject();
 
-    ret = get_token(secobj, RX_SECIDX_NULL, sname, INADDR_LOOPBACK);
+    ret = get_token(secobj, RX_SECIDX_NULL, sname, INADDR_LOOPBACK, &info,
+		    &k0, &token);
 
     /* Done. */
     rx_Finalize();
+
+    xdr_free((xdrproc_t)xdr_RXGK_TokenInfo, &info);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &k0);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &token);
 
     return ret;
 }
