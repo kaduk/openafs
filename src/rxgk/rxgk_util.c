@@ -36,6 +36,7 @@
  */
 
 #include <gssapi/gssapi.h>
+#include <errno.h>
 #include <rx/rxgk.h>
 #include <hcrypto/rand.h>
 
@@ -63,6 +64,17 @@ zero_rxgkdata(RXGK_Data *data)
 {
     data->len = 0;
     data->val = NULL;
+}
+
+afs_int32
+copy_rxgkdata(RXGK_Data *out, RXGK_Data *in)
+{
+    out->val = xdr_alloc(in->len);
+    if (out->val == NULL)
+	return ENOMEM;
+    memcpy(out->val, in->val, in->len);
+    out->len = in->len;
+    return 0;
 }
 
 afs_uint32
