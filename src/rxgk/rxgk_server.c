@@ -149,7 +149,7 @@ rxgk_GetChallenge(struct rx_securityClass *aobj, struct rx_connection *aconn,
     sc = rx_GetSecurityData(aconn);
     if (sc == NULL)
 	return RXGK_INCONSISTENCY;
-    rx_opaque_populate(&challenge.nonce, sc->challenge, 20);
+    memcpy(challenge.nonce, sc->challenge, 20);
 
     xdrlen_create(&xdrs);
     if (!xdr_RXGK_Challenge(&xdrs, &challenge)) {
@@ -177,7 +177,6 @@ rxgk_GetChallenge(struct rx_securityClass *aobj, struct rx_connection *aconn,
 cleanup:
     free(data);
     xdr_destroy(&xdrs);
-    rx_opaque_freeContents(&challenge.nonce);
     return ret;
 }
 
