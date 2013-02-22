@@ -105,6 +105,7 @@ rxgk_NewConnection(struct rx_securityClass *aobj,
 	if (cc == NULL)
 	    goto error;
 	cc->start_time = RXGK_NOW();
+	/* XXX need epoch (once) and connection ID (always) */
 	rx_SetSecurityData(aconn, cc);
     }
     return 0;
