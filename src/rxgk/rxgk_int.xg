@@ -115,7 +115,7 @@ struct RXGK_Challenge {
 };
 struct RXGK_Response {
     rxgkTime start_time;
-    RXGK_Data token<>;
+    RXGK_Data token;
     opaque authenticator<>;
 };
 
