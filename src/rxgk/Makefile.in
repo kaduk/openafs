@@ -3,13 +3,15 @@ include @TOP_OBJDIR@/src/config/Makefile.config
 include @TOP_OBJDIR@/src/config/Makefile.pthread
 include @TOP_OBJDIR@/src/config/Makefile.libtool
 
+UTIL=../util
+
 INCLS=	${TOP_INCDIR}/rx/rx.h ${TOP_INCDIR}/rx/xdr.h \
 	${TOP_INCDIR}/rx/rxgk.h ${TOP_INCDIR}/rx/rxgk_errs.h \
 	${TOP_INCDIR}/rx/rxgk_int.h
 
 LT_objs = rxgk_client.lo rxgk_common.lo rxgk_server.lo rxgk_errs.lo \
 	rxgk_int.cs.lo rxgk_int.xdr.lo rxgk_int.ss.lo rxgk_procs.lo rxgk_util.lo \
-	rxgk_crypto.lo
+	rxgk_crypto.lo uuid.lo
 
 LT_deps =   $(top_builddir)/src/opr/liboafs_opr.la \
 	    $(top_builddir)/src/comerr/liboafs_comerr.la \
@@ -58,6 +60,9 @@ liboafs_rxgk.la: liboafs_rxgk.la.sym ${LT_objs} ${LT_deps}
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 
 $(LT_objs): $(INCLS)
+
+uuid.lo: ${UTIL}/uuid.c
+	$(LT_CCRULE) $<
 
 rxgk_errs.h: rxgk_errs.c
 rxgk_errs.c: rxgk_errs.et
