@@ -51,6 +51,7 @@
 #include <afs/afsutil.h>
 
 #include "rxgk_private.h"
+#include "../rx/rx_conn.h"
 
 
 static struct rx_securityOps rxgk_server_ops = {
@@ -180,13 +181,198 @@ cleanup:
     return ret;
 }
 
+/*
+ * Helper functions for CheckResponse.
+ */
+
+static int
+unpack_container(RXGK_TokenContainer *container, RXGK_Data *in)
+{
+    XDR xdrs;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+
+    xdrmem_create(&xdrs, in->val, in->len, XDR_DECODE);
+    if (!xdr_RXGK_TokenContainer(&xdrs, container)) {
+	xdr_destroy(&xdrs);
+	return RXGEN_SS_UNMARSHAL;
+    }
+    xdr_destroy(&xdrs);
+    return 0;
+}
+
+static int
+decrypt_token(RXGK_Data *out, struct rx_opaque *encopaque, afs_int32 kvno,
+	      afs_int32 enctype, struct rxgk_sprivate *sp)
+{
+    rxgk_key service_key;
+    RXGK_Data enctoken;
+    afs_int32 ret;
+
+    service_key = NULL;
+    zero_rxgkdata(&enctoken);
+
+    ret = sp->getkey(sp->rock, kvno, enctype, &service_key);
+    if (ret != 0)
+	goto cleanup;
+    /* Must alias for type compliance */
+    enctoken.val = encopaque->val;
+    enctoken.len = encopaque->len;
+    ret = decrypt_in_key(service_key, RXGK_SERVER_ENC_TOKEN, &enctoken, out);
+    if (ret != 0)
+	goto cleanup;
+
+cleanup:
+    release_key(&service_key);
+    return ret;
+}
+
+static int
+unpack_token(RXGK_Token *token, RXGK_Data *in)
+{
+    XDR xdrs;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+
+    xdrmem_create(&xdrs, in->val, in->len, XDR_DECODE);
+    if (!xdr_RXGK_Token(&xdrs, token)) {
+	xdr_destroy(&xdrs);
+	return RXGEN_SS_UNMARSHAL;
+    }
+    xdr_destroy(&xdrs);
+    return 0;
+}
+
+static int
+process_token(RXGK_Data *tc, struct rxgk_sprivate *sp, struct rxgk_sconn *sc)
+{
+    RXGK_TokenContainer container;
+    RXGK_Token token;
+    RXGK_Data packed_token;
+    int ret;
+
+    memset(&container, 0, sizeof(container));
+    memset(&token, 0, sizeof(token));
+    zero_rxgkdata(&packed_token);
+
+    ret = unpack_container(&container, tc);
+    if (ret != 0)
+	goto cleanup;
+    ret = decrypt_token(&packed_token, &container.encrypted_token,
+			container.kvno, container.enctype, sp);
+    if (ret != 0)
+	goto cleanup;
+    ret = unpack_token(&token, &packed_token);
+    if (ret != 0)
+	goto cleanup;
+
+    /* Stash the token master key in the per-connection data. */
+    if (sc->k0 != NULL)
+	release_key(&sc->k0);
+    ret = make_key(&sc->k0, token.K0.val, token.K0.len, token.enctype);
+    sc->level = token.level;
+    sc->expiration = token.expirationtime;
+    
+cleanup:
+    xdr_free((xdrproc_t)xdr_RXGK_TokenContainer, &container);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &packed_token);
+    xdr_free((xdrproc_t)xdr_RXGK_Token, &token);
+    return ret;
+}
+
+/* Caller is responsible for freeing 'out'. */
+static int
+decrypt_authenticator(RXGK_Authenticator *out, struct rx_opaque *in,
+		      struct rx_connection *aconn, struct rxgk_sconn *sc)
+{
+    XDR xdrs;
+    RXGK_Data encauth, packauth;
+    int ret;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+    zero_rxgkdata(&packauth);
+
+    encauth.len = in->len;
+    encauth.val = in->val;
+    /* XXX need transport key not master key */
+    ret = decrypt_in_key(sc->k0, RXGK_CLIENT_ENC_RESPONSE, &encauth, &packauth);
+
+    xdrmem_create(&xdrs, packauth.val, packauth.len, XDR_DECODE);
+    if (!xdr_RXGK_Authenticator(&xdrs, out)) {
+	ret = RXGEN_SS_UNMARSHAL;
+	goto cleanup;
+    }
+    ret = 0;
+cleanup:
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &packauth);
+    xdr_destroy(&xdrs);
+    return ret;
+}
+
+static int
+check_authenticator(RXGK_Authenticator *authenticator,
+		    struct rx_connection *aconn, struct rxgk_sconn *sc)
+{
+    if (memcmp(authenticator->nonce, sc->challenge, 20) != 0)
+	return RXGK_SEALED_INCON;
+    if (authenticator->level != sc->level)
+	return RXGK_BADLEVEL;
+    if (authenticator->epoch != aconn->epoch ||
+	authenticator->cid != aconn->cid)
+	return RXGK_BADCHALLENGE;
+    return 0;
+}
+
 /* Process the response packet to a challenge */
 int
 rxgk_CheckResponse(struct rx_securityClass *aobj,
 		   struct rx_connection *aconn, struct rx_packet *apacket)
 {
-    /* XXXBJK */
-    return 0;
+    struct rxgk_sprivate *sp;
+    struct rxgk_sconn *sc;
+    XDR xdrs;
+    RXGK_Response response;
+    RXGK_Authenticator authenticator;
+    int ret;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+    memset(&response, 0, sizeof(response));
+    memset(&authenticator, 0, sizeof(authenticator));
+
+    sp = aobj->privateData;
+    sc = aconn->securityData;
+
+    xdrmem_create(&xdrs, rx_DataOf(apacket), rx_GetDataSize(apacket),
+		  XDR_DECODE);
+    if (!xdr_RXGK_Response(&xdrs, &response)) {
+	ret = RXGEN_SS_UNMARSHAL;
+	goto cleanup;
+    }
+
+    /* Set local field from the response.  Yes, this is untrusted. */
+    sc->start_time = response.start_time;
+
+    /* We have a start_time, a token, and an encrypted authenticator. */
+    ret = process_token(&response.token, sp, sc);
+    if (ret != 0)
+	goto cleanup;
+
+    /* Try to decrypt the authenticator. */
+    ret = decrypt_authenticator(&authenticator, &response.authenticator, aconn,
+				sc);
+    if (ret != 0)
+	goto cleanup;
+    ret = check_authenticator(&authenticator, aconn, sc);
+    if (ret != 0)
+	goto cleanup;
+    /* Success! */
+    sc->auth = 1;
+    
+cleanup:
+    xdr_destroy(&xdrs);
+    xdr_free((xdrproc_t)xdr_RXGK_Response, &response);
+    xdr_free((xdrproc_t)xdr_RXGK_Authenticator, &authenticator);
+    return ret;
 }
 
 /* Set configuration values for the security object */

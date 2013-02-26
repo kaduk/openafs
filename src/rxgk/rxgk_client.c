@@ -203,6 +203,7 @@ pack_wrap_authenticator(RXGK_Data *encdata, RXGK_Authenticator *authenticator,
 	ret = RXGEN_CC_MARSHAL;
 	goto cleanup;
     }
+    /* XXX need transport key not master key */
     ret = encrypt_in_key(cp->k0, RXGK_CLIENT_ENC_RESPONSE, &data, encdata);
     if (ret != 0)
 	goto cleanup;
