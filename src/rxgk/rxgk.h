@@ -71,6 +71,8 @@ afs_int32 get_server_key(rxgk_key *key, afs_int32 *kvno, afs_int32 *enctype);
 void release_key(rxgk_key *key);
 afs_int32 encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
 			 RXGK_Data *out);
+afs_int32 decrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
+			 RXGK_Data *out);
 
 /* rxgk_server.c */
 typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 kvno,

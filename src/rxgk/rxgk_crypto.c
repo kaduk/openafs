@@ -265,12 +265,64 @@ encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
 	ret = RXGK_INCONSISTENCY;	/* Should be something better, but... */
 	goto out;
     }
+    out->len = length;
     kd_out.ciphertext.length = length;
     kd_out.ciphertext.data = out->val;
 
     ret = krb5_c_encrypt(ctx, keyblock, usage, NULL, &kd_in, &kd_out);
 
 out:
+    krb5_free_context(ctx);
+    return ktor(ret);
+}
+
+/*
+ * Call into the RFC 3961 encryption framework to decrypt a buffer with the
+ * specified key with the specified key usage.  It is assumed that the
+ * rxgk_key structure includes the enctype information needed to determine
+ * which particular crypto routine to call.
+ * The output buffer is allocated with xdr_alloc and must be freed by the
+ * caller.
+ */
+afs_int32
+decrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
+{
+    krb5_context ctx;
+    krb5_enc_data kd_in;
+    krb5_data kd_out;
+    krb5_enctype enctype;
+    krb5_error_code ret;
+    krb5_keyblock *keyblock = (krb5_keyblock *)key;
+    size_t length;
+
+    zero_rxgkdata(out);
+
+    ret = krb5_init_context(&ctx);
+    if (ret != 0)
+	return ktor(ret);
+
+#ifdef HAVE_KRB5_INIT_KEYBLOCK
+    enctype = keyblock->enctype;
+#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
+    enctype = krb5_keyblock_get_enctype(keyblock);
+#endif
+
+    kd_in.ciphertext.length = in->len;
+    kd_in.ciphertext.data = in->val;
+    kd_in.enctype = enctype;
+    /* kd_in.kvno =  */
+
+    out->val = kd_out.data = xdr_alloc(in->len);
+    if (kd_out.data == NULL) {
+	ret = RXGK_INCONSISTENCY;
+	goto cleanup;
+    }
+    kd_out.length = in->len;
+
+    ret = krb5_c_decrypt(ctx, keyblock, usage, NULL, &kd_in, &kd_out);
+    out->len = kd_out.length;
+
+cleanup:
     krb5_free_context(ctx);
     return ktor(ret);
 }
