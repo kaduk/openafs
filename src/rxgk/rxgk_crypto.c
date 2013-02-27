@@ -47,6 +47,7 @@
 #include <rx/rxgk.h>
 
 #include <krb5.h>
+#include <assert.h>
 
 /*
  * Convert krb5 error code to RXGK error code.  Don't let the krb5 codes excape.
@@ -71,6 +72,26 @@ ktor(afs_int32 err)
 	    return RXGK_SEALED_INCON;
 	default:
 	    return RXGK_INCONSISTENCY;
+    }
+}
+
+/* XXX Copied from rxgk_util.c.  Should get centralized or eliminated. */
+static ssize_t
+etype_to_len(int etype)
+{
+    /* Should use krb5_c_keylengths, but that requires a krb5_context. */
+
+    switch(etype)
+    {
+	case 1: return 7;
+	case 2: return 7;
+	case 3: return 7;
+	case 5: return 21;
+	case 7: return 21;
+	case 16: return 21;
+	case 17: return 16;
+	case 18: return 32;
+	default: return -1;
     }
 }
 
@@ -325,4 +346,115 @@ decrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
 cleanup:
     krb5_free_context(ctx);
     return ktor(ret);
+}
+
+/* Helper for derive_tk.
+ * Assumes the caller has already allocated space in pre_key. */
+static afs_int32
+PRFplus(krb5_data *out, krb5_enctype enctype, rxgk_key k0,
+	ssize_t desired_len, void *seed, size_t seed_len)
+{
+    krb5_context ctx;
+    krb5_data pre_key, prf_in, prf_out;
+    krb5_error_code ret;
+    krb5_keyblock *keyblock = k0;
+    size_t block_len;
+    afs_uint32 nn, iterations, *dummy;
+
+    memset(&prf_in, 0, sizeof(prf_in));
+    memset(&prf_out, 0, sizeof(prf_out));
+
+    ret = krb5_init_context(&ctx);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_c_prf_length(ctx, enctype, &block_len);
+    if (ret != 0)
+	goto cleanup;
+
+    iterations = (desired_len + block_len - 1) / block_len;
+    pre_key.data = malloc(iterations * block_len);
+    if (pre_key.data == NULL) {
+	ret = RXGK_INCONSISTENCY;
+	goto cleanup;
+    }
+    pre_key.length = iterations * block_len;
+    
+    prf_in.data = malloc(sizeof(nn) + seed_len);
+    prf_in.length = sizeof(nn) + seed_len;
+    memcpy(prf_in.data + sizeof(nn), seed, seed_len);
+    for(nn = 1; nn <= iterations; ++nn) {
+	dummy = (afs_uint32 *)prf_in.data;
+	*dummy = htonl(nn);
+	prf_out.data = pre_key.data + (nn - 1) * block_len;
+	prf_out.length = block_len;
+	ret = krb5_c_prf(ctx, keyblock, &prf_in, &prf_out);
+	if (ret != 0)
+	    goto cleanup;
+    }
+    memcpy(out->data, pre_key.data, desired_len);
+
+cleanup:
+    krb5_free_context(ctx);
+    free(prf_in.data);
+    free(pre_key.data);
+    return ktor(ret);
+}
+
+/*
+ * Given a connection master key k0, derive a transport key tk from the master
+ * key and connection parameters.
+ *
+ * TK = random-to-key(PRF+(K0, L, epoch || cid || start_time || key_number))
+ * using the RFC4402 PRF+, i.e., the ordinal of the application of the
+ * pseudo-random() function is stored in a 32-bit field, not an 8-bit field
+ * as in RFC6112.
+ */
+struct seed_data {
+    afs_uint32 epoch;
+    afs_uint32 cid;
+    afs_uint32 time_hi;
+    afs_uint32 time_lo;
+    afs_uint32 key_number;
+} __attribute__((packed));
+afs_int32
+derive_tk(rxgk_key *tk, rxgk_key k0, afs_uint32 epoch, afs_uint32 cid,
+	  rxgkTime start_time, afs_uint32 key_number)
+{
+    krb5_enctype enctype;
+    krb5_data pre_key;
+    krb5_keyblock *keyblock = k0;
+    struct seed_data seed;
+    ssize_t ell;
+    afs_int32 ret;
+
+    memset(&pre_key, 0, sizeof(pre_key));
+    memset(&seed, 0, sizeof(seed));
+    assert(sizeof(seed) == 20);
+
+#ifdef HAVE_KRB5_INIT_KEYBLOCK
+    enctype = keyblock->enctype;
+#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
+    enctype = krb5_keyblock_get_enctype(keyblock);
+#endif
+    ell = etype_to_len(enctype);
+
+    seed.epoch = htonl(epoch);
+    seed.cid = htonl(cid);
+    seed.time_hi = htonl((afs_int32)(start_time / ((afs_uint64)1 << 32)));
+    seed.time_lo = htonl((afs_int32)((afs_uint64)start_time >> 32));
+    seed.key_number = htonl(key_number);
+
+    pre_key.data = malloc(ell);
+    if (pre_key.data == NULL) {
+	ret = RXGK_INCONSISTENCY;
+	goto cleanup;
+    }
+    pre_key.length = ell;
+    PRFplus(&pre_key, enctype, k0, ell, &seed, sizeof(seed));
+
+    ret = make_key(tk, pre_key.data, ell, enctype);
+
+cleanup:
+    free(pre_key.data);
+    return ret;
 }
