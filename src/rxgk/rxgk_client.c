@@ -175,15 +175,17 @@ cleanup:
 /* XDR-encode an authenticator and encrypt it. */
 static int
 pack_wrap_authenticator(RXGK_Data *encdata, RXGK_Authenticator *authenticator,
-			struct rxgk_cprivate *cp)
+			struct rxgk_cprivate *cp, struct rxgk_cconn *cc)
 {
     XDR xdrs;
     RXGK_Data data;
+    rxgk_key tk;
     int ret;
     u_int len;
 
     memset(&xdrs, 0, sizeof(xdrs));
     zero_rxgkdata(&data);
+    tk = NULL;
 
     xdrlen_create(&xdrs);
     if (!xdr_RXGK_Authenticator(&xdrs, authenticator)) {
@@ -203,14 +205,19 @@ pack_wrap_authenticator(RXGK_Data *encdata, RXGK_Authenticator *authenticator,
 	ret = RXGEN_CC_MARSHAL;
 	goto cleanup;
     }
-    /* XXX need transport key not master key */
-    ret = encrypt_in_key(cp->k0, RXGK_CLIENT_ENC_RESPONSE, &data, encdata);
+    /* XXX key number hardcoded at zero. */
+    ret = derive_tk(&tk, cp->k0, authenticator->epoch, authenticator->cid,
+		    cc->start_time, 0);
+    if (ret != 0)
+	goto cleanup;
+    ret = encrypt_in_key(tk, RXGK_CLIENT_ENC_RESPONSE, &data, encdata);
     if (ret != 0)
 	goto cleanup;
 
 cleanup:
     xdr_destroy(&xdrs);
     xdr_free((xdrproc_t)xdr_RXGK_Data, &data);
+    release_key(&tk);
     return ret;
 }
 
@@ -298,7 +305,7 @@ rxgk_GetResponse(struct rx_securityClass *aobj, struct rx_connection *aconn,
     if (ret != 0)
 	goto cleanup;
     /* Authenticator is full, now to pack and encrypt it. */
-    ret = pack_wrap_authenticator(&encdata, &authenticator, cp);
+    ret = pack_wrap_authenticator(&encdata, &authenticator, cp, cc);
     if (ret != 0)
 	goto cleanup;
     rx_opaque_populate(&response.authenticator, encdata.val, encdata.len);

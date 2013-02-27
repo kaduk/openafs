@@ -287,15 +287,20 @@ decrypt_authenticator(RXGK_Authenticator *out, struct rx_opaque *in,
 {
     XDR xdrs;
     RXGK_Data encauth, packauth;
+    rxgk_key tk;
     int ret;
 
     memset(&xdrs, 0, sizeof(xdrs));
     zero_rxgkdata(&packauth);
+    tk = NULL;
 
     encauth.len = in->len;
     encauth.val = in->val;
-    /* XXX need transport key not master key */
-    ret = decrypt_in_key(sc->k0, RXGK_CLIENT_ENC_RESPONSE, &encauth, &packauth);
+    /* XXX hardcoding key number 0. */
+    ret = derive_tk(&tk, sc->k0, aconn->epoch, aconn->cid, sc->start_time, 0);
+    if (ret != 0)
+	goto cleanup;
+    ret = decrypt_in_key(tk, RXGK_CLIENT_ENC_RESPONSE, &encauth, &packauth);
 
     xdrmem_create(&xdrs, packauth.val, packauth.len, XDR_DECODE);
     if (!xdr_RXGK_Authenticator(&xdrs, out)) {
@@ -305,6 +310,7 @@ decrypt_authenticator(RXGK_Authenticator *out, struct rx_opaque *in,
     ret = 0;
 cleanup:
     xdr_free((xdrproc_t)xdr_RXGK_Data, &packauth);
+    release_key(&tk);
     xdr_destroy(&xdrs);
     return ret;
 }
