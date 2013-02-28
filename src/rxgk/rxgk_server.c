@@ -67,7 +67,7 @@ static struct rx_securityOps rxgk_server_ops = {
     rxgk_CheckPacket,		/* check data packet */
     rxgk_DestroyConnection,
     rxgk_GetStats,
-    rxgk_SetConfiguration,
+    0,
     0,				/* spare 1 */
     0,				/* spare 2 */
 };
@@ -379,15 +379,4 @@ cleanup:
     xdr_free((xdrproc_t)xdr_RXGK_Response, &response);
     xdr_free((xdrproc_t)xdr_RXGK_Authenticator, &authenticator);
     return ret;
-}
-
-/* Set configuration values for the security object */
-int
-rxgk_SetConfiguration(struct rx_securityClass *aobj,
-		      struct rx_connection *aconn,
-		      rx_securityConfigVariables atype,
-		      void *avalue, void **currentValue)
-{
-    /* XXXBJK */
-    return 0;
 }
