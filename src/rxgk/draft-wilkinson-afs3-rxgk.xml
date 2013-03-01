@@ -651,8 +651,11 @@ enum RXGK_Level {
 		  originally negotiated.</t>
           <t hangText="epoch:">The rx connection epoch.</t>
 	  <t hangText="cid:">The rx connection ID.</t>
-	  <t hangText="maxcalls:">The highest rx call number in use.</t>
-          <t hangText="call_numbers:">The set of current rx call numbers.</t>
+	  <t hangText="maxcalls:">The highest rx call number in use on this
+		  connnection.</t>
+          <t hangText="call_numbers:">The set of current rx call numbers for
+		  all available channels; unused channels should report a
+		  call number of zero.</t>
         </list>
       </section>
    </section>
@@ -663,7 +666,9 @@ enum RXGK_Level {
         be decrypted, the nonce from the decrypted authenticator
         compared with the nonce sent in the RXGK_Challenge, and
         the connection ID and epoch compared with that of the current
-        connection. Failure of any of these steps MUST result in the failure
+        connection. The call number vector (call_numbers) should be supplied
+        to the rx implementation.
+        Failure of any of these steps MUST result in the failure
         of the security context.
      </t>
    </section>
