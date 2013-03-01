@@ -159,7 +159,7 @@ fill_authenticator(RXGK_Authenticator *authenticator, char *nonce,
     }
     authenticator->call_numbers.len = RX_MAXCALLS;
     for(i = 0; i < ncalls; ++i)
-	authenticator->call_numbers.val[i] = call_numbers[i];
+	authenticator->call_numbers.val[i] = (afs_uint32)call_numbers[i];
     ret = 0;
 cleanup:
     xdr_destroy(&xdrs);

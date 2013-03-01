@@ -323,8 +323,8 @@ check_authenticator(RXGK_Authenticator *authenticator,
 	return RXGK_SEALED_INCON;
     if (authenticator->level != sc->level)
 	return RXGK_BADLEVEL;
-    if (authenticator->epoch != rx_GetConnectionEpoch(aconn) ||
-	authenticator->cid != rx_GetConnectionId(aconn) ||
+    if (authenticator->epoch != (afs_uint32)rx_GetConnectionEpoch(aconn) ||
+	authenticator->cid != (afs_uint32)rx_GetConnectionId(aconn) ||
 	authenticator->call_numbers.len != RX_MAXCALLS)
 	return RXGK_BADCHALLENGE;
     return 0;
@@ -374,7 +374,8 @@ rxgk_CheckResponse(struct rx_securityClass *aobj,
 	goto cleanup;
     /* Success! */
     sc->auth = 1;
-    (void)rxi_SetCallNumberVector(aconn, authenticator.call_numbers.val);
+    (void)rxi_SetCallNumberVector(aconn,
+				  (afs_int32 *)authenticator.call_numbers.val);
     
 cleanup:
     xdr_destroy(&xdrs);
