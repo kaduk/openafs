@@ -114,11 +114,12 @@ fill_authenticator(RXGK_Authenticator *authenticator, char *nonce,
 {
     XDR xdrs;
     afsUUID uuid;
-    afs_uint32 call_numbers[RX_MAXCALLS], maxcall;
+    afs_int32 call_numbers[RX_MAXCALLS], maxcall;
     int ret, i, ncalls;
     u_int len;
 
     memset(&xdrs, 0, sizeof(xdrs));
+    memset(&call_numbers, 0, sizeof(call_numbers));
 
     memcpy(authenticator->nonce, nonce, 20);
     /* Must encode the uuid manually. */
@@ -146,24 +147,21 @@ fill_authenticator(RXGK_Authenticator *authenticator, char *nonce,
     authenticator->epoch = aconn->epoch;
     /* XXX */
     authenticator->cid = aconn->cid;
-    /* Grunge about in the calls */
+    /* Export the call numbers. */
+    ret = rxi_GetCallNumberVector(aconn, call_numbers);
+    if (ret != 0)
+	goto cleanup;
     ncalls = maxcall = 0;
-    for(i = 0; i < RX_MAXCALLS; ++i) {
-	if (aconn->call[i] != NULL &&
-	    (aconn->call[i]->state == RX_STATE_ACTIVE ||
-	    aconn->call[i]->state == RX_STATE_PRECALL)) {
-	    call_numbers[ncalls++] = aconn->callNumber[i];
-	    maxcall = (maxcall > aconn->callNumber[i]) ? maxcall :
-							 aconn->callNumber[i];
-	}
-    }
+    for(i = 0; i < RX_MAXCALLS; ++i)
+	maxcall = (maxcall > call_numbers[i]) ? maxcall : call_numbers[i];
     authenticator->maxcalls = maxcall;
-    authenticator->call_numbers.len = ncalls;
-    authenticator->call_numbers.val = xdr_alloc(ncalls * sizeof(afs_uint32));
+    authenticator->call_numbers.val = xdr_alloc(RX_MAXCALLS *
+						sizeof(afs_int32));
     if (authenticator->call_numbers.val == NULL) {
 	ret = RXGEN_CC_MARSHAL;
 	goto cleanup;
     }
+    authenticator->call_numbers.len = RX_MAXCALLS;
     for(i = 0; i < ncalls; ++i)
 	authenticator->call_numbers.val[i] = call_numbers[i];
     ret = 0;
