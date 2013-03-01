@@ -638,7 +638,6 @@ enum RXGK_Level {
 	RXGK_Level level;
         unsigned int epoch;
 	unsigned int cid;
-	unsigned int maxcalls;
 	unsigned int call_numbers&lt;&gt;;
     };
 </artwork>
@@ -651,8 +650,6 @@ enum RXGK_Level {
 		  originally negotiated.</t>
           <t hangText="epoch:">The rx connection epoch.</t>
 	  <t hangText="cid:">The rx connection ID.</t>
-	  <t hangText="maxcalls:">The highest rx call number in use on this
-		  connnection.</t>
           <t hangText="call_numbers:">The set of current rx call numbers for
 		  all available channels; unused channels should report a
 		  call number of zero.</t>
