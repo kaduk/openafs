@@ -469,7 +469,8 @@
        connection established using solely the cache manager's token.
        This connection
        MUST have a security level of RXGK_LEVEL_CRYPT.</t>
-      <t>If a fileserver receives a AFS_SetCallBackKey protected with a different
+      <t>If a fileserver receives an RXAFS_SetCallBackKey call
+       protected with a different
        cache manager identity than the previous call from that client, it MUST
        break all secure callbacks held by that client using the old key before
        this RPC completes.</t>
