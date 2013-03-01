@@ -46,8 +46,6 @@
 #include <rx/rxgk.h>
 
 #include "rxgk_private.h"
-#include "../rx/rx_conn.h"
-#include "../rx/rx_call.h"
 
 /* This prototype is in afs_prototypes.h, which we can't include here.
  * We will build this object and link it directly. */
@@ -143,10 +141,8 @@ fill_authenticator(RXGK_Authenticator *authenticator, char *nonce,
     }
 
     authenticator->level = cp->level;
-    /* XXX need a better story... */
-    authenticator->epoch = aconn->epoch;
-    /* XXX */
-    authenticator->cid = aconn->cid;
+    authenticator->epoch = rx_GetConnectionEpoch(aconn);
+    authenticator->cid = rx_GetConnectionId(aconn);
     /* Export the call numbers. */
     ret = rxi_GetCallNumberVector(aconn, call_numbers);
     if (ret != 0)

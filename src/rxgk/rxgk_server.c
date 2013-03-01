@@ -51,7 +51,6 @@
 #include <afs/afsutil.h>
 
 #include "rxgk_private.h"
-#include "../rx/rx_conn.h"
 
 
 static struct rx_securityOps rxgk_server_ops = {
@@ -297,7 +296,8 @@ decrypt_authenticator(RXGK_Authenticator *out, struct rx_opaque *in,
     encauth.len = in->len;
     encauth.val = in->val;
     /* XXX hardcoding key number 0. */
-    ret = derive_tk(&tk, sc->k0, aconn->epoch, aconn->cid, sc->start_time, 0);
+    ret = derive_tk(&tk, sc->k0, rx_GetConnectionEpoch(aconn),
+		    rx_GetConnectionId(aconn), sc->start_time, 0);
     if (ret != 0)
 	goto cleanup;
     ret = decrypt_in_key(tk, RXGK_CLIENT_ENC_RESPONSE, &encauth, &packauth);
@@ -323,8 +323,8 @@ check_authenticator(RXGK_Authenticator *authenticator,
 	return RXGK_SEALED_INCON;
     if (authenticator->level != sc->level)
 	return RXGK_BADLEVEL;
-    if (authenticator->epoch != aconn->epoch ||
-	authenticator->cid != aconn->cid ||
+    if (authenticator->epoch != rx_GetConnectionEpoch(aconn) ||
+	authenticator->cid != rx_GetConnectionId(aconn) ||
 	authenticator->call_numbers.len != RX_MAXCALLS)
 	return RXGK_BADCHALLENGE;
     return 0;
@@ -347,7 +347,7 @@ rxgk_CheckResponse(struct rx_securityClass *aobj,
     memset(&authenticator, 0, sizeof(authenticator));
 
     sp = aobj->privateData;
-    sc = aconn->securityData;
+    sc = rx_GetSecurityData(aconn);
 
     xdrmem_create(&xdrs, rx_DataOf(apacket), rx_GetDataSize(apacket),
 		  XDR_DECODE);
