@@ -287,17 +287,64 @@ enum RXGK_Level {
 	below.</t>
     </list>
 
-    <t>Upon receiving the server's response, the client checks the 
-       contents of gss_major_status. If
-       gss_major_status == GSS_S_CONTINUE_NEEDED, the client
-       should call gss_init_sec_context() again with the token provided by the
-       server in output_token_buffer, followed by a further call to 
-       GSSNegotiate, including the server's previous opaque_out as this call's
-       opaque_in.</t>
-
-    <t>This process continues until the either the server or client,
-       encounters an error, or the server returns GSS_S_COMPLETE in gss_major_status.
-       </t>
+    <t>The client proceeds through a GSS security context initialization loop,
+       with alternating calls to gss_init_sec_context() and the
+       GSSNegotiate() RPC, until an error or success condition is reached.
+       Each call to GSSNegotiate will return both an output token from
+       GSS_Accept_sec_context() and an output opaque that are to be
+       used as an inputs for a subsequent call to GSSNegotiate, if
+       such a subsequent call is necessary.</t>
+    <t>Different GSS mechanisms will require a different number of full (or
+       half) round trips.  The structure of the loop, with success and
+       error conditions noted (noting that RX level errors may occur as well
+       but are not mentioned as part of the loop structure), is as follows:</t>
+       <list style="hanging" hangIndent="6">
+         <t>The client calls GSS_Init_sec_context(), supplying an input token
+           if one was returned by a previous call to GSSNegotiate().
+           The client MUST set the mutual_req_flag, conf_req_flag, and
+           integ_req_flag boolans to true.</t>
+         <t>If the major status code from GSS_Init_sec_context() includes a
+           fatal error code, the negotiation loop is in an error condition and
+           terminates.  If the major status code is GSS_S_COMPLETE and
+           and the mutual_state flag is not true, or the major status code
+           is GSS_S_COMPLETE and the conf_avail flag is not true, or the
+           major status code is GSS_S_COMPLETE and the integ_avail flag is
+           not true, the negotiation loop is in an error condition and
+           terminates.  If the major status code is GSS_S_COMPLETE and the
+           output token is zero length, this is a success condition and
+           the negotiation loop terminates (this cannot happen on the first
+           iteration of the loop).  Otherwise, if the major status code
+           does not include GSS_S_CONTINUE_NEEDED, the negotiation loop
+           is in an error condition and terminates.  If the major status code
+           includes GSS_S_CONTINUE_NEEDED, the output token is sent to the
+           server, per the next step.</t>
+         <t>The client calls GSSNegotiate(), supplying the output token from
+           GSS_Init_sec_context() and an input opaque if one was returned
+           by a previous call to GSSNegotiate().</t>
+         <t>The server calls GSS_Accept_sec_context(), supplying the token
+           it received from the client as input.  If there is an output
+           token from GSS_Accept_sec_context(), the server returns it to
+           the client in the output_token_buffer field of the GSSNegotiate()
+           RPC, along with the major and minor status codes from the call to
+           GSS_Accept_sec_context().  If the major status code includes
+           GSS_S_CONTINUE_NEEDED, the server also returns an opaque identifier
+           in the opaque_out field of the RPC, which will allow the server to
+           associate a future RPC call with this partially formed
+           security context.  If the major status code is GSS_S_COMPLETE,
+           the server constructs an RXGK_ClientInfo structure per below.</t>
+         <t>The client receives the results of the GSSNegotiate() RPC.
+           If the major status code is not GSS_S_COMPLETE and does not
+           include GSS_S_CONTINUE_NEEDED, the negotiation loop is in an error
+           condition and terminates.  If the most recent call to
+           GSS_Init_sec_context() returned the major status code
+           GSS_S_COMPLETE and an output token, the negotiation loop is in a
+           success condition and terminates.  If the most recent call to
+           GSS_Init_sec_context() returned a major status code including
+           GSS_S_CONTINUE_NEEDED and the output_token_buffer is zero length,
+           the negotiation loop is in error and terminates.  Otherwise,
+           the client proceeds to begin the next cycle of the negotiation
+           loop.</t>
+       </list>
 
     <t>Upon successful completion, rxgk_info contains the XDR representation of a 
        RXGK_ClientInfo structure, encrypted using gss_wrap() with
