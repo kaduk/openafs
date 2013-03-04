@@ -887,12 +887,16 @@ enum RXGK_Level {
           properly or contained nonsense or useless data.</t>
           
           <t hangText="RXGK_BADETYPE">
-          Used for the GSSNegotiate and CombineTokens RPCs, when the
+          Used when the supplied encryption type(s) are invalid or
+          impermissible, such as 
+          for the GSSNegotiate and CombineTokens RPCs, when the
           client-supplied enctype list does not contain any entries that are
           acceptable to the server.</t>
           
           <t hangText="RXGK_BADLEVEL">
-          Used for the GSSNegotiate and CombineTokens RPCs, when the
+          Used when the supplied security level(s) are invalid or
+          impermissible, such as
+          for the GSSNegotiate and CombineTokens RPCs, when the
           client-supplied list of security levels does not contain any entries
           that are acceptable to the server.</t>
           
@@ -936,8 +940,8 @@ error_table RXGK
 ec RXGK_INCONSISTENCY, "Security module structure inconsistent"
 ec RXGK_PACKETSHORT, "Packet too short for security challenge"
 ec RXGK_BADCHALLENGE, "Invalid security challenge"
-ec RXGK_BADETYPE, "Encryption type negotiation failed"
-ec RXGK_BADLEVEL, "Security level negotiation failed"
+ec RXGK_BADETYPE, "Invalid or impermissible encryption type"
+ec RXGK_BADLEVEL, "Invalid or impermissible security level"
 ec RXGK_BADKEYNO, "Key version number not found"
 ec RXGK_EXPIRED, "Token has expired"
 ec RXGK_NOTAUTH, "Caller not authorized"
