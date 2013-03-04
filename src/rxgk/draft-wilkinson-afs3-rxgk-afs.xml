@@ -426,9 +426,10 @@
        </artwork>
      </t>
       <list style="hanging" hangIndent="6">
-        <t hangText="uuidp:">As for the existing VL_RegisterAddrs RPC.</t>
-        <t hangText="spare1:">As for the existing VL_RegisterAddrs RPC.</t>
-        <t hangText="ipaddr:">As for the existing VL_RegisterAddrs RPC.</t>
+        <t hangText="uuidp:">The fileserver's UUID.</t>
+        <t hangText="spare1:">Unused.  (Clients SHOULD pass zero.)</t>
+        <t hangText="ipaddr:">The list of addresses to register as belonging
+         to this fileserver.</t>
         <t hangText="secIndex:">The index of the security mechanism for 
          which a key is being set. For rxgk, this value MUST be 4.</t>
         <t hangText="keyDataRequest:">An opaque blob of data, specific to
