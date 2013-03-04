@@ -652,7 +652,9 @@ enum RXGK_Level {
 	  <t hangText="cid:">The rx connection ID.</t>
           <t hangText="call_numbers:">The set of current rx call numbers for
 		  all available channels; unused channels should report a
-		  call number of zero.</t>
+		  call number of zero.  The length of this vector indicates
+		  the maximum number of calls per connection supported by
+		  the client.</t>
         </list>
       </section>
    </section>
