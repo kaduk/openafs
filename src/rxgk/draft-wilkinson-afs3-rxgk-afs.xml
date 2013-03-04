@@ -364,7 +364,10 @@
       </t>
       <t>Once a fileserver has been marked as supporting rxgk, VL_RegisterAddrs
         calls for that fileserver MUST only be accepted over an rxgk
-        protected connection.
+        protected connection. vlservers MUST only accept calls to
+        VL_RegisterAddrs from a printed token, an administrator, or the
+        identity registered for the fileserver using a prior call to
+        VL_RegisterAddrsandKey.
       </t>
       <!-- XXX - we need to define a VL_ RPC which can be used to remove
                   the rxgk capable marking -->
@@ -386,6 +389,18 @@
         connection.  For the purpose of this RPC, the fileserver acts as the
         client and the vlserver as the server.  Once the RPC completes, the
         client can generate a key to be used as the fileserver's server key.</t>
+      <t>vlservers MUST NOT permit calls to VL_RegisterAddrsAndKey for UUIDs
+        which already exist within the vldb, unless that UUID already has
+        a server-specific key registered. When a new fileserver first registers
+        with the vldb using VL_RegisterAddrsAndKey, the vlserver MUST store the
+        identity used to make this connection. The vlserver MUST only permit
+        subsequent calls to VL_RegisterAddrsAndKey for this UUID when they come
+        from this identity, an administrator, or a printed token.
+        New fileserver UUIDs register themselves with
+        the vldb in a "leap of faith", binding a GSSAPI identity to the
+        fileserver UUID for future authenticated operations.
+        Fileservers SHOULD use VL_RegisterAddrsAndKey to rekey themselves
+        periodically, in accordance with key lifetime best practices.</t>
       <t>The VL_RegisterAddrsAndKey RPC is described by the following RPC-L:
 <artwork>
     struct RXGK_ServerKeyDataRequest {
