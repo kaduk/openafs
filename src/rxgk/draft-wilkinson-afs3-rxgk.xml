@@ -527,7 +527,7 @@ enum RXGK_Level {
    to the server. The server follows the standard RX security
    establishment protocol, and responds to the client with a challenge
    <xref target="RX" />.
-   rxgk challenges simply contain some versioning information and a
+   rxgk challenges simply contain a
    random nonce selected by the server.</t>
 
       <t>Upon receiving this challenge, the client uses the transport key to
