@@ -64,8 +64,7 @@
       <section title="rxgk and AFS">
         <t>
           AFS-3 differs from the standard rxgk implementation in that it 
-          does not require GSSAPI negotiation with each server for normal
-          file system access. Instead, 
+          does not require GSSAPI negotiation with each server. Instead, 
           a client performs GSSAPI negotiation just once (with the vlserver),
           receiving a token usable with any server in the cell that has the
           cell-wide key.  Traditional AFS rxkad authentication required that
@@ -121,16 +120,9 @@
         if this identity is not available.
       </t>
       <t>
-        Tokens returned from the GSSNegotiate call against the vlserver
-        negotiation service MUST only be used with
-        database servers. Tokens for fileservers and volservers
-        MUST be obtained by
-        calling AFSCombineTokens before each server is contacted.
-        AFS services other than database servers, fileservers, and volservers
-        MUST run a standard rxgk negotiation service for obtaining tokens
-        for those services.  These per-service negotiation services
-        MAY reuse the acceptor credentials of the cell-wide key or they
-        MAY use service-specific credentials.</t>
+        Tokens returned from the GSSNegotiate call MUST only be used with
+        database servers. Tokens for fileservers MUST be obtained by
+        calling AFSCombineTokens before each server is contacted.</t>
       <section title="The AFSCombineTokens Operation">
         <t>
           AFS extends the existing CombineTokens operation to provide a general
