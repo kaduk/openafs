@@ -63,6 +63,13 @@
       </section>
       <section title="rxgk and AFS">
         <t>
+          This document describes special integration steps needed to use
+          rxgk with AFS-3 database servers (the PR and VL rx services)
+          and file servers (the RXAFS, RXAFSCB, and AFSVol rx services),
+          as well as specifying application-specific portions of the rxgk
+          specification for use by these services.  Other AFS-3 services
+          are not covered by this document; the generic rxgk document
+          applies to them.
           AFS-3 differs from the standard rxgk implementation in that it 
           does not require GSSAPI negotiation with each server. Instead, 
           a client performs GSSAPI negotiation just once (with the vlserver),
