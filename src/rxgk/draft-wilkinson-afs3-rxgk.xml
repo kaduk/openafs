@@ -26,7 +26,7 @@
       <email>simon@sxw.org.uk</email>
     </address>
   </author>
-  <date month="January" year="2012"/>
+  <date month="March" year="2013"/>
 
   <abstract>
     <t>rxgk is a security class for the RX RPC protocol. It uses the GSSAPI
