@@ -195,10 +195,7 @@ enum RXGK_Level {
        registered with IANA, the registered service name SHOULD be used to
        construct the target principal name as
        &lt;service name&gt;@%lt;hostname%gt; using the name type
-       GSS_C_NT_HOSTBASED_SERVICE.
-       The server's configuration as a GSS acceptor SHOULD NOT specify
-       a principal name for acceptor credentials, allowing the use of any
-       available credentials for the negotiation service.</t>
+       GSS_C_NT_HOSTBASED_SERVICE.</t>
 
     <t>The key negotiation protocol is defined by the following RPC-L:</t>
 
