@@ -16,7 +16,7 @@
 <?rfc compact='yes'?>
 <?rfc subcompact='no'?>
 
-<rfc category='info' ipr='trust200902' docName="draft-wilkinson-afs3-rxgk-02"
+<rfc category='info' ipr='trust200902' docName="draft-wilkinson-afs3-rxgk-03"
      submissionType="independent">
   <front>
   <title>rxgk: GSSAPI based security class for RX</title>
