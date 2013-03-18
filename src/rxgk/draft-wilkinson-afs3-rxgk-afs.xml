@@ -117,7 +117,8 @@
         the vlserver.
       </t>
       <t>
-        The GSS identity afs-rxgk@_afs.&lt;cellname&gt;
+        The GSS identity afs-rxgk@_afs.&lt;cellname&gt; of nametype
+        GSS_C_NT_HOSTBASED_SERVICE
         is the acceptor identity for this service. Where multiple 
         vlservers exist for a single cell, all of these servers must
         have access to the key material for this identity, which MUST be
