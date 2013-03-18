@@ -1085,7 +1085,11 @@ end
 	      <t>Make CombineTokens negotiate level and enctype.</t>
 	      <t>Allow key version rollover at 16 bits when rekeying.</t>
 	      <t>Add Security Considerations for increasing token expiry.</t>
-              <t>Add RXGK com_err table.</t>
+              <t>Clarify behavior at RXGK_LEVEL_AUTH.</t>
+              <t>Add RXGK com_err table and descriptions.</t>
+              <t>Clean up call number vector and maxcalls support.</t>
+              <t>Improve the description of the GSS negotiation loop.</t>
+              <t>Give suggestions for acceptor principal names.</t>
       </section>
    </section>
 </back>

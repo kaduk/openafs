@@ -581,6 +581,12 @@
       </section>
       <section title="Since 01">
         <t>Rename RXAFS_SetCallbackKey to RXAFS_SetCallBackKey.</t>
+        <t>Add an AFS-3 Registry Considerations section.</t>
+        <t>Clarify the vlserver/dbserver/fileserver relationship.</t>
+        <t>AFSCombineTokens prototype changes.</t>
+        <t>Clarify the scope of the document.</t>
+        <t>Use a leap of faith for RegisterAddrsAndKey.</t>
+        <t>Specify the nametype of the acceptor identity.</t>
       </section>
     </section>
   </back>
