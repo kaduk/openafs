@@ -13,7 +13,6 @@
 <?rfc toc='yes'?>
 <?rfc compact='yes'?>
 <?rfc subcompact='no'?>
-<?rfc private="AFS-3 Standards Group"?>
 <rfc category="info" ipr="trust200902" docName="draft-wilkinson-afs3-rxgk-afs-02" submissionType="independent">
   <front>
     <title>Integrating rxgk with AFS</title>
