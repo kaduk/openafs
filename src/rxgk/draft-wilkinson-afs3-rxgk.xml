@@ -529,7 +529,7 @@ enum RXGK_Level {
          <xref target="COMERR" />, from an RX,
          RXGK, or application-specific table.  See
          <xref target="AFSReg" /> for RXGK error codes.
-         section <xref target="derivation" />.  For example,
+         For example,
          <list style="hanging" hangIndent="6">
            <t hangText="RXGEN_OPCODE">used when
              the server will refuse all CombineTokens requests.</t>
