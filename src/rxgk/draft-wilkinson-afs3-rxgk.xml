@@ -497,8 +497,9 @@ enum RXGK_Level {
       <t>The server receives token0 and token1 from the RPC call, as well
          as the options suggested by the client.  Upon receipt, the server
          decrypts these tokens using its private key. Providing this decryption
-	 is successful, it now has copies of the initial key (K0) from both
-	 tokens.  The server then chooses an enctype and security level from the
+	 is successful, it now has copies of the initial key from both
+	 tokens (K0 and K1).
+	 The server then chooses an enctype and security level from the
 	 lists supplied by the client in the options argument.  The server SHOULD
 	 select the first entry from each list which is acceptable in the
 	 server's configuration, so as to respect any preferences indicated by
