@@ -705,8 +705,8 @@ enum RXGK_Level {
 	  <t hangText="nonce:">A copy of the nonce from the challenge.</t>
 	  <t hangText="appdata:">An application specific opaque blob.</t>
 	  <t hangText="level:">The desired security level for this particular
-		  connnection. This MUST NOT be less than the security level
-		  originally negotiated.</t>
+		  connnection. This MUST NOT be less secure than the security
+		  level negotiated for the associated token.</t>
           <t hangText="epoch:">The rx connection epoch.</t>
 	  <t hangText="cid:">The rx connection ID.</t>
           <t hangText="call_numbers:">The set of current rx call numbers for
@@ -725,7 +725,8 @@ enum RXGK_Level {
         compared with the nonce sent in the RXGK_Challenge, and
         the connection ID and epoch compared with that of the current
         connection. The call number vector (call_numbers) should be supplied
-        to the rx implementation.
+        to the rx implementation.  The security level should be confirmed to
+        be at least as secure as the security level of the token.
         Failure of any of these steps MUST result in the failure
         of the security context.
      </t>
