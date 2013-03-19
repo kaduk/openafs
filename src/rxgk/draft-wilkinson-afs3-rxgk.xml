@@ -303,7 +303,7 @@ enum RXGK_Level {
        GSSNegotiate() RPC, until an error or success condition is reached.
        Each call to GSSNegotiate will return both an output token from
        GSS_Accept_sec_context() and an output opaque that are to be
-       used as an inputs for a subsequent call to GSSNegotiate, if
+       used as an input for a subsequent call to GSSNegotiate, if
        such a subsequent call is necessary.</t>
     <t>Different GSS mechanisms will require a different number of full (or
        half) round trips.  The structure of the loop, with success and
