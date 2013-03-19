@@ -127,7 +127,7 @@ const RXGK_SERVER_ENC_TOKEN		= 1036;
      <list style="hanging" hangIndent="6">
        <t hangText="Authentication only"> (0) Provides only connection 
 	 authentication, without either integrity or confidentiality 
-	 protection. This mode of operation provides higher throughput, but
+	 protection. This mode of operation can provide higher throughput, but
 	 is vulnerable to man in the middle attacks. This corresponds
  	 to the traditional 'clear' security level.</t>
        <t hangText="Integrity"> (1) Provides integrity protection only. 
