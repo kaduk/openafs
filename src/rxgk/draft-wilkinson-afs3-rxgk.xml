@@ -287,7 +287,7 @@ enum RXGK_Level {
       <t hangText="opaque_out">An opaque token, which the server may use to
 	preserve state information between multiple calls in the same context
 	negotiation. The client should use this value as opaque_in in its next
-	call to GSSNegotiate.</t>
+	call to GSSNegotiate in this context negotiation.</t>
       <t hangText="gss_major_status">The major status code output by the server's
 	      call to gss_accept_sec_context().</t>
       <t hangText="gss_minor_status">The minor status code returned by
