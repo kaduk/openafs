@@ -402,8 +402,8 @@ enum RXGK_Level {
 	representation of the StartParams request received by the server.</t>
       <t hangText="token">An rxgk token. This is an opaque blob, as detailed
 	in <xref target="tokens" />.</t>
-      <t hangText="server_nonce">The nonce used by the server to create the K0
-	used within the rxgk token.</t>
+      <t hangText="server_nonce">The random nonce used by the server to create
+	the K0 used within the rxgk token.</t>
      </list>
 
      <t>Upon receiving the server's response, the client must verify that the
