@@ -579,7 +579,7 @@ enum RXGK_Level {
         the client stores the current timestamp as an rxgkTime
 	(start_time for the rest of this discussion), and 
       then uses this, along with other connection information, to derive a 
-      transport key from the current user's master key
+      transport key from the current master key
       (see <xref target="derivation" />).</t>
 
    <t>This key is then used to protect the first message the client sends
