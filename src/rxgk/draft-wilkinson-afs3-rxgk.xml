@@ -746,7 +746,7 @@ enum RXGK_Level {
 
    <section title="Integrity Protection">
 
-     <t>Packet payloads transmitted in the auth security level,
+     <t>Packet payloads transmitted at the auth security level,
         RXGK_LEVEL_AUTH, consist of an opaque blob of MIC data followed
         by the unencrypted original payload data.</t>
 
