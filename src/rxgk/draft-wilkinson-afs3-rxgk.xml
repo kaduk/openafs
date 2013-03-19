@@ -534,9 +534,9 @@ enum RXGK_Level {
          <list style="hanging" hangIndent="6">
            <t hangText="RXGEN_OPCODE">used when
              the server will refuse all CombineTokens requests.</t>
-           <t hangText="RXGK_BAD_ETYPE">used when none of the enctypes
+           <t hangText="RXGK_BADETYPE">used when none of the enctypes
              supplied by the client are acceptable to the server.</t>
-           <t hangText="RXGK_BAD_LEVEL">used when one of the security levels
+           <t hangText="RXGK_BADLEVEL">used when none of the security levels
              supplied by the client are acceptable to the server.</t>
            <t hangText="RXGK_EXPIRED">used when one or more of the input
              tokens was already expired.</t>
