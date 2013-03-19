@@ -966,7 +966,7 @@ end
 	  caution should be exercised when relying on their results. In
 	  particular, clients MUST NOT use an error from GSSNegotiate or
 	  CombineTokens to determine whether to downgrade to another 
-	  security class</t>
+	  security class.</t>
      </section>
      <section title="Token Expiry">
 	<t>This document permits tokens to be issued with expiration times
