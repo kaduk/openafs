@@ -313,7 +313,7 @@ enum RXGK_Level {
          <t>The client calls GSS_Init_sec_context(), supplying an input token
            if one was returned by a previous call to GSSNegotiate().
            The client MUST set the mutual_req_flag, conf_req_flag, and
-           integ_req_flag boolans to true.</t>
+           integ_req_flag booleans to true.</t>
          <t>If the major status code from GSS_Init_sec_context() includes a
            fatal error code, the negotiation loop is in an error condition and
            terminates.  If the major status code is GSS_S_COMPLETE and
