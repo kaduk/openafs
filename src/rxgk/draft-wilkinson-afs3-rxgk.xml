@@ -861,7 +861,7 @@ enum RXGK_Level {
    </section>
    </section>
    <section anchor="RXGKErr" title="RXGK protocol error codes">
-     <t>This document specifies several erorr codes for use by RXGK
+     <t>This document specifies several error codes for use by RXGK
         implementations (see section <xref target="AFSReg" /> for the
         com_err table).  In general, when an endpoint receives any such
         error code, it should abort the current operation.  The various
