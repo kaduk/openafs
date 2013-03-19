@@ -362,7 +362,7 @@ enum RXGK_Level {
        confidentiality protection. The client should decrypt this structure
        using gss_unwrap().</t>
 
-    <t>ClientInfo contains the following server populated
+    <t>RXGK_ClientInfo contains the following server populated
        fields:</t>
 
     <list style="hanging" hangIndent="6">
