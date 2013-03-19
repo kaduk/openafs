@@ -46,6 +46,7 @@
      authentication, confidentiality and integrity protection for 
      rx RPC calls,
      using a security context established using any GSSAPI mechanism with 
+     confidentiality, mutual authentication, and
      <xref target="RFC4401">PRF</xref> support. The External Data
      Representation Standardard,
      <xref target="RFC4506">XDR</xref>, is used to represent data structures
