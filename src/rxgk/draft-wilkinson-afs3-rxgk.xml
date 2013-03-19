@@ -197,7 +197,7 @@ enum RXGK_Level {
        application-specific knowledge, when using rxgk over a port number
        registered with IANA, the registered service name SHOULD be used to
        construct the target principal name as
-       &lt;service name&gt;@%lt;hostname%gt; using the name type
+       &lt;service name&gt;@&lt;hostname&gt; using the name type
        GSS_C_NT_HOSTBASED_SERVICE.</t>
 
     <t>The key negotiation protocol is defined by the following RPC-L:</t>
