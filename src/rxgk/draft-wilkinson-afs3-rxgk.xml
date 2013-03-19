@@ -30,8 +30,10 @@
 
   <abstract>
     <t>rxgk is a security class for the RX RPC protocol. It uses the GSSAPI
-       framework to provide authentication, confidentiality and integrity
-       protection. This document provides a general description of rxgk. A
+       framework to provide an authentication service that provides
+       authentication, confidentiality and integrity protection for the
+       rxgk security class.
+       This document provides a general description of rxgk. A
        further document will provide details of integration with specific
        RX applications. </t>
   </abstract>
