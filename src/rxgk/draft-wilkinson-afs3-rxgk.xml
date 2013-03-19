@@ -507,7 +507,7 @@ enum RXGK_Level {
 	 The server then performs the key combination algorithm detailed above
 	 to obtain the new key, Kn. The server then
 	 constructs a new token as follows.
-	 The expiration is set to the minimum of the
+	 The expiration field is set to the minimum of the
 	 expiration values of the original tokens. The lifetime, bytelife,
 	 and any application-specific data fields are each combined so that the
 	 result is the most restrictive of the two values in each of the original
