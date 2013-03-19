@@ -783,7 +783,8 @@ enum RXGK_Level {
 
      <t>All fields MUST be in network byte order.
         The data length field specifies the length of the original packet
-        payload excluding padding required for encryption routines.</t>
+        payload in octets, excluding padding required for encryption
+        routines.</t>
 
      <t>The packet is transmitted with the following payload:</t>
 <artwork>
