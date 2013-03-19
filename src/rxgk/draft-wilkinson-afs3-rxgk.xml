@@ -882,8 +882,8 @@ enum RXGK_Level {
           constructing a challenge packet but the required data would be larger
           than the server's allowed packet size.  Used when a reply packet
           received by the server is smaller than the expected size of a response
-          packet.  Also for the analogous situations on the other side of the
-          challenge/response exchange.</t>
+          packet.  Also used for the analogous situations on the other side
+          of the challenge/response exchange.</t>
           
           <t hangText="RXGK_BADCHALLENGE">
           A challenge or response packet (of the expected size) failed to decode
