@@ -373,7 +373,7 @@ enum RXGK_Level {
 	<xref target="COMERR" />
 	and may represent such conditions as insufficient authorization
 	or that the client has too many active connections to the service.
-        Error codes may be RXGK errors (see section <xref target="AFSReg" />)
+        Error codes may be RXGK errors (see <xref target="AFSReg" />)
         or from an application-specific table.</t>
       <t hangText="enctype">The encryption type selected by the server.
 	This SHALL be one of the types listed by the client in its StartParams
@@ -527,7 +527,7 @@ enum RXGK_Level {
 	 RXGK_TokenInfo structure and the value of new_token are undefined.
          Nonzero values for errorcode should be com_err codes
          <xref target="COMERR" />, from an RX,
-         RXGK, or application-specific table.  See section
+         RXGK, or application-specific table.  See
          <xref target="AFSReg" /> for RXGK error codes.
          section <xref target="derivation" />.  For example,
          <list style="hanging" hangIndent="6">
@@ -561,7 +561,7 @@ enum RXGK_Level {
          to know which enctype's random-to-key function to use in generating
          Kn.  With the negotiated enctype, the client can then perform the
          key combination algorithm described in
-         section <xref target="derivation" />.
+         <xref target="derivation" />.
          The client can only make use of Tn to
 	 establish an rxgk protected connection if it can derive Kn, which it 
 	 can only do if it already knows K0 and K1.
