@@ -84,9 +84,9 @@
        seconds. Negative times, whilst permitted by the representation,
        MUST NOT be used within rxgk.
        
-<artwork>
+<figure><artwork>
 typedef hyper rxgkTime;
-</artwork>
+</artwork></figure>
 </t>
    </section>
 
@@ -105,14 +105,14 @@ typedef hyper rxgkTime;
        these keys, key usage numbers are allocated within the application
        space documented in section 4 of <xref target="RFC4120">RFC4120</xref>.
 
-<artwork>
+<figure><artwork>
 const RXGK_CLIENT_ENC_PACKET		= 1026;
 const RXGK_CLIENT_MIC_PACKET		= 1027;
 const RXGK_SERVER_ENC_PACKET		= 1028;
 const RXGK_SERVER_MIC_PACKET		= 1029;
 const RXGK_CLIENT_ENC_RESPONSE		= 1030;
 const RXGK_SERVER_ENC_TOKEN		= 1036;
-</artwork>
+</artwork></figure>
 
        The application of these key usage numbers is specified in
        <xref target="class" />.
@@ -123,7 +123,7 @@ const RXGK_SERVER_ENC_TOKEN		= 1036;
   <section title="Security Levels" anchor="levels">
     <t>rxgk supports the negotiation of a range of different security levels.
        These, along with the protocol constants that represent them during
-       key negotiation, are:</t>
+       key negotiation, are:
      <list style="hanging" hangIndent="6">
        <t hangText="Authentication only"> (0) Provides only connection 
 	 authentication, without either integrity or confidentiality 
@@ -138,20 +138,19 @@ const RXGK_SERVER_ENC_TOKEN		= 1036;
 	  confidentiality protection. This corresponds to the traditional
 	  'crypt' security level.</t>
      </list>
-     <t>
      The authentication only, or clear, security level provides faster
      throughput, at the expense of connection security.  The 'clear'
      security level is vulnerable to a man in the middle altering the data
      passed over the connection, whereas the 'integrity' security level
      prevents such attacks by sending a cryptographic checksum of the data
      being transmitted.
-<artwork>
+<figure><artwork>
 enum RXGK_Level {
     RXGK_LEVEL_CLEAR = 0,
     RXGK_LEVEL_AUTH = 1,
     RXGK_LEVEL_CRYPT = 2
 };
-</artwork>
+</artwork></figure>
 </t>
   </section>
 
@@ -202,7 +201,7 @@ enum RXGK_Level {
 
     <t>The key negotiation protocol is defined by the following RPC-L:</t>
 
-<artwork>
+<figure><artwork>
     typedef int RXGK_Enctypes&lt;&gt;;
     typedef opaque RXGK_Data&lt;&gt;;
 
@@ -237,14 +236,14 @@ enum RXGK_Level {
 		 OUT unsigned int *gss_minor_status,
                  OUT RXGK_Data *rxgk_info) = 1;
 
-</artwork>
+</artwork></figure>
 
     <t>The client populates RXGK_StartParams with its preferred
        options. The enctypes and levels parameters are lists of
        values supported by the client, and MUST be ordered from best
        to worst, with the 
        client's favoured option occurring first within the list. The 
-       parameters are: </t>
+       parameters are:
     <list style="hanging" hangIndent="6">
       <t hangText="enctypes:">List of encryption types from the 
 	 Kerberos Encryption Type Number registry created in RFC3961 and 
@@ -267,13 +266,11 @@ enum RXGK_Level {
       <t hangText="clientnonce:">A client-generated string of random bytes,
 	 to be used as input to the key generation.</t>
     </list>
-
-    <t>The client then calls gss_init_sec_context() to obtain an output token
+       The client then calls gss_init_sec_context() to obtain an output token
        to send to the server. The GSS service name is application dependent.</t>
 
     <t>The client then calls RXGK_GSSNegotiate, as defined above. This takes
-       the following parameters:</t>
-
+       the following parameters:
     <list style="hanging" hangIndent="6">
       <t hangText="client_start">The client params structure detailed above.
         This should remain constant across the negotiation.</t>
@@ -297,8 +294,7 @@ enum RXGK_Level {
 	encrypted block containing the server's response to the client. See
 	below.</t>
     </list>
-
-    <t>The client proceeds through a GSS security context initialization loop,
+       The client proceeds through a GSS security context initialization loop,
        with alternating calls to gss_init_sec_context() and the
        GSSNegotiate() RPC, until an error or success condition is reached.
        Each call to GSSNegotiate will return both an output token from
@@ -308,7 +304,7 @@ enum RXGK_Level {
     <t>Different GSS mechanisms will require a different number of full (or
        half) round trips.  The structure of the loop, with success and
        error conditions noted (noting that RX level errors may occur as well
-       but are not mentioned as part of the loop structure), is as follows:</t>
+       but are not mentioned as part of the loop structure), is as follows:
        <list style="hanging" hangIndent="6">
          <t>The client calls GSS_Init_sec_context(), supplying an input token
            if one was returned by a previous call to GSSNegotiate().
@@ -356,15 +352,13 @@ enum RXGK_Level {
            the client proceeds to begin the next cycle of the negotiation
            loop.</t>
        </list>
-
-    <t>Upon successful completion, rxgk_info contains the XDR representation of a 
+       Upon successful completion, rxgk_info contains the XDR representation of a 
        RXGK_ClientInfo structure, encrypted using gss_wrap() with
        confidentiality protection. The client should decrypt this structure
        using gss_unwrap().</t>
 
     <t>RXGK_ClientInfo contains the following server populated
-       fields:</t>
-
+       fields:
     <list style="hanging" hangIndent="6">
       <t hangText="errorcode">A policy (rather than connection establishment) 
         error code. If non-zero, an error has occurred, the resulting key
@@ -405,8 +399,7 @@ enum RXGK_Level {
       <t hangText="server_nonce">The random nonce used by the server to create
 	the K0 used within the rxgk token.</t>
      </list>
-
-     <t>Upon receiving the server's response, the client must verify that the
+        Upon receiving the server's response, the client must verify that the
         mic contained within it matches the MIC of the XDR representation of
 	the StartParams structure it sent to the server (this prevents a man
 	in the middle from performing a downgrade attack). The client SHOULD also 
@@ -418,13 +411,13 @@ enum RXGK_Level {
         combining them together, and passing them to gss_psuedo_random() with
         the GSS_C_PRF_KEY_FULL option:</t>
 
-     <artwork>
+     <figure><artwork>
 	gss_pseudo_random(gssapi_context, 
 			  GSS_C_PRF_KEY_FULL, 
 			  client_nonce || server_nonce, 
 			  K, 
 			  *K0);
-     </artwork>
+     </artwork></figure>
      <t>|| is the concatenation operation.</t>
 
      <t>K, the desired output length, is the key generation seed length as
@@ -472,7 +465,7 @@ enum RXGK_Level {
     </section>
     <section title="RPC Definition">
       <t>The combine keys RPC is defined as:</t>
-      <artwork>
+      <figure><artwork>
     struct RXGK_CombineOptions {
         RXGK_Enctypes enctypes;
         RXGK_Level levels&lt;&gt;;
@@ -491,7 +484,7 @@ enum RXGK_Level {
                   IN RXGK_CombineOptions *options,
                   OUT RXGK_Data *new_token,
                   OUT RXGK_TokenInfo *info) = 2;
-      </artwork>
+      </artwork></figure>
     </section>
     <section title="Server Operation">
       <t>The server receives token0 and token1 from the RPC call, as well
@@ -541,10 +534,10 @@ enum RXGK_Level {
            <t hangText="RXGK_EXPIRED">used when one or more of the input
              tokens was already expired.</t>
       </list>
-      <t>To reduce the potential for denial of service attacks, servers
+         To reduce the potential for denial of service attacks, servers
 	 SHOULD only offer the CombineTokens operation to clients connecting
 	 over a secured rxgk connection.  CombineTokens SHOULD NOT be offered
-	 over an RXGK_LEVEL_CLEAR connection.</t>
+	 over an RXGK_LEVEL_CLEAR connection.
       </t>
 
     </section>
@@ -635,10 +628,10 @@ enum RXGK_Level {
 	 key number, all in network byte order. This gives:
      </t>
 
-<artwork>
+<figure><artwork>
   TK = random-to-key(PRF+(K0, L,
 	                  epoch || cid || start_time || key_number))
-</artwork>
+</artwork></figure>
       <t>L is the key generation seed length as specified in the RFC3961
 	 profile.</t>
       <t>epoch, cid and key_number are passed as 32 bit quantities; start_time
@@ -653,32 +646,30 @@ enum RXGK_Level {
     <section title="The Challenge">
  
       <t>The rxgk challenge is an XDR encoded structure with the following
-         signature:</t>
-
-<artwork>
+         signature:
+<figure><artwork>
     struct RXGK_Challenge {
         opaque nonce[20];
     };
-</artwork>
-
+</artwork></figure>
       <list style="hanging" hangIndent="6">
         <t hangText="nonce:">20 octets of random data.</t>
       </list>
+      </t>
 
     </section>
  
     <section title="The Response">
 
       <t>The rxgk response is an XDR encoded structure, with the following 
-       signature:</t>
-
-<artwork>
+       signature:
+<figure><artwork>
     struct RXGK_Response {
         rxgkTime start_time;
         RXGK_Data token;
         opaque authenticator&lt;&gt;
     };
-</artwork>
+</artwork></figure>
 
       <list style="hanging" hangIndent="6">
         <t hangText="start_time:">The time since the Unix epoch 
@@ -688,9 +679,10 @@ enum RXGK_Level {
           an RXGK_Authenticator, encrypted with the transport key, and key usage
           RXGK_CLIENT_ENC_RESPONSE.</t>
       </list>
+      </t>
       <section title="The Authenticator">
-
-<artwork>
+        <t>
+<figure><artwork>
     struct RXGK_Authenticator {
         opaque nonce[20];
 	opaque appdata&lt;&gt;
@@ -699,7 +691,7 @@ enum RXGK_Level {
 	unsigned int cid;
 	unsigned int call_numbers&lt;&gt;;
     };
-</artwork>
+</artwork></figure>
 
         <list style="hanging" hangIndent="6">
 	  <t hangText="nonce:">A copy of the nonce from the challenge.</t>
@@ -715,6 +707,7 @@ enum RXGK_Level {
 		  the maximum number of calls per connection supported by
 		  the client.</t>
         </list>
+        </t>
       </section>
    </section>
 
@@ -759,7 +752,7 @@ enum RXGK_Level {
         for packets transmitted from the server to the client. The
         following data structure is the get_mic operation data input:</t>
 
-<artwork>
+<figure><artwork>
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -779,7 +772,7 @@ enum RXGK_Level {
 ~                  original packet payload                      ~
 |                                                               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-</artwork>
+</artwork></figure>
 
      <t>All fields MUST be in network byte order.
         The data length field specifies the length of the original packet
@@ -787,7 +780,7 @@ enum RXGK_Level {
         routines.</t>
 
      <t>The packet is transmitted with the following payload:</t>
-<artwork>
+<figure><artwork>
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -801,7 +794,7 @@ enum RXGK_Level {
 ~                  original packet payload                      ~
 |                                                               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-</artwork>
+</artwork></figure>
 
      <t>Note: The length of the MIC depends on which RFC3961 encryption
         type is used.  In particular, the original packet payload may
@@ -822,7 +815,7 @@ enum RXGK_Level {
 	the following plaintext data for encryption before transmission. All fields
         MUST be represented in network byte order for encryption.</t>
 
-<artwork>
+<figure><artwork>
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -843,7 +836,7 @@ enum RXGK_Level {
 |                                                               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-</artwork>
+</artwork></figure>
      <t>The data length is the length of the following data in octets,
 	and is necessary so the receiving end can remove any padding
 	added by the encryption routines.
@@ -868,7 +861,7 @@ enum RXGK_Level {
         codes allow some information about why the operation failed to be
         conveyed to the peer so that future requests will be more likely
         to succeed.  The circumstances in which each error code should be
-        used are as follows:</t>
+        used are as follows:
         <list style="hanging" hangIndent="6">
           <t hangText="RXGK_INCONSISTENCY">
           Used for errors internal to the security class, such as when
@@ -934,11 +927,12 @@ enum RXGK_Level {
           The packet is too large, contains a zero-length iovec entry, or
           otherwise presents an unacceptable or invalid data length.</t>
         </list>
+        </t>
    </section>
    <section anchor="AFSReg" title="AFS-3 Registry Considerations">
      <t>This document requests that the AFS-3 registrar include
         a com_err error table for the RXGK module, as follows:</t>
-<artwork>
+<figure><artwork>
 error_table RXGK
 ec RXGK_INCONSISTENCY, "Security module structure inconsistent"
 ec RXGK_PACKETSHORT, "Packet too short for security challenge"
@@ -952,7 +946,7 @@ ec RXGK_BAD_TOKEN, "Security object was passed a bad token"
 ec RXGK_SEALED_INCON, "Sealed data inconsistent"
 ec RXGK_DATA_LEN, "User data too long"
 end
-</artwork>
+</artwork></figure>
      <t>The error table base should be 1233242880, with codes within the
         table assigned relative numbers starting from 0 in the order
         appearing above.</t>
@@ -1001,6 +995,7 @@ end
 					   fullname='Nickolai Zeldovich'>
 					   <organization />
 				   </author>
+				   <date month='October' year='2002' />
 			   </front>
 			   <format type='HTML' target='http://web.mit.edu/kolya/afs/rx/rx-spec' />
 		   </reference>
@@ -1014,6 +1009,7 @@ end
 							 Information Processing
 							 Board</organization>
 				   </author>
+				   <date month='January' year='1989' />
 			   </front>
 			   <format type='application/zip' target='ftp://athena-dist.mit.edu/pub/ATHENA/tools/com_err.tar.Z' />
 			   <annotation>This paper is available as
