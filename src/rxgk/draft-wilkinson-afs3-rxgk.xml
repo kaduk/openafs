@@ -230,7 +230,8 @@ enum RXGK_Level {
  	 value of 0 indicates that there is no limit on the number of
 	 bytes that may be transmitted. The byte lifetime is advisory -- a
 	 connection that is over its byte lifetime should be permitted to
-	 continue, but clients SHOULD attempt to establish a new context
+	 continue, but clients SHOULD attempt to rekey the connection
+	 (as per <xref target="rekeying" />)
  	 at their earliest convenience.</t><t hangText="clientnonce:">A client-generated string of random bytes,
 	 to be used as input to the key generation.</t></list>
        The client then calls gss_init_sec_context() to obtain an output token
@@ -518,7 +519,7 @@ enum RXGK_Level {
          uses this to derive the transport key, which it in turn uses to 
          decrypt the authenticator, and thus validate the connection.</t>
       </section>
-      <section title="Rekeying">
+      <section title="Rekeying" anchor="rekeying">
         <t>As part of connection negotiation, the server and client agree upon
 	 advisory lifetimes (both time, and data, based) for
 	 connection keys. Each connection has a key number, which starts at
