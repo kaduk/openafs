@@ -751,7 +751,7 @@ enum RXGK_Level {
 	function, with the connection's transport key, using key usage 
         RXGK_CLIENT_ENC_PACKET for messages from client to server, and
         RXGK_SERVER_ENC_PACKET for messages from server to client, and the
-        encrypted block transmitted to the peer.
+        encrypted block transmitted to the peer as the payload of the packet.
      </t>
         </section>
       </section>
