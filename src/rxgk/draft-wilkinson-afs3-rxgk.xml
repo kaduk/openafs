@@ -866,6 +866,30 @@ end
 	   will not introduce vulnerabilities into the security eocsystem in
 	   which the application operates.</t>
       </section>
+      <section title="Nonce Lengths">
+        <t>The key negotiation protocol includes both client-and
+	   server-generated nonces as input.  Both nonces are important, but
+	   serve slightly different purposes.  A random nonce is also
+	   used in the challenge-response authentication protocol, which
+	   serves yet a different purpose.</t>
+        <t>The client_nonce is important for using the MIC of the StartParams
+	   structure as a defense against man-in-the-middle attacks,
+	   and should be long enough that the client will not generate
+	   collisions within the lifetime of a given set of GSS credentials.
+	   The client_nonce also contributes to the uniqueness of the
+	   generated key when GSS initiator credentials are used to
+	   establish multiple GSS security contexts.</t>
+        <t>The server_nonce serves primarily to add entropy to the generated
+	   key.  The maximum amount of entropy possible in the generated key
+	   is the key generation seed length, so using a longer nonce gives
+	   no benefit (unless the nonce is nonrandom).</t>
+        <t>The authentication nonce is used to prevent replays of the
+	   authenticator.  It is specified as a fixed length to allow the
+	   length of the challenge packet to be used to indicate a new version
+	   of the challenge/response protocol, but is chosen to be long enough
+	   that the server will not accidentally reuse a nonce in a reasonable
+	   timeframe.</t>
+      </section>
     </section>
   </middle>
   <back>
