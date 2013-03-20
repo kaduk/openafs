@@ -139,15 +139,14 @@
           and a destination identifier. It
 	  returns a token specific to the specified destination, and a structure
 	  containing some cleartext information describing the returned token.
-  	</t>
-        <artwork>
+        <figure><artwork>
     AFSCombineTokens(IN RXGK_Data *token0,
                      IN RXGK_Data *token1,
                      IN RXGK_CombineOptions *options,
                      IN afsUUID destination,
 		     OUT RXGK_Data *new_token,
 		     OUT RXGK_TokenInfo *token_info) = 3;
-	</artwork>
+	</artwork></figure>
         <list style="hanging" hangIndent="6">
           <t hangText="token0:">An rxgk token obtained using the
             GSSNegotiate RPC.</t>
@@ -163,7 +162,7 @@
             (zero-length).</t>
           <t hangText="token_info:">Information describing the returned token.</t>
         </list>
-        <t>The AFSCombineTokens call MUST only be performed over a secured rxgk
+          The AFSCombineTokens call MUST only be performed over a secured rxgk
           connection.  AFSCombineTokens MUST NOT be offered over an
           RXGK_LEVEL_CLEAR connection.
           Servers MUST reject all attempts to perform this operation
@@ -207,15 +206,14 @@
           version number, followed by an <xref target="RFC3961"/> 
           encryption type) allows the server receiving a token to identify which
           pre-shared key has been used to encrypt the core token data.
-        </t>
-        <artwork>
+        <figure><artwork>
     struct RXGK_TokenContainer {
       afs_int32 kvno;
       afs_int32 enctype;
       opaque    encrypted_token&lt;&gt;;
     };
-	</artwork>
-        <t>The RXGK_TokenContainer structure is XDR encoded and transported
+	</artwork></figure>
+           The RXGK_TokenContainer structure is XDR encoded and transported
 	   within the 'token' field of the RXGK_ClientInfo structure specified
 	   in <xref target="I-D.wilkinson-afs3-rxgk"/>.</t>
       </section>
@@ -244,8 +242,8 @@
       </section>
       <section title="Token Contents">
         <t>The token itself contains the information expressed by the following
-          RPC-L:</t>
-        <artwork>
+          RPC-L:
+        <figure><artwork>
     struct RXGK_Token {
       afs_int32 enctype;
       opaque K0&lt;&gt;;
@@ -256,7 +254,7 @@
       rxgkTime expirationtime;
       struct PrAuthName identities&lt;&gt;;
     };
-        </artwork>
+        </artwork></figure>
         <list style="hanging" hangIndent="6">
           <t hangText="enctype:">The RFC3961 encryption type of the session key
             contained within this ticket.</t>
@@ -286,17 +284,19 @@
             token. struct PrAuthName is the identity structure defined in 
             <xref target="I-D.brashear-afs3-pts-extended-names"/>.</t>
         </list>
+        </t>
       </section>
     </section>
     <section title="Authenticator Data">
       <t>The appdata opaque within the RXGK_Authenticator structure contains the results
            of XDR encoding the RXGK_Authenticator_AFSAppData structure. The uuid field
-	   contains the UUID of the client.</t>
-      <artwork>
+	   contains the UUID of the client.
+      <figure><artwork>
     struct RXGK_Authenticator_AFSAppData {
     afsUUID uuid;
     };
-        </artwork>
+        </artwork></figure>
+      </t>
     </section>
     <section title="Client Tokens" anchor="client-tokens">
       <t>In order to protect users of a multi-user cache manager from each
@@ -402,7 +402,7 @@
         Fileservers SHOULD use VL_RegisterAddrsAndKey to rekey themselves
         periodically, in accordance with key lifetime best practices.</t>
       <t>The VL_RegisterAddrsAndKey RPC is described by the following RPC-L:
-<artwork>
+<figure><artwork>
     struct RXGK_ServerKeyDataRequest {
 	afs_int32 enctypes&lt;&gt;;
 	opaque nonce1[20];
@@ -423,8 +423,7 @@
 	IN afs_int32 secIndex,
 	IN keyDataRequest *request,
 	OUT keyDataResponse *response) = XXX;
-       </artwork>
-     </t>
+       </artwork></figure>
       <list style="hanging" hangIndent="6">
         <t hangText="uuidp:">The fileserver's UUID.</t>
         <t hangText="spare1:">Unused.  (Clients SHOULD pass zero.)</t>
@@ -441,7 +440,7 @@
          the XDR-encoded representation of an RXGK_ServerDataResponse
          structure.</t>
       </list>
-      <t>The client provides, in the RXGK_ServerKeyDataRequest structure, a list
+       The client provides, in the RXGK_ServerKeyDataRequest structure, a list
        of the RFC3961 encryption types that it will accept as a server key. It
        also provides a nonce containing 20 random data bytes.</t>
       <t>The server selects an encryption type shared by it and the client, and
@@ -449,9 +448,9 @@
       in RXGK_ServerKeyDataResponse. If there is no common encryption type,
       then the server MUST fail the request.</t>
       <t>The server key can then be derived by both client and server using
-<artwork>
+<figure><artwork>
      random-to-key(PRF+(K0, K, nonce1 || nonce2));
-</artwork>
+</artwork></figure>
      </t>
       <t>random-to-key is the function specified by the RFC3961 profile of the
        encryption type chosen by the server and returned in enctype.</t>
@@ -476,11 +475,11 @@
        accept secure callbacks.
      </t>
       <t>A cache manager may set a key for secure callbacks by issuing
-       the following RPC (in the RXAFS service):</t>
-      <artwork>
+       the following RPC (in the RXAFS service):
+      <figure><artwork>
      RXAFS_SetCallBackKey(afs_int32 securityIndex,
 		          opaque mech_data&lt;&gt;) = XXX;
-</artwork>
+</artwork></figure>
       <list style="hanging" hangIndent="6">
         <t hangText="securityIndex:">The securityIndex of the mechanism for
          which this key is being set. In the rxgk case, this will be
@@ -488,7 +487,7 @@
         <t hangText="mech_data:">This contains the security object specific
          data. In rxgk's case this is an XDR encoded RXGK_Token structure.</t>
       </list>
-      <t>When used with rxgk, this RPC MUST be performed over an rxgk protected
+       When used with rxgk, this RPC MUST be performed over an rxgk protected
        connection established using solely the cache manager's token.
        This connection
        MUST have a security level of RXGK_LEVEL_CRYPT.</t>
@@ -547,6 +546,7 @@
           <author initials="N." surname="Zeldovich" fullname="Nickolai Zeldovich">
             <organization/>
           </author>
+          <date month='October' year='2002' />
         </front>
         <format type="HTML" target="http://web.mit.edu/kolya/afs/rx/rx-spec"/>
       </reference>
