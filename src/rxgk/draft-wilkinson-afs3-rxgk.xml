@@ -175,15 +175,21 @@ enum RXGK_Level {
       <t>The key negotiation protocol is defined by the following RPC-L:</t>
       <figure>
         <artwork>
-    typedef int RXGK_Enctypes&lt;&gt;;
+    /* limits for variable-length arrays */
+    const RXGK_MAXENCTYPES = 10;
+    const RXGK_MAXLEVELS = 10;
+    const RXGK_MAXMIC = 16384;
+    const RXGK_MAXNONCE = 1024;
+
+    typedef int RXGK_Enctypes&lt;RXGK_MAXENCTYPES&gt;;
     typedef opaque RXGK_Data&lt;&gt;;
 
     struct RXGK_StartParams { 
         RXGK_Enctypes enctypes;
-        RXGK_Level levels&lt;&gt;;
+        RXGK_Level levels&lt;RXGK_MAXLEVELS&gt;;
         unsigned int lifetime;
         unsigned int bytelife;
-        opaque client_nonce&lt;&gt;;
+        opaque client_nonce&lt;RXGK_MAXNONCE&gt;;
     };
 
     struct RXGK_ClientInfo {
@@ -193,9 +199,9 @@ enum RXGK_Level {
         unsigned int lifetime;
         unsigned int bytelife;
         rxgkTime expiration;
-        opaque mic&lt;&gt;;
+        opaque mic&lt;RXGK_MAXMIC&gt;;
         RXGK_Data token;
-        opaque server_nonce&lt;&gt;;
+        opaque server_nonce&lt;RXGK_MAXNONCE&gt;;
     };
 
     package RXGK_
@@ -407,7 +413,7 @@ enum RXGK_Level {
           <artwork>
     struct RXGK_CombineOptions {
         RXGK_Enctypes enctypes;
-        RXGK_Level levels&lt;&gt;;
+        RXGK_Level levels&lt;RXGK_MAXLEVELS&gt;;
     };
 
     struct RXGK_TokenInfo {
@@ -584,10 +590,11 @@ enum RXGK_Level {
         <t>The rxgk response is an XDR encoded structure, with the following 
        signature:
 <figure><artwork>
+    const RXGK_MAXAUTHENTICATOR = 1500	/* better fit in a packet! */
     struct RXGK_Response {
         rxgkTime start_time;
         RXGK_Data token;
-        opaque authenticator&lt;&gt;
+        opaque authenticator&lt;RXGK_MAXAUTHENTICATOR&gt;
     };
 </artwork></figure>
 
