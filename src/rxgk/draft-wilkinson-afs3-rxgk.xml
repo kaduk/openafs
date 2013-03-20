@@ -314,7 +314,12 @@ enum RXGK_Level {
        Upon successful completion, rxgk_info contains the XDR representation of a 
        RXGK_ClientInfo structure, encrypted using gss_wrap() with
        confidentiality protection. The client should decrypt this structure
-       using gss_unwrap().</t>
+       using gss_unwrap().  In general, an error condition at the server
+       side of the negotiation loop will be security sensitive (in that
+       the decision made by the client upon receipt will affect the
+       security class used for future connections), and as such should be
+       returned to the client in the errorcode field of ClientInfo, not
+       as an RPC-level return value (which is transmitted as an RX abort).</t>
       <t>RXGK_ClientInfo contains the following server populated
        fields:
     <list style="hanging" hangIndent="6"><t hangText="errorcode">A policy (rather than connection establishment) 
@@ -458,12 +463,16 @@ enum RXGK_Level {
 	 Kn. The new token is encrypted with the server's private key, as 
 	 normal, and returned to the client.
 	 The enctype and level chosen by the server are returned in the info
-	 parameter, along with the computed lifetime, bytelife, and expiration.
-	 If the server is unable to perform the CombineTokens operation with
+	 parameter, along with the computed lifetime, bytelife, and
+	 expiration.</t>
+	<t>If the server is unable to perform the CombineTokens operation with
 	 the given arguments, a nonzero value is returned in the errorcode
 	 element of the info parameter; errorcode is zero for
-	 a successful CombineTokens operation.
-	 If errorcode is nonzero, the values of the other fields in the
+	 a successful CombineTokens operation.  Errors are returned in
+	 this in-band field as opposed to as the RPC return value because
+	 the error code is security sensitive -- the action taken by the
+	 client upon receipt will affect the security of future actions.</t>
+	<t>If errorcode is nonzero, the values of the other fields in the
 	 RXGK_TokenInfo structure and the value of new_token are undefined.
          Nonzero values for errorcode should be com_err codes
          <xref target="COMERR"/>, from an RX,
