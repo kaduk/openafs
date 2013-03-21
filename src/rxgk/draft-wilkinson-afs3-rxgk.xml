@@ -317,15 +317,18 @@ enum RXGK_Level {
            the negotiation loop is in error and terminates.  Otherwise,
            the client proceeds to begin the next cycle of the negotiation
            loop.</t></list>
-       Upon successful completion, rxgk_info contains the XDR representation of a 
-       RXGK_ClientInfo structure, encrypted using gss_wrap() with
-       confidentiality protection. The client should decrypt this structure
-       using gss_unwrap().  In general, an error condition at the server
+       In general, an error condition at the server
        side of the negotiation loop will be security sensitive (in that
        the decision made by the client upon receipt will affect the
        security class used for future connections), and as such should be
        returned to the client in the errorcode field of ClientInfo, not
        as an RPC-level return value (which is transmitted as an RX abort).</t>
+      <t>Upon successful completion, rxgk_info contains
+       the XDR representation of a 
+       RXGK_ClientInfo structure, encrypted using gss_wrap() with
+       confidentiality protection. The client should decrypt this structure
+       using gss_unwrap().  If the returned value of conf_state is zero,
+       the negotiation has failed.</t>
       <t>RXGK_ClientInfo contains the following server populated
        fields:
     <list style="hanging" hangIndent="6"><t hangText="errorcode">A policy (rather than connection establishment) 
