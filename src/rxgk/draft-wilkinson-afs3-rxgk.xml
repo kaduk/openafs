@@ -213,13 +213,13 @@ enum RXGK_Level {
     package RXGK_
 
     GSSNegotiate(IN RXGK_StartParams *client_start,
-                 IN RXGK_Data *input_token_buffer,
-                 IN RXGK_Data *opaque_in,
-                 OUT RXGK_Data *output_token_buffer,
-                 OUT RXGK_Data *opaque_out,
+		 IN RXGK_Data *input_token_buffer,
+		 IN RXGK_Data *opaque_in,
+		 OUT RXGK_Data *output_token_buffer,
+		 OUT RXGK_Data *opaque_out,
 		 OUT unsigned int *gss_major_status,
 		 OUT unsigned int *gss_minor_status,
-                 OUT RXGK_Data *rxgk_info) = 1;
+		 OUT RXGK_Data *rxgk_info) = 1;
 
 </artwork>
       </figure>
@@ -628,10 +628,10 @@ enum RXGK_Level {
             <figure>
               <artwork>
     struct RXGK_Authenticator {
-        opaque nonce[20];
+	opaque nonce[20];
 	opaque appdata&lt;&gt;
 	RXGK_Level level;
-        unsigned int epoch;
+	unsigned int epoch;
 	unsigned int cid;
 	unsigned int call_numbers&lt;&gt;;
     };
