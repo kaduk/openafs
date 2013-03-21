@@ -24,6 +24,12 @@
         <email>simon@sxw.org.uk</email>
       </address>
     </author>
+    <author surname="Kaduk" fullname="Benjamin Kaduk">
+      <organization abbrev="MIT">MIT Kerberos Consortium</organization>
+      <address>
+        <email>kaduk@mit.edu</email>
+      </address>
+    </author>
     <date month="March" year="2013"/>
     <abstract>
       <t>rxgk is a security class for the RX RPC protocol. It uses the GSSAPI
