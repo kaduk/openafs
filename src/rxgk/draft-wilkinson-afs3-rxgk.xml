@@ -362,7 +362,7 @@ enum RXGK_Level {
 	in <xref target="tokens"/>.</t><t hangText="server_nonce">The random nonce used by the server to create
 	the K0 contained within the rxgk token.  The length of this nonce SHOULD
         be the key generation seed length of the selected enctype.</t></list>
-        Upon receiving the server's response, the client must verify that the
+        Upon receiving the server's response, the client MUST verify that the
         mic contained within it matches the MIC of the XDR representation of
 	the StartParams structure it sent to the server (this prevents a man
 	in the middle from performing a downgrade attack). The client SHOULD also 
