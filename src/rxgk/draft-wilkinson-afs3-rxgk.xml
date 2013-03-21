@@ -671,6 +671,11 @@ enum RXGK_Level {
 	the requested security level. As noted in
 	<xref target="levels"/>, 3 levels are currently
 	defined -- authentication only, integrity protection and encryption.</t>
+	<t>Connection parameters used when preparing a packet for transmission
+	MUST be verified when processing a received packet.  Packet handling
+	when receiving packets is the inverse of the packet preparation
+	procedures, with explicit data length fields used to remove padding
+	added for encryption.</t>
         <section title="Authentication Only">
           <t>When running at the clear security level, RXGK_LEVEL_CLEAR,
         no manipulation of the payload is performed by the security class.</t>
