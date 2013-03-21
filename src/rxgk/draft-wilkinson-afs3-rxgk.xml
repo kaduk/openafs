@@ -588,8 +588,8 @@ enum RXGK_Level {
 	 profile.</t>
         <t>epoch, cid and key_number are passed as 32 bit quantities; start_time
 	 is a 64 bit value.</t>
-        <t>Note that start_time is selected by the client when it receives the
-	 server's challenge, and shared with the server as part of its 
+        <t>Note that start_time is selected by the client when it creates the
+	 connection, and shared with the server as part of its 
 	 response. Thus both sides of the negotiation are guaranteed to use
 	 the same value for start_time.
       </t>
