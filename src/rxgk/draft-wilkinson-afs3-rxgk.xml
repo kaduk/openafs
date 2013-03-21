@@ -367,7 +367,7 @@ enum RXGK_Level {
 	proposed by the client.</t>
       <t>The client may then compute K0, by taking the nonce it sent to the
         server (client_nonce) and the one it has just received (server_nonce),
-        combining them together, and passing them to gss_psuedo_random() with
+        combining them together, and passing them to gss_pseudo_random() with
         the GSS_C_PRF_KEY_FULL option:</t>
       <figure>
         <artwork>
