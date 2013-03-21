@@ -781,8 +781,8 @@ enum RXGK_Level {
           <t>This plaintext is encrypted using an RFC3961 style encrypt() 
 	function, with the connection's transport key, using key usage 
         RXGK_CLIENT_ENC_PACKET for messages from client to server, and
-        RXGK_SERVER_ENC_PACKET for messages from server to client, and the
-        encrypted block transmitted to the peer as the payload of the packet.
+        RXGK_SERVER_ENC_PACKET for messages from server to client.  The
+        encrypted block is transmitted to the peer as the payload of the packet.
      </t>
         </section>
       </section>
