@@ -360,7 +360,7 @@ enum RXGK_Level {
 	<xref target="RFC2744"/> over the XDR encoded
 	representation of the StartParams request received by the server.</t><t hangText="token">An rxgk token. This is an opaque blob, as detailed
 	in <xref target="tokens"/>.</t><t hangText="server_nonce">The random nonce used by the server to create
-	the K0 used within the rxgk token.  The length of this nonce SHOULD
+	the K0 contained within the rxgk token.  The length of this nonce SHOULD
         be the key generation seed length of the selected enctype.</t></list>
         Upon receiving the server's response, the client must verify that the
         mic contained within it matches the MIC of the XDR representation of
