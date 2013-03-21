@@ -812,12 +812,12 @@ enum RXGK_Level {
           properly or contained nonsense or useless data.</t><t hangText="RXGK_BADETYPE">
           Used when the supplied encryption type(s) are invalid or
           impermissible, such as 
-          for the GSSNegotiate and CombineTokens RPCs, when the
+          for the GSSNegotiate and CombineTokens RPCs or when the
           client-supplied enctype list does not contain any entries that are
           acceptable to the server.</t><t hangText="RXGK_BADLEVEL">
           Used when the supplied security level(s) are invalid or
           impermissible, such as
-          for the GSSNegotiate and CombineTokens RPCs, when the
+          for the GSSNegotiate and CombineTokens RPCs or when the
           client-supplied list of security levels does not contain any entries
           that are acceptable to the server.</t><t hangText="RXGK_BADKEYNO">
           The client or client's token indicates the use of a key version number
@@ -870,7 +870,8 @@ end
     </section>
     <section anchor="security" title="Security Considerations">
       <section title="Abort Packets">
-        <t>RX Abort packets are not protected by the RX security layer. Therefore
+        <t>RX Abort packets are not protected by the RX security layer.
+	  Therefore,
 	  caution should be exercised when relying on their results. In
 	  particular, clients MUST NOT use an error from GSSNegotiate or
 	  CombineTokens to determine whether to downgrade to another 
