@@ -257,7 +257,7 @@ enum RXGK_Level {
 	server following a previous call to GSSNegotiate in this negotiation. 
 	If this is the first call, opaque_in should be zero-length.</t><t hangText="output_token_buffer">The token output by the server's call
 	to GSS_Accept_sec_context().</t><t hangText="opaque_out">An opaque token, which the server may use to
-	preserve state information between multiple calls in the same context
+	preserve state information between multiple RPCs in the same context
 	negotiation. The client should use this value as opaque_in in its next
 	call to GSSNegotiate in this context negotiation.</t><t hangText="gss_major_status">The major status code output by the server's
 	      call to GSS_Accept_sec_context().</t><t hangText="gss_minor_status">The minor status code returned by
