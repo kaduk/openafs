@@ -411,8 +411,8 @@ enum RXGK_Level {
 	 Kn.</t>
       </section>
       <section title="Key Combination Algorithm">
-        <t>Assume that the tokens being combined are T0 and T1, with initial keys
-	 K0 and K1. The new initial key for the combined token, Kn is computed
+        <t>Assume that the tokens being combined are T0 and T1, with master keys
+	 K0 and K1. The new master key for the combined token, Kn is computed
 	 using the KRB-FX-CF2 operation, described in section 5.1 of 
 	 <xref target="RFC6113"/>.  The PRF+ operations will correspond to their
 	 respective key enctypes, and the random-to-key operation will correspond
@@ -450,7 +450,7 @@ enum RXGK_Level {
         <t>The server receives token0 and token1 from the RPC call, as well
          as the options suggested by the client.  Upon receipt, the server
          decrypts these tokens using its private key. Providing this decryption
-	 is successful, it now has copies of the initial key from both
+	 is successful, it now has copies of the master key from both
 	 tokens (K0 and K1).
 	 The server then chooses an enctype and security level from the
 	 lists supplied by the client in the options argument.  The server SHOULD
