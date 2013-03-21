@@ -236,13 +236,13 @@ enum RXGK_Level {
 	 levels. See <xref target="levels"/> for allowed values.</t><t hangText="lifetime:">The maximum number of seconds that a connection
 	 key should be used before rekeying. A value of 0 indicates that the
 	 connection should not be rekeyed based on its lifetime. This lifetime
-         is advisory.</t><t hangText="bytelife:">The maximum amount of data that can be transferred
+         is advisory.</t><t hangText="bytelife:">The maximum amount of data to be transferred
 	 over the connection before it should be rekeyed, expressed as
 	 log base 2 of the number of bytes. A 
  	 value of 0 indicates that there is no limit on the number of
 	 bytes that may be transmitted. The byte lifetime is advisory -- a
 	 connection that is over its byte lifetime should be permitted to
-	 continue, but clients SHOULD attempt to rekey the connection
+	 continue, but endpoints SHOULD attempt to rekey the connection
 	 (as per <xref target="rekeying" />)
  	 at their earliest convenience.</t><t hangText="client_nonce:">A client-generated string of random bytes,
 	 to be used as input to the key generation.  This nonce SHOULD
