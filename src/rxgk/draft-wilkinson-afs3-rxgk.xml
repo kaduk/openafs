@@ -1031,6 +1031,8 @@ end
         <t>Give guidance on the length of key negotiation nonces.</t>
         <t>Supply bounds for (most) variable-length arrays.</t>
         <t>Note that in-band errorcodes are for security sensitive errors.</t>
+        <t>Use abstract GSSAPI routine names, not the C binding names.</t>
+        <t>Discuss packet handling for received packets.</t>
       </section>
     </section>
   </back>
