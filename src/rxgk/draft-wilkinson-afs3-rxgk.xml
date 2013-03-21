@@ -510,7 +510,8 @@ enum RXGK_Level {
          as an RXGK_TokenInfo structure containing information relating to Tn.
          The client needs the level element of the info parameter to determine
          what security level to use the new token at, and the enctype parameter
-         to know which enctype's random-to-key function to use in generating
+         to know which enctype's random-to-key function and key generation
+         seed length to use in generating
          Kn.  With the negotiated enctype, the client can then perform the
          key combination algorithm described in
          <xref target="derivation"/>.
