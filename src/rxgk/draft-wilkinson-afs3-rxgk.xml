@@ -247,26 +247,26 @@ enum RXGK_Level {
  	 at their earliest convenience.</t><t hangText="client_nonce:">A client-generated string of random bytes,
 	 to be used as input to the key generation.  This nonce SHOULD
 	 be at least 20 octets in length.</t></list>
-       The client then calls gss_init_sec_context() to obtain an output token
+       The client then calls GSS_Init_sec_context() to obtain an output token
        to send to the server. The GSS service name is application dependent.</t>
       <t>The client then calls RXGK_GSSNegotiate, as defined above. This takes
        the following parameters:
     <list style="hanging" hangIndent="6"><t hangText="client_start">The client params structure detailed above.
         This should remain constant across the negotiation.</t><t hangText="input_token_buffer">The token produced by a call to
-	gss_init_sec_context().</t><t hangText="opaque_in">An opaque token, which was returned by the 
+	GSS_Init_sec_context().</t><t hangText="opaque_in">An opaque token, which was returned by the 
 	server following a previous call to GSSNegotiate in this negotiation. 
 	If this is the first call, opaque_in should be zero-length.</t><t hangText="output_token_buffer">The token output by the server's call
-	to gss_accept_sec_context().</t><t hangText="opaque_out">An opaque token, which the server may use to
+	to GSS_Accept_sec_context().</t><t hangText="opaque_out">An opaque token, which the server may use to
 	preserve state information between multiple calls in the same context
 	negotiation. The client should use this value as opaque_in in its next
 	call to GSSNegotiate in this context negotiation.</t><t hangText="gss_major_status">The major status code output by the server's
-	      call to gss_accept_sec_context().</t><t hangText="gss_minor_status">The minor status code returned by
-	      gss_accept_sec_context(). Implementors should note that minor status
+	      call to GSS_Accept_sec_context().</t><t hangText="gss_minor_status">The minor status code returned by
+	      GSS_Accept_sec_context(). Implementors should note that minor status
 	      codes are not portable between GSSAPI implementations.</t><t hangText="rxgk_info">If gss_major_status == GSS_S_COMPLETE this contains an
 	encrypted block containing the server's response to the client. See
 	below.</t></list>
        The client proceeds through a GSS security context initialization loop,
-       with alternating calls to gss_init_sec_context() and the
+       with alternating calls to GSS_Init_sec_context() and the
        GSSNegotiate() RPC, until an error or success condition is reached.
        Each call to GSSNegotiate will return both an output token from
        GSS_Accept_sec_context() and an output opaque that are to be
@@ -367,11 +367,11 @@ enum RXGK_Level {
 	proposed by the client.</t>
       <t>The client may then compute K0, by taking the nonce it sent to the
         server (client_nonce) and the one it has just received (server_nonce),
-        combining them together, and passing them to gss_pseudo_random() with
+        combining them together, and passing them to GSS_Pseudo_random() with
         the GSS_C_PRF_KEY_FULL option:</t>
       <figure>
         <artwork>
-	gss_pseudo_random(gssapi_context, 
+	GSS_Pseudo_random(gssapi_context, 
 			  GSS_C_PRF_KEY_FULL, 
 			  client_nonce || server_nonce, 
 			  K, 
@@ -381,14 +381,14 @@ enum RXGK_Level {
       <t>|| is the concatenation operation.</t>
       <t>K, the desired output length, is the key generation seed length as
         specified in the RFC3961 profile of the negotiated enctype.</t>
-      <t>The ouput of gss_pseudo_random must then be passed through the
+      <t>The ouput of GSS_Pseudo_random must then be passed through the
         random-to-key operation specified in the RFC3961 profile for the
         negotiated enctype in order to obtain the actual key K0.</t>
-      <t>The gss_pseudo_random() operation is deterministic, ensuring that
+      <t>The GSS_Pseudo_random() operation is deterministic, ensuring that
         the client and server generate the same K0.  The gssapi_context
         parameter is the same context used in the client's
-        gss_init_sec_context() call and the server's
-        gss_accept_sec_context() call.</t>
+        GSS_Init_sec_context() call and the server's
+        GSS_Accept_sec_context() call.</t>
     </section>
     <section anchor="combine" title="Combining Tokens">
       <section title="Overview">
