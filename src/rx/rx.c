@@ -159,7 +159,6 @@ static void rxi_CancelKeepAliveEvent(struct rx_call *call);
 static void rxi_CancelDelayedAbortEvent(struct rx_call *call);
 static void rxi_CancelGrowMTUEvent(struct rx_call *call);
 static void update_nextCid(void);
-static int rxi_AllocEpoch(void);
 
 #ifdef RX_ENABLE_LOCKS
 struct rx_tq_debug {
@@ -444,27 +443,6 @@ struct rx_serverQueueEntry *rx_waitForPacket = 0;
 struct rx_serverQueueEntry *rx_waitingForPacket = 0;
 
 /* ------------Exported Interfaces------------- */
-
-#ifdef AFS_PTHREAD_ENV
-/*
- * This mutex protects the following global variables:
- * rx_epoch
- */
-
-#define LOCK_EPOCH MUTEX_ENTER(&epoch_mutex)
-#define UNLOCK_EPOCH MUTEX_EXIT(&epoch_mutex)
-#else
-#define LOCK_EPOCH
-#define UNLOCK_EPOCH
-#endif /* AFS_PTHREAD_ENV */
-
-void
-rx_SetEpoch(afs_uint32 epoch)
-{
-    LOCK_EPOCH;
-    rx_epoch = epoch;
-    UNLOCK_EPOCH;
-}
 
 /* Initialize rx.  A port number may be mentioned, in which case this
  * becomes the default port number for any service installed later.
@@ -7938,7 +7916,7 @@ shutdown_rx(void)
     rxi_StopListener();
 #endif /* AFS_PTHREAD_ENV */
     shutdown_rxevent();
-    rx_SetEpoch(0);
+    rx_epoch = 0;
 #ifndef AFS_PTHREAD_ENV
 #ifndef AFS_USE_GETTIMEOFDAY
     clock_UnInit();
