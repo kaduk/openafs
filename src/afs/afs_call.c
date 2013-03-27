@@ -33,6 +33,7 @@
 #include "h/ksynch.h"
 #include "h/sunddi.h"
 #endif
+#include <hcrypto/rand.h>
 
 #if defined(AFS_SUN5_ENV) || defined(AFS_AIX_ENV) || defined(AFS_SGI_ENV) || defined(AFS_HPUX_ENV)
 #define	AFS_MINBUFFERS	100
@@ -1318,6 +1319,15 @@ afs_syscall_call(long parm, long parm2, long parm3,
     } else if (parm == AFSOP_SET_RMTSYS_FLAG) {
 	afs_rmtsys_enable = parm2;
 	code = 0;
+    } else if (parm == AFSOP_SEED_ENTROPY) {
+	afs_uint32 seedbuf[5];
+	seedbuf[0] = parm2;
+	seedbuf[1] = parm3;
+	seedbuf[2] = parm4;
+	seedbuf[3] = parm5;
+	seedbuf[4] = parm6;
+	RAND_seed(seedbuf, sizeof(seedbuf));
+	memset(seedbuf, 0, sizeof(seedbuf));
     } else {
 	code = EINVAL;
     }

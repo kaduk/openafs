@@ -79,6 +79,7 @@
 
 #include <sys/file.h>
 #include <sys/wait.h>
+#include <hcrypto/rand.h>
 
 /* darwin dirent.h doesn't give us the prototypes we want if KERNEL is
  * defined */
@@ -2127,6 +2128,12 @@ afsd_run(void)
 
     /* initialize the rx random number generator from user space */
     {
+	afs_uint32 seedbuf[5];
+	if (RAND_bytes(seedbuf, sizeof(seedbuf)) != 1)
+	    printf("SEED_ENTROPY: Error retrieving seed entropy\n");
+	afsd_syscall(AFSOP_SEED_ENTROPY, seedbuf[0], seedbuf[1], seedbuf[2],
+		     seedbuf[3], seedbuf[4]);
+	memset(seedbuf, 0, sizeof(seedbuf));
 	/* parse multihomed address files */
 	afs_uint32 addrbuf[MAXIPADDRS], maskbuf[MAXIPADDRS],
 	    mtubuf[MAXIPADDRS];
