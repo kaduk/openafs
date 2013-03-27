@@ -71,6 +71,8 @@ single_destdir_libafs: dest_libafs
 depsrcs: 
 
 AFSAOBJS = \
+	sha256-kernel.o \
+	rand-fortuna-kernel.o \
 	afs_atomlist.o \
 	afs_lhash.o \
 	afs_analyze.o \
@@ -551,6 +553,14 @@ CFLAGS-evp-algs.o = -I$(TOP_INCDIR)/hcrypto
 rand-kernel.o: $(TOP_SRCDIR)/crypto/hcrypto/kernel/rand.c
 	$(CRULE_OPT) $(TOP_SRCDIR)/crypto/hcrypto/kernel/rand.c
 CFLAGS-rand-kernel.o = -I$(TOP_INCDIR)/hcrypto
+
+rand-fortuna-kernel.o: $(TOP_SRCDIR)/external/heimdal/hcrypto/rand-fortuna.c
+	$(CRULE_OPT) $(TOP_SRCDIR)/external/heimdal/hcrypto/rand-fortuna.c
+CFLAGS-rand-fortuna-kernel.o = -I$(TOP_INCDIR)/hcrypto
+
+sha256-kernel.o: $(TOP_SRCDIR)/external/heimdal/hcrypto/sha256.c
+	$(CRULE_OPT) $(TOP_SRCDIR)/external/heimdal/hcrypto/sha256.c
+CFLAGS-sha256-kernel.o = -I$(TOP_INCDIR)/hcrypto
 
 alloc-kernel.o: $(TOP_SRCDIR)/crypto/hcrypto/kernel/alloc.c
 	$(CRULE_OPT) $(TOP_SRCDIR)/crypto/hcrypto/kernel/alloc.c
