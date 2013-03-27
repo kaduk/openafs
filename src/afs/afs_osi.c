@@ -26,6 +26,9 @@
 
 afs_lock_t afs_ftf;		/* flush text lock */
 
+/* No hckernel-specific header for this prototype. */
+extern void init_hckernel_mutex(void);
+
 #ifdef AFS_SGI53_ENV
 lock_t afs_event_lock;
 #endif
@@ -77,6 +80,7 @@ osi_Init(void)
 	return;
 
     osi_InitGlock();
+    init_hckernel_mutex();
 
     if (!afs_osicred_initialized) {
 #if defined(AFS_DARWIN80_ENV)
