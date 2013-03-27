@@ -23,6 +23,7 @@
 	hc_MD5_Init;
 	hc_MD5_Update;
 	hc_RAND_bytes;
+	hc_RAND_seed;
 	hc_UI_UTIL_read_pw_string;
 	hc_EVP_CIPHER_CTX_block_size;
 	hc_EVP_CIPHER_CTX_cleanup;

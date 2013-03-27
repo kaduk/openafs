@@ -552,6 +552,10 @@ rand-kernel.o: $(TOP_SRCDIR)/crypto/hcrypto/kernel/rand.c
 	$(CRULE_OPT) $(TOP_SRCDIR)/crypto/hcrypto/kernel/rand.c
 CFLAGS-rand-kernel.o = -I$(TOP_INCDIR)/hcrypto
 
+rand-fortuna-kernel.o: $(TOP_SRCDIR)/external/heimdal/hcrypto/rand-fortuna.c
+	$(CRULE_OPT) $(TOP_SRCDIR)/external/heimdal/hcrypto/rand-fortuna.c
+CFLAGS-rand-fortuna-kernel.o = -I$(TOP_INCDIR)/hcrypto
+
 alloc-kernel.o: $(TOP_SRCDIR)/crypto/hcrypto/kernel/alloc.c
 	$(CRULE_OPT) $(TOP_SRCDIR)/crypto/hcrypto/kernel/alloc.c
 
