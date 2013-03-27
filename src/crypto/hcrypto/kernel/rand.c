@@ -10,7 +10,7 @@
 void
 RAND_seed(const void *indata, size_t size)
 {
-#if defined(AFS_AIX_ENV) || defined(AFS_DFBSD_ENV) || defined(AFS_HPUX_ENV) || defined(AFS_SGI_ENV) || defined(UKERNEL)
+#if 1 || defined(AFS_AIX_ENV) || defined(AFS_DFBSD_ENV) || defined(AFS_HPUX_ENV) || defined(AFS_SGI_ENV) || defined(UKERNEL)
     RAND_METHOD *m = RAND_fortuna_method();
     m->seed(indata, size);
 #else
@@ -24,7 +24,7 @@ RAND_bytes(void *outdata, size_t size)
 {
     if (size == 0)
 	return 0;
-#if defined(AFS_AIX_ENV) || defined(AFS_DFBSD_ENV) || defined(AFS_HPUX_ENV) || defined(AFS_SGI_ENV) || defined(UKERNEL)
+#if 1 || defined(AFS_AIX_ENV) || defined(AFS_DFBSD_ENV) || defined(AFS_HPUX_ENV) || defined(AFS_SGI_ENV) || defined(UKERNEL)
     RAND_METHOD *m = RAND_fortuna_method();
     return m->bytes(outdata, size);
 #else

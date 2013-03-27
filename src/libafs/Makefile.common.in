@@ -71,6 +71,7 @@ single_destdir_libafs: dest_libafs
 depsrcs: 
 
 AFSAOBJS = \
+	rand-fortuna-kernel.o \
 	afs_atomlist.o \
 	afs_lhash.o \
 	afs_analyze.o \
