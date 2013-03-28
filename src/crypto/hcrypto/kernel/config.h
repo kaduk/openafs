@@ -64,3 +64,12 @@ void * _afscrypto_realloc(void *, size_t);
 /* osi_readRandom is also prototyped in afs_prototypes.h, but pulling that in
  * here creates loads of additional dependencies */
 extern int osi_readRandom(void *, afs_size_t);
+
+static_inline pid_t getpid(void) {return 1;};
+static_inline int open(const char *path, int flags, ...) {return -1;};
+static_inline void abort(void) {osi_Panic("hckernel aborting\n");};
+static_inline void rk_cloexec(int fd) {};
+static_inline ssize_t read(int d, void *buf, size_t nbytes) {return -1;};
+static_inline int close(int d) {return -1;};
+static_inline uid_t getuid(void) {return 0;};
+static_inline int gettimeofday(struct timeval *tp, struct timezone *tzp) {return -1;};
