@@ -2681,6 +2681,13 @@ afsd_syscall_populate(struct afsd_syscall_args *args, int syscall, va_list ap)
 	params[0] = CAST_SYSCALL_PARAM((va_arg(ap, afs_uint32)));
 #endif
 	break;
+    case AFSOP_SEED_ENTROPY:
+	params[0] = CAST_SYSCALL_PARAM((va_arg(ap, afs_uint32)));
+	params[1] = CAST_SYSCALL_PARAM((va_arg(ap, afs_uint32)));
+	params[2] = CAST_SYSCALL_PARAM((va_arg(ap, afs_uint32)));
+	params[3] = CAST_SYSCALL_PARAM((va_arg(ap, afs_uint32)));
+	params[4] = CAST_SYSCALL_PARAM((va_arg(ap, afs_uint32)));
+	break;
     default:
 	printf("Unknown syscall enountered: %d\n", syscall);
 	opr_Assert(0);
