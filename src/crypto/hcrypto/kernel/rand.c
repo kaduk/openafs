@@ -9,6 +9,9 @@
 
 const RAND_METHOD *hc_rand_unix_method = NULL;
 
+/* This mutex is used to synchronize hcrypto operations in the kernel. */
+afs_kmutex_t hckernel_mutex;
+
 void
 RAND_seed(const void *indata, size_t size)
 {

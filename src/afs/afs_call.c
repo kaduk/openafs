@@ -91,6 +91,10 @@ static int afscall_set_rxpck_received = 0;
 extern int afs_vfs_mount();
 #endif /* defined(AFS_HPUX_ENV) */
 
+/* We seed the in-kernel hcrypto PRNG; initialize the lock, too */
+extern afs_kmutex_t hckernel_mutex;
+static int hckernel_mutex_done = 0;
+
 /* This is code which needs to be called once when the first daemon enters
  * the client. A non-zero return means an error and AFS should not start.
  */
@@ -1326,6 +1330,11 @@ afs_syscall_call(long parm, long parm2, long parm3,
 	seedbuf[2] = parm4;
 	seedbuf[3] = parm5;
 	seedbuf[4] = parm6;
+	/* Do we need to initialize the mutex? */
+	if (hckernel_mutex_done == 0) {
+	    MUTEX_INIT(hckernel_mutex);
+	    hckernel_mutex_done = 1;
+	}
 	RAND_seed(seedbuf, sizeof(seedbuf));
 	memset(seedbuf, 0, sizeof(seedbuf));
     } else {
