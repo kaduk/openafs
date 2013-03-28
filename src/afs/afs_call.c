@@ -1332,7 +1332,7 @@ afs_syscall_call(long parm, long parm2, long parm3,
 	seedbuf[4] = parm6;
 	/* Do we need to initialize the mutex? */
 	if (hckernel_mutex_done == 0) {
-	    MUTEX_INIT(hckernel_mutex);
+	    MUTEX_INIT(&hckernel_mutex,"hckernel", MUTEX_DEFAULT, 0);
 	    hckernel_mutex_done = 1;
 	}
 	RAND_seed(seedbuf, sizeof(seedbuf));
