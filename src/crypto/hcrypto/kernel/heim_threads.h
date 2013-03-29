@@ -6,3 +6,7 @@ extern afs_kmutex_t hckernel_mutex;
 #define HEIMDAL_MUTEX_lock(m)		MUTEX_ENTER(*m)
 #define HEIMDAL_MUTEX_unlock(m)		MUTEX_EXIT(*m)
 #define HEIMDAL_MUTEX_destroy(m)	MUTEX_DESTROY(*m)
+
+/* Tell rand-fortuna we don't have userspace things. */
+#define NO_RAND_UNIX_METHOD
+#define NO_RAND_EGD_METHOD
