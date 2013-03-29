@@ -1314,7 +1314,7 @@ osi_Panic(char *msg, ...)
     va_start(ap, msg);
     vprintf(msg, ap);
     va_end(ap);
-# ifdef AFS_LINUX20_ENV
+# if defined(AFS_LINUX20_ENV) || defined(UKERNEL)
     * ((char *) 0) = 0;
 # else
     panic("%s", msg);
