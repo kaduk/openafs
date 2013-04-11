@@ -82,6 +82,11 @@ afs_int32 make_key(rxgk_key *key_out, void *raw_key, afs_int32 length,
 		   afs_int32 enctype);
 afs_int32 get_server_key(rxgk_key *key, afs_int32 *kvno, afs_int32 *enctype);
 void release_key(rxgk_key *key);
+afs_int32 mic_length(rxgk_key key, size_t *out);
+afs_int32 mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
+		     RXGK_Data *out);
+afs_int32 check_mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
+			   RXGK_Data *mic);
 afs_int32 encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
 			 RXGK_Data *out);
 afs_int32 decrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,

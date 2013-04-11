@@ -75,6 +75,50 @@ ktor(afs_int32 err)
     }
 }
 
+/*
+ * Convert a krb5 enctype to a krb5 checksum type.  Each enctype has a
+ * mandatory (to implement) checksum type, which can be chosen when
+ * computing a checksum by passing 0 for the type parameter.  However,
+ * we must separately compute the length of a checksum on a message in
+ * order to verify a packet at RXGK_LEVEL_AUTH, and MIT krb5 does not
+ * expose a way to get the mandatory checksum type for a given enctype.
+ * So, we get to do it ourselves.
+ */
+static_inline afs_int32
+etoc(afs_int32 etype)
+{
+    switch(etype) {
+	case ENCTYPE_DES_CBC_CRC:
+	    return CKSUMTYPE_RSA_MD5_DES;
+	case ENCTYPE_DES_CBC_MD4:
+	    return CKSUMTYPE_RSA_MD4_DES;
+	case ENCTYPE_DES_CBC_MD5:
+	    return CKSUMTYPE_RSA_MD5_DES;
+	case ENCTYPE_DES_CBC_RAW:
+	    return 0;
+	case ENCTYPE_DES3_CBC_RAW:
+	    return 0;
+	case ENCTYPE_DES3_CBC_SHA1:
+	    return CKSUMTYPE_HMAC_SHA1_DES3;
+	case ENCTYPE_DES_HMAC_SHA1:
+	    return 0;
+	case ENCTYPE_ARCFOUR_HMAC:
+	    return CKSUMTYPE_HMAC_MD5_ARCFOUR;
+	case ENCTYPE_ARCFOUR_HMAC_EXP:
+	    return CKSUMTYPE_HMAC_MD5_ARCFOUR;
+	case ENCTYPE_AES128_CTS_HMAC_SHA1_96:
+	    return CKSUMTYPE_HMAC_SHA1_96_AES128;
+	case ENCTYPE_AES256_CTS_HMAC_SHA1_96:
+	    return CKSUMTYPE_HMAC_SHA1_96_AES256;
+	case ENCTYPE_CAMELLIA128_CTS_CMAC:
+	    return CKSUMTYPE_CMAC_CAMELLIA128;
+	case ENCTYPE_CAMELLIA256_CTS_CMAC:
+	    return CKSUMTYPE_CMAC_CAMELLIA256;
+	default:
+	    return -1;
+    }
+}
+
 /* XXX Copied from rxgk_util.c.  Should get centralized or eliminated. */
 static ssize_t
 etype_to_len(int etype)
@@ -240,6 +284,154 @@ release_key(rxgk_key *key)
 #endif
     krb5_free_context(ctx);
     *key = NULL;
+}
+
+/*
+ * Determine the length of a checksum (MIC) using the specified key.
+ */
+afs_int32
+mic_length(rxgk_key key, size_t *out)
+{
+    krb5_context ctx;
+    krb5_cksumtype cstype;
+    krb5_enctype enctype;
+    krb5_error_code ret;
+    krb5_keyblock *keyblock = (krb5_keyblock *)key;
+    size_t len;
+
+    *out = 0;
+
+    ret = krb5_init_context(&ctx);
+    if (ret != 0)
+	return ktor(ret);
+
+#ifdef HAVE_KRB5_INIT_KEYBLOCK
+    enctype = keyblock->enctype;
+#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
+    enctype = krb5_keyblock_get_enctype(keyblock);
+#endif
+    cstype = etoc(enctype);
+    if (cstype == -1)
+	goto cleanup;
+    ret = krb5_c_checksum_length(ctx, cstype, &len);
+    if (ret != 0)
+	goto cleanup;
+    *out = len;
+
+cleanup:
+    krb5_free_context(ctx);
+    return ktor(ret);
+}
+
+/*
+ * Call into the RFC 3961 encryption framework to obtain a Message Integrity
+ * Check of a buffer using the specified key and key usage.  It is assumed
+ * that the rxgk_key structure includes the enctype information needed to
+ * determine which crypto routine to call.
+ * The output buffer is allocated with xdr_alloc and must be freed by the
+ * caller.
+ */
+afs_int32
+mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
+{
+    krb5_context ctx;
+    krb5_checksum cksum;
+    krb5_cksumtype cstype;
+    krb5_data in_data;
+    krb5_enctype enctype;
+    krb5_error_code ret;
+    krb5_keyblock *keyblock = (krb5_keyblock *)key;
+    size_t len;
+
+    memset(&cksum, 0, sizeof(cksum));
+    zero_rxgkdata(out);
+
+    ret = krb5_init_context(&ctx);
+    if (ret != 0)
+	return ktor(ret);
+
+#ifdef HAVE_KRB5_INIT_KEYBLOCK
+    enctype = keyblock->enctype;
+#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
+    enctype = krb5_keyblock_get_enctype(keyblock);
+#endif
+    cstype = etoc(enctype);
+    if (cstype == -1)
+	goto cleanup;
+    ret = krb5_c_checksum_length(ctx, cstype, &len);
+    if (ret != 0)
+	goto cleanup;
+    out->val = xdr_alloc(len);
+    if (out->val == NULL) {
+	ret = RXGK_INCONSISTENCY;
+	goto cleanup;
+    }
+    out->len = len;
+    in_data.data = in->val;
+    in_data.length = in->len;
+    ret = krb5_c_make_checksum(ctx, cstype, keyblock, usage, &in_data,
+			       &cksum);
+    if (ret != 0)
+	goto cleanup;
+    /* sanity check */
+    if (len != cksum.length) {
+	ret = RXGK_INCONSISTENCY;
+	goto cleanup;
+    }
+    memcpy(out->val, cksum.contents, len);
+
+cleanup:
+    krb5_free_checksum_contents(ctx, &cksum);
+    krb5_free_context(ctx);
+    return ktor(ret);
+}
+
+/*
+ * Call into the RFC 3961 encryption framework to verify a message integrity
+ * check on a message, using the specified key with the specified key usage.
+ * It is assumed that the rxgk_key structure includes the enctype information
+ * needed to determine which particular crypto routine to call.
+ */
+afs_int32
+check_mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *mic)
+{
+    krb5_boolean valid;
+    krb5_context ctx;
+    krb5_checksum cksum;
+    krb5_data in_data;
+    krb5_enctype enctype;
+    krb5_error_code ret;
+    krb5_keyblock *keyblock = (krb5_keyblock *)key;
+
+    memset(&in_data, 0, sizeof(in_data));
+
+    ret = krb5_init_context(&ctx);
+    if (ret != 0)
+	return ktor(ret);
+
+#ifdef HAVE_KRB5_INIT_KEYBLOCK
+    enctype = keyblock->enctype;
+#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
+    enctype = krb5_keyblock_get_enctype(keyblock);
+#endif
+
+    in_data.data = in->val;
+    in_data.length = in->len;
+    cksum.checksum_type = etoc(enctype);
+    cksum.contents = mic->val;
+    cksum.length = mic->len;
+    ret = krb5_c_verify_checksum(ctx, keyblock, usage, &in_data, &cksum,
+				 &valid);
+    if (ret != 0)
+	goto cleanup;
+    if (!valid) {
+	ret = RXGK_SEALED_INCON;
+	goto cleanup;
+    }
+
+cleanup:
+    krb5_free_context(ctx);
+    return ktor(ret);
 }
 
 /*
