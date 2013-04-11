@@ -42,6 +42,16 @@
 /* Pull in the protocol description */
 #include <rx/rxgk_int.h>
 
+/* Other data structures not using XDR */
+struct rxgk_header {
+    afs_int32 epoch;
+    afs_int32 cid;
+    afs_int32 callNumber;
+    afs_uint32 seq;
+    afs_int32 index;
+    afs_uint32 length;
+} __attribute__((packed));
+
 /* Interface between the rxgkTime type and other types */
 static_inline rxgkTime RXGK_NOW(void)
 {
@@ -56,6 +66,9 @@ afs_int32 copy_rxgkdata(RXGK_Data *out, RXGK_Data *in);
 afs_uint32 rxgk_make_k0(afs_uint32 *minor_status, gss_ctx_id_t gss_ctx,
 			RXGK_Data *client_nonce, RXGK_Data *server_nonce,
 			int enctype, gss_buffer_t key);
+void rxgk_populate_header(struct rxgk_header *header,
+			  struct rx_packet *apacket, afs_int32 index,
+			  afs_uint32 length);
 afs_int32 rxgk_nonce(RXGK_Data *nonce, int len);
 void print_data(void *p, int len);
 

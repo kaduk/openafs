@@ -35,9 +35,15 @@
  * common to both clients and servers.
  */
 
+#include <afsconfig.h>
+#include <afs/param.h>
+#include <afs/stds.h>
+
 #include <gssapi/gssapi.h>
 #include <errno.h>
+#include <rx/rx.h>
 #include <rx/rxgk.h>
+#include <rx/rx_packet.h>
 #include <hcrypto/rand.h>
 
 static ssize_t
@@ -119,6 +125,23 @@ rxgk_nonce(RXGK_Data *nonce, int len)
 	return RXGEN_SS_MARSHAL;
     }
     return 0;
+}
+
+/*
+ * Fill in the elements of the rxgk_header structure, in network byte order,
+ * using information from the packet structure and the supplied values for
+ * the security index and data length.
+ */
+void
+rxgk_populate_header(struct rxgk_header *header, struct rx_packet *apacket,
+		     afs_int32 index, afs_uint32 length)
+{
+    header->epoch = apacket->header.epoch;
+    header->cid = apacket->header.cid;
+    header->callNumber = apacket->header.callNumber;
+    header->seq = apacket->header.seq;
+    header->index = htonl(index);
+    header->length = htonl(length);
 }
 
 void
