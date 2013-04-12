@@ -142,6 +142,21 @@ rxgk_DestroyConnection(struct rx_securityClass *aobj,
     return 0;
 }
 
+static_inline afs_int32
+pick_recv_keyusage(int isserver, RXGK_Level level)
+{
+    switch(level) {
+	case RXGK_LEVEL_CLEAR:
+	    return 0;
+	case RXGK_LEVEL_AUTH:
+	    return isserver ? RXGK_CLIENT_MIC_PACKET : RXGK_SERVER_MIC_PACKET;
+	case RXGK_LEVEL_CRYPT:
+	    return isserver ? RXGK_CLIENT_ENC_PACKET : RXGK_SERVER_ENC_PACKET;
+	default:
+	    return -1;
+    }
+}
+
 /* Decode a packet from the wire format */
 int
 rxgk_CheckPacket(struct rx_securityClass *aobj, struct rx_call *acall,
@@ -151,13 +166,145 @@ rxgk_CheckPacket(struct rx_securityClass *aobj, struct rx_call *acall,
     return 0;
 }
 
+/*
+ * Take a packet, prefix it with the rxgk pseudoheader, MIC the whole
+ * thing with specified key and key usage, then rewrite the packet payload
+ * to be the MIC followed by the original payload.
+ */
+static int
+mic_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
+	   struct rx_packet *apacket)
+{
+    RXGK_Data plain, mic;
+    struct rxgk_header *header;
+    afs_int32 len, miclen;
+
+    len = rx_GetDataSize(apacket);
+    miclen = rx_GetSecurityHeaderSize(aconn);
+    plain.val = xdr_alloc(sizeof(*header) + len);
+    plain.len = sizeof(*header) + len;
+    header = plain.val;
+    rxgk_populate_header(header, apacket, rx_SecurityClassOf(aconn), len);
+    rx_packetread(apacket, miclen, len, plain.val + sizeof(*header));
+
+    /* The actual mic */
+    mic_in_key(tk, keyusage, &plain, &mic);
+
+    if (mic.len != miclen)
+	return RXGK_INCONSISTENCY;
+
+    /* Now, put the data back. */
+    rx_packetwrite(apacket, 0, mic.len, mic.val);
+    rx_SetDataSize(apacket, mic.len + len);
+
+    return 0;
+}
+
+/*
+ * Take a packet, prefix it with the rxgk pseudoheader, encrypt the whole
+ * thing with specified key and key usage, then rewrite the packet payload
+ * to be the encrypted version.
+ */
+static int
+enc_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
+	   struct rx_packet *apacket)
+{
+    RXGK_Data plain, crypt;
+    struct rxgk_header *header;
+    afs_int32 ret, len;
+
+    len = rx_GetDataSize(apacket);
+    plain.val = xdr_alloc(sizeof(*header) + len);
+    plain.len = sizeof(*header) + len;
+    header = plain.val;
+    rx_packetread(apacket, 0, len + sizeof(*header), plain.val);
+    /* XXX I don't see how securityIndex is actually what is meant */
+    rxgk_populate_header(header, apacket, rx_SecurityClassOf(aconn), len);
+
+    /* The actual encryption */
+    ret = encrypt_in_key(tk, keyusage, &plain, &crypt);
+
+    /* Now, put the data back. */
+    rxi_RoundUpPacket(apacket, crypt.len - plain.len);
+    rx_packetwrite(apacket, 0, crypt.len, crypt.val);
+    rx_SetDataSize(apacket, crypt.len);
+
+    return 0;
+}
+
+static_inline afs_int32
+pick_send_keyusage(int isserver, RXGK_Level level)
+{
+    switch(level) {
+	case RXGK_LEVEL_CLEAR:
+	    return 0;
+	case RXGK_LEVEL_AUTH:
+	    return isserver ? RXGK_SERVER_MIC_PACKET : RXGK_CLIENT_MIC_PACKET;
+	case RXGK_LEVEL_CRYPT:
+	    return isserver ? RXGK_SERVER_ENC_PACKET : RXGK_CLIENT_ENC_PACKET;
+	default:
+	    return -1;
+    }
+}
+
 /* Encode a packet to go on the wire */
 int
 rxgk_PreparePacket(struct rx_securityClass *aobj, struct rx_call *acall,
 		   struct rx_packet *apacket)
 {
-    /* XXXBJK */
-    return 0;
+    struct rxgk_sconn *sc;
+    struct rxgk_cconn *cc;
+    union rxgk_private *priv;
+    struct rxgk_cprivate *cp;
+    struct rx_securityClass *secobj;
+    struct rx_connection *aconn;
+    void *data;
+    RXGK_Level level;
+    rxgk_key k0, tk;
+    rxgkTime start_time;
+    afs_int32 keyusage;
+    int isserver, ret;
+
+    aconn = rx_ConnectionOf(acall);
+    data = rx_GetSecurityData(aconn);
+    secobj = rx_SecurityObjectOf(aconn);
+    priv = secobj->privateData;
+
+    if (rx_IsServerConn(aconn)) {
+	sc = data;
+	level = sc->level;
+	isserver = 1;
+	k0 = sc->k0;
+	start_time = sc->start_time;
+    } else {
+	cc = data;
+	cp = &priv->c;
+	level = cp->level;
+	isserver = 0;
+	k0 = cp->k0;
+	start_time = cc->start_time;
+    }
+    /* XXX hardcodes key number zero */
+    ret = derive_tk(&tk, k0, rx_GetConnectionEpoch(aconn),
+		    rx_GetConnectionId(aconn), start_time, 0);
+    keyusage = pick_send_keyusage(isserver, level);
+    if (keyusage == -1)
+	return RXGK_INCONSISTENCY;
+
+    switch(level) {
+	case RXGK_LEVEL_CLEAR:
+	    return 0;
+	case RXGK_LEVEL_AUTH:
+	    ret = mic_packet(tk, keyusage, aconn, apacket);
+	    break;
+	case RXGK_LEVEL_CRYPT:
+	    ret = enc_packet(tk, keyusage, aconn, apacket);
+	    break;
+	default:
+	    return RXGK_INCONSISTENCY;
+    }
+
+    return ret;
 }
 
 /* Retrieve statistics about this connection */
