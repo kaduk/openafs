@@ -60,6 +60,10 @@ static_inline rxgkTime RXGK_NOW(void)
     return _b;
 }
 
+/* rxgk_key is an opaque type to wrap our RFC3961 implementation's concept
+ * of a key.  It has (at least) the keyblock and length, kvno, and enctype. */
+typedef void * rxgk_key;
+
 /* rxgk_util.c */
 void zero_rxgkdata(RXGK_Data *data);
 afs_int32 copy_rxgkdata(RXGK_Data *out, RXGK_Data *in);
@@ -70,12 +74,11 @@ void rxgk_populate_header(struct rxgk_header *header,
 			  struct rx_packet *apacket, afs_int32 index,
 			  afs_uint32 length);
 afs_int32 rxgk_nonce(RXGK_Data *nonce, int len);
+afs_int32 rxgk_security_overhead(struct rx_connection *aconn, RXGK_Level level,
+				 rxgk_key k0);
 void print_data(void *p, int len);
 
 /* rxgk_crypto.c */
-/* rxgk_key is an opaque type to wrap our RFC3961 implementation's concept
- * of a key.  It has (at least) the keyblock and length, kvno, and enctype. */
-typedef void * rxgk_key;
 afs_int32 dummy_getkey(void *rock, afs_int32 kvno, afs_int32 enctype,
 		       rxgk_key *key);
 afs_int32 make_key(rxgk_key *key_out, void *raw_key, afs_int32 length,

@@ -373,6 +373,7 @@ rxgk_CheckResponse(struct rx_securityClass *aobj,
     if (ret != 0)
 	goto cleanup;
     /* Success! */
+    rxgk_security_overhead(aconn, sc->level, sc->k0);
     sc->auth = 1;
     (void)rxi_SetCallNumberVector(aconn,
 				  (afs_int32 *)authenticator.call_numbers.val);

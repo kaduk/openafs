@@ -144,6 +144,38 @@ rxgk_populate_header(struct rxgk_header *header, struct rx_packet *apacket,
     header->length = htonl(length);
 }
 
+afs_int32
+rxgk_security_overhead(struct rx_connection *aconn, RXGK_Level level,
+		       rxgk_key k0)
+{
+    afs_int32 ret;
+    int len;
+
+    switch(level) {
+	case RXGK_LEVEL_CLEAR:
+	    return 0;
+	case RXGK_LEVEL_AUTH:
+	    ret = mic_length(k0, &len);
+	    if (ret != 0)
+		goto cleanup;
+	    rx_SetSecurityHeaderSize(aconn, len);
+	    /* No padding needed since MIC is not done in-place. */
+	    rx_SetSecurityMaxTrailerSize(aconn, 0);
+	    return 0;
+	case RXGK_LEVEL_CRYPT:
+	    ret = rxgk_cipher_expansion(k0, &len);
+	    if (ret != 0)
+		goto cleanup;
+	    rx_SetSecurityHeaderSize(aconn, sizeof(struct rxgk_header));
+	    rx_SetSecurityMaxTrailerSize(aconn, len);
+	    return 0;
+	default:
+	    return -1;
+    }
+cleanup:
+    return ret;
+}
+
 void
 print_data(void *p, int len)
 {

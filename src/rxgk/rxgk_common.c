@@ -88,11 +88,14 @@ rxgk_NewConnection(struct rx_securityClass *aobj,
 {
     struct rxgk_sconn *sc;
     struct rxgk_cconn *cc;
+    union rxgk_private *p;
+    struct rxgk_cprivate *cp;
 
     /* Take a reference before we do anything else. */
     aobj->refCount++;
     if (rx_GetSecurityData(aconn) != NULL)
 	goto error;
+    p = aobj->privateData;
 
     if (rx_IsServerConn(aconn)) {
 	sc = calloc(1, sizeof(*sc));
@@ -101,12 +104,16 @@ rxgk_NewConnection(struct rx_securityClass *aobj,
 	rx_SetSecurityData(aconn, sc);
     } else {
 	/* It's a client. */
+	cp = &p->c;
 	cc = calloc(1, sizeof(*cc));
 	if (cc == NULL)
 	    goto error;
 	cc->start_time = RXGK_NOW();
 	/* XXX need epoch (once) and connection ID (always) */
 	rx_SetSecurityData(aconn, cc);
+	/* Set the header and trailer size to be reserved for the security
+         * class in each packet. */
+	rxgk_security_overhead(aconn, cp->level, cp->k0);
     }
     return 0;
 error:
