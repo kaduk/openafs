@@ -79,8 +79,8 @@ fill_start_params(RXGK_StartParams *params)
     params->levels.len = len;
     params->levels.val = tmp;
     params->levels.val[0] = RXGK_LEVEL_CRYPT;
-    params->levels.val[0] = RXGK_LEVEL_AUTH;
-    params->levels.val[0] = RXGK_LEVEL_CLEAR;
+    params->levels.val[1] = RXGK_LEVEL_AUTH;
+    params->levels.val[2] = RXGK_LEVEL_CLEAR;
 
     /* lifetimes (advisory) */
     params->lifetime = 60 * 60 * 10;	/* 10 hours */
