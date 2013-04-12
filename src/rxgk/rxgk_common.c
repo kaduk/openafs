@@ -149,6 +149,78 @@ rxgk_DestroyConnection(struct rx_securityClass *aobj,
     return 0;
 }
 
+/*
+ * Take a packet, extract the MIC and data payload, prefix the data with the
+ * rxgk pseudoheader, and verify the mic of that assembly.  Strip the
+ * MIC from the packet so just the plaintext data remains.
+ */
+static int
+check_mic_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
+	   struct rx_packet *apacket)
+{
+    RXGK_Data plain, mic;
+    struct rxgk_header *header;
+    afs_int32 ret, len;
+    size_t miclen;
+
+    ret = mic_length(tk, &miclen);
+    len = rx_GetDataSize(apacket) - miclen;
+    plain.val = xdr_alloc(sizeof(*header) + len);
+    plain.len = sizeof(*header) + len;
+    header = plain.val;
+    mic.val = xdr_alloc(miclen);
+    mic.len = miclen;
+    rxgk_populate_header(header, apacket, rx_SecurityClassOf(aconn), len);
+    rx_packetread(apacket, 0, miclen, mic.val);
+    rx_packetread(apacket, miclen, len, plain.val + sizeof(*header));
+
+    /* The actual crypto call */
+    ret = check_mic_in_key(tk, keyusage, &plain, &mic);
+
+    /* Data remains untouched in-place. */
+
+    return ret;
+}
+
+/*
+ * Take an encrypted packet and decrypt it with the specified key and
+ * key usage.  Put the plaintext back in the packet.
+ */
+static int
+decrypt_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
+	       struct rx_packet *apacket)
+{
+    RXGK_Data plain, crypt;
+    struct rxgk_header *header, *cryptheader;
+    afs_int32 ret, len;
+
+    ret = 0;
+    len = rx_GetDataSize(apacket);
+    header = malloc(sizeof(*header));
+    crypt.val = xdr_alloc(len);
+    crypt.len = len;
+    /* XXX I don't see how securityIndex is actually what is meant */
+    rxgk_populate_header(header, apacket, rx_SecurityClassOf(aconn), len);
+    rx_packetread(apacket, 0, len, crypt.val);
+
+    /* The actual encryption */
+    ret = decrypt_in_key(tk, keyusage, &crypt, &plain);
+    cryptheader = plain.val;
+
+    /* Verify the encrypted header */
+    header->length = cryptheader->length;
+    ret = memcmp(header, cryptheader, sizeof(*header));
+    if (ret != 0)
+	ret = RXGK_SEALED_INCON;
+
+    /* Now, put the data back. */
+    len = ntohl(cryptheader->length) + sizeof(*header);
+    rx_packetwrite(apacket, 0, len, plain.val);
+    /* rx_SetDataSize(apacket, len); */
+
+    return ret;
+}
+
 static_inline afs_int32
 pick_recv_keyusage(int isserver, RXGK_Level level)
 {
@@ -169,8 +241,59 @@ int
 rxgk_CheckPacket(struct rx_securityClass *aobj, struct rx_call *acall,
 		 struct rx_packet *apacket)
 {
-    /* XXXBJK */
-    return 0;
+    struct rxgk_sconn *sc;
+    struct rxgk_cconn *cc;
+    union rxgk_private *priv;
+    struct rxgk_cprivate *cp;
+    struct rx_securityClass *secobj;
+    struct rx_connection *aconn;
+    void *data;
+    RXGK_Level level;
+    rxgk_key k0, tk;
+    rxgkTime start_time;
+    afs_int32 keyusage;
+    int isserver, ret;
+
+    aconn = rx_ConnectionOf(acall);
+    data = rx_GetSecurityData(aconn);
+    secobj = rx_SecurityObjectOf(aconn);
+    priv = secobj->privateData;
+
+    if (rx_IsServerConn(aconn)) {
+	sc = data;
+	level = sc->level;
+	isserver = 1;
+	k0 = sc->k0;
+	start_time = sc->start_time;
+    } else {
+	cc = data;
+	cp = &priv->c;
+	level = cp->level;
+	isserver = 0;
+	k0 = cp->k0;
+	start_time = cc->start_time;
+    }
+    /* XXX hardcodes key number zero */
+    ret = derive_tk(&tk, k0, rx_GetConnectionEpoch(aconn),
+		    rx_GetConnectionId(aconn), start_time, 0);
+    keyusage = pick_recv_keyusage(isserver, level);
+    if (keyusage == -1)
+	return RXGK_INCONSISTENCY;
+
+    switch(level) {
+	case RXGK_LEVEL_CLEAR:
+	    return 0;
+	case RXGK_LEVEL_AUTH:
+	    ret = check_mic_packet(tk, keyusage, aconn, apacket);
+	    break;
+	case RXGK_LEVEL_CRYPT:
+	    ret = decrypt_packet(tk, keyusage, aconn, apacket);
+	    break;
+	default:
+	    return RXGK_INCONSISTENCY;
+    }
+
+    return ret;
 }
 
 /*
