@@ -650,3 +650,53 @@ cleanup:
     free(pre_key.data);
     return ret;
 }
+
+/*
+ * Determine the maximum ciphertext expansion for a given enctype.
+ * Loop over plaintext size until the expansion repeats, and keep a running
+ * maximum to be returned.
+ */
+afs_int32
+rxgk_cipher_expansion(rxgk_key k0, int *len_out)
+{
+    krb5_context ctx;
+    krb5_enctype enctype;
+    krb5_error_code ret;
+    krb5_keyblock *keyblock = k0;
+    /* A 4096-bit blocksize would be extreme, but this is a last resort. */
+    int maxbsize = 4096 / 8;
+    int i;
+    size_t len;
+    ssize_t offset, first_offset, max_offset;
+
+    *len_out = -1;
+
+#ifdef HAVE_KRB5_INIT_KEYBLOCK
+    enctype = keyblock->enctype;
+#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
+    enctype = krb5_keyblock_get_enctype(keyblock);
+#endif
+    ret = krb5_init_context(&ctx);
+    if (ret != 0)
+	return ktor(ret);
+
+    ret = krb5_c_encrypt_length(ctx, enctype, 1, &len);
+    first_offset = len - 1;
+
+    max_offset = -1;
+    for(i = 1; i <= maxbsize; ++i) {
+	ret = krb5_c_encrypt_length(ctx, enctype, i, &len);
+	if (ret != 0)
+	    goto cleanup;
+	offset = len - i;
+	max_offset = (offset > max_offset) ? offset : max_offset;
+	if (offset == first_offset) {
+	    *len_out = max_offset;
+	    break;
+	}
+    }
+
+cleanup:
+    krb5_free_context(ctx);
+    return ret;
+}

@@ -94,6 +94,7 @@ afs_int32 decrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
 afs_int32 derive_tk(rxgk_key *tk, rxgk_key k0, afs_uint32 epoch,
 		    afs_uint32 cid, rxgkTime start_time,
 		    afs_uint32 key_number);
+afs_int32 rxgk_cipher_expansion(rxgk_key k0, int *len_out);
 
 /* rxgk_server.c */
 typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 kvno,
