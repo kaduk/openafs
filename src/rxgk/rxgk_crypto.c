@@ -49,6 +49,13 @@
 #include <krb5.h>
 #include <assert.h>
 
+/* Some compat shims for Heimdal/MIT compatibility. */
+#ifdef HAVE_KRB5_INIT_KEYBLOCK
+#define deref_keyblock_enctype(k)	((k)->enctype)
+#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
+#define deref_keyblock_enctype(k)	krb5_keyblock_get_enctype(k)
+#endif
+
 /*
  * Convert krb5 error code to RXGK error code.  Don't let the krb5 codes excape.
  */
@@ -238,7 +245,6 @@ get_server_key(rxgk_key *key, afs_int32 *kvno, afs_int32 *enctype)
     ret = krb5_copy_keyblock(ctx, &entry.key, &keyblock);
     if (ret != 0)
 	goto out;
-    *enctype = entry.key.enctype;
 #elif defined(HAVE_KRB5_KEYBLOCK_INIT)
     keyblock = malloc(sizeof(*keyblock));
     if (keyblock == NULL)
@@ -246,8 +252,8 @@ get_server_key(rxgk_key *key, afs_int32 *kvno, afs_int32 *enctype)
     ret = krb5_copy_keyblock_contents(ctx, entry.keyblock, keyblock);
     if (ret != 0)
 	goto out;
-    *enctype = krb5_keyblock_get_enctype(&entry.keyblock);
 #endif
+    *enctype = deref_keyblock_enctype(keyblock);
     *kvno = entry.vno;
 
     *key = keyblock;
@@ -305,11 +311,7 @@ mic_length(rxgk_key key, size_t *out)
     if (ret != 0)
 	return ktor(ret);
 
-#ifdef HAVE_KRB5_INIT_KEYBLOCK
-    enctype = keyblock->enctype;
-#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
-    enctype = krb5_keyblock_get_enctype(keyblock);
-#endif
+    enctype = deref_keyblock_enctype(keyblock);
     cstype = etoc(enctype);
     if (cstype == -1) {
 	ret = KRB5_BAD_ENCTYPE;
@@ -352,11 +354,7 @@ mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
     if (ret != 0)
 	return ktor(ret);
 
-#ifdef HAVE_KRB5_INIT_KEYBLOCK
-    enctype = keyblock->enctype;
-#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
-    enctype = krb5_keyblock_get_enctype(keyblock);
-#endif
+    enctype = deref_keyblock_enctype(keyblock);
     cstype = etoc(enctype);
     if (cstype == -1) {
 	ret = KRB5_BAD_ENCTYPE;
@@ -414,12 +412,7 @@ check_mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *mic)
     if (ret != 0)
 	return ktor(ret);
 
-#ifdef HAVE_KRB5_INIT_KEYBLOCK
-    enctype = keyblock->enctype;
-#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
-    enctype = krb5_keyblock_get_enctype(keyblock);
-#endif
-
+    enctype = deref_keyblock_enctype(keyblock);
     in_data.data = in->val;
     in_data.length = in->len;
     cksum.checksum_type = etoc(enctype);
@@ -469,12 +462,7 @@ encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
     kd_in.length = in->len;
     kd_in.data = in->val;
 
-#ifdef HAVE_KRB5_INIT_KEYBLOCK
-    enctype = keyblock->enctype;
-#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
-    enctype = krb5_keyblock_get_enctype(keyblock);
-#endif
-
+    enctype = deref_keyblock_enctype(keyblock);
     ret = krb5_c_encrypt_length(ctx, enctype, in->len, &length);
     if (ret != 0)
 	goto out;
@@ -522,12 +510,7 @@ decrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
     if (ret != 0)
 	return ktor(ret);
 
-#ifdef HAVE_KRB5_INIT_KEYBLOCK
-    enctype = keyblock->enctype;
-#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
-    enctype = krb5_keyblock_get_enctype(keyblock);
-#endif
-
+    enctype = deref_keyblock_enctype(keyblock);
     kd_in.ciphertext.length = in->len;
     kd_in.ciphertext.data = in->val;
     kd_in.enctype = enctype;
@@ -641,11 +624,7 @@ derive_tk(rxgk_key *tk, rxgk_key k0, afs_uint32 epoch, afs_uint32 cid,
     memset(&seed, 0, sizeof(seed));
     assert(sizeof(seed) == 20);
 
-#ifdef HAVE_KRB5_INIT_KEYBLOCK
-    enctype = keyblock->enctype;
-#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
-    enctype = krb5_keyblock_get_enctype(keyblock);
-#endif
+    enctype = deref_keyblock_enctype(keyblock);
     ell = etype_to_len(enctype);
 
     seed.epoch = htonl(epoch);
@@ -693,11 +672,7 @@ rxgk_cipher_expansion(rxgk_key k0, int *len_out)
 
     *len_out = -1;
 
-#ifdef HAVE_KRB5_INIT_KEYBLOCK
-    enctype = keyblock->enctype;
-#elif defined(HAVE_KRB5_KEYBLOCK_INIT)
-    enctype = krb5_keyblock_get_enctype(keyblock);
-#endif
+    enctype = deref_keyblock_enctype(keyblock);
     ret = krb5_init_context(&ctx);
     if (ret != 0)
 	return ktor(ret);
