@@ -651,7 +651,7 @@ derive_tk(rxgk_key *tk, rxgk_key k0, afs_uint32 epoch, afs_uint32 cid,
     seed.epoch = htonl(epoch);
     seed.cid = htonl(cid);
     seed.time_hi = htonl((afs_int32)(start_time / ((afs_uint64)1 << 32)));
-    seed.time_lo = htonl((afs_int32)((afs_uint64)start_time >> 32));
+    seed.time_lo = htonl((afs_int32)(start_time & (afs_uint64)0xffffffff));
     seed.key_number = htonl(key_number);
 
     pre_key.data = malloc(ell);
