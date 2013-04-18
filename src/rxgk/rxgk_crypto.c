@@ -551,55 +551,62 @@ cleanup:
     return ktor(ret);
 }
 
-/* Helper for derive_tk.
- * Assumes the caller has already allocated space in pre_key. */
+/*
+ * Helper for derive_tk.
+ * Assumes the caller has already allocated space in 'out'.
+ */
 static afs_int32
 PRFplus(krb5_data *out, krb5_enctype enctype, rxgk_key k0,
 	ssize_t desired_len, void *seed, size_t seed_len)
 {
     krb5_context ctx;
-    krb5_data pre_key, prf_in, prf_out;
+    krb5_data prf_in, prf_out;
     krb5_error_code ret;
     krb5_keyblock *keyblock = k0;
+    unsigned char *pre_key;
     size_t block_len;
     afs_uint32 nn, iterations, *dummy;
 
     memset(&prf_in, 0, sizeof(prf_in));
     memset(&prf_out, 0, sizeof(prf_out));
+    pre_key = NULL;
 
     ret = krb5_init_context(&ctx);
     if (ret != 0)
-	goto cleanup;
+	return ktor(ret);
     ret = krb5_c_prf_length(ctx, enctype, &block_len);
     if (ret != 0)
 	goto cleanup;
 
     iterations = (desired_len + block_len - 1) / block_len;
-    pre_key.data = malloc(iterations * block_len);
-    if (pre_key.data == NULL) {
+    pre_key = malloc(iterations * block_len);
+    if (pre_key == NULL) {
 	ret = RXGK_INCONSISTENCY;
 	goto cleanup;
     }
-    pre_key.length = iterations * block_len;
     
     prf_in.data = malloc(sizeof(nn) + seed_len);
+    if (prf_in.data == NULL) {
+	ret = RXGK_INCONSISTENCY;
+	goto cleanup;
+    }
     prf_in.length = sizeof(nn) + seed_len;
     memcpy(prf_in.data + sizeof(nn), seed, seed_len);
     for(nn = 1; nn <= iterations; ++nn) {
 	dummy = (afs_uint32 *)prf_in.data;
 	*dummy = htonl(nn);
-	prf_out.data = pre_key.data + (nn - 1) * block_len;
+	prf_out.data = pre_key + (nn - 1) * block_len;
 	prf_out.length = block_len;
 	ret = krb5_c_prf(ctx, keyblock, &prf_in, &prf_out);
 	if (ret != 0)
 	    goto cleanup;
     }
-    memcpy(out->data, pre_key.data, desired_len);
+    memcpy(out->data, pre_key, desired_len);
 
 cleanup:
     krb5_free_context(ctx);
     free(prf_in.data);
-    free(pre_key.data);
+    free(pre_key);
     return ktor(ret);
 }
 
