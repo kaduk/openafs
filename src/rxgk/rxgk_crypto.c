@@ -311,8 +311,10 @@ mic_length(rxgk_key key, size_t *out)
     enctype = krb5_keyblock_get_enctype(keyblock);
 #endif
     cstype = etoc(enctype);
-    if (cstype == -1)
+    if (cstype == -1) {
+	ret = KRB5_BAD_ENCTYPE;
 	goto cleanup;
+    }
     ret = krb5_c_checksum_length(ctx, cstype, &len);
     if (ret != 0)
 	goto cleanup;
