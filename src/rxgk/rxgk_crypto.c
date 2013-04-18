@@ -408,6 +408,7 @@ check_mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *mic)
     krb5_keyblock *keyblock = (krb5_keyblock *)key;
 
     memset(&in_data, 0, sizeof(in_data));
+    memset(&cksum, 0, sizeof(cksum));
 
     ret = krb5_init_context(&ctx);
     if (ret != 0)
