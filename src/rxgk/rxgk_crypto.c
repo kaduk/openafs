@@ -458,8 +458,8 @@ encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
     krb5_keyblock *keyblock = (krb5_keyblock *)key;
     size_t length;
 
-    kd_in.data = NULL;
-    kd_out.ciphertext.data = NULL;
+    memset(&kd_in, 0, sizeof(kd_in));
+    memset(&kd_out, 0, sizeof(kd_out));
     zero_rxgkdata(out);
 
     ret = krb5_init_context(&ctx);
@@ -487,6 +487,7 @@ encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
     kd_out.ciphertext.length = length;
     kd_out.ciphertext.data = out->val;
 
+    /* Slightly poor that if this fails we still return allocated space. */
     ret = krb5_c_encrypt(ctx, keyblock, usage, NULL, &kd_in, &kd_out);
 
 out:
