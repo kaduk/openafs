@@ -660,9 +660,13 @@ derive_tk(rxgk_key *tk, rxgk_key k0, afs_uint32 epoch, afs_uint32 cid,
 	goto cleanup;
     }
     pre_key.length = ell;
-    PRFplus(&pre_key, enctype, k0, ell, &seed, sizeof(seed));
+    ret = PRFplus(&pre_key, enctype, k0, ell, &seed, sizeof(seed));
+    if (ret != 0)
+	goto cleanup;
 
     ret = make_key(tk, pre_key.data, ell, enctype);
+    if (ret != 0)
+	goto cleanup;
 
 cleanup:
     free(pre_key.data);
