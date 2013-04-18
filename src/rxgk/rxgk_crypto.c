@@ -703,6 +703,8 @@ rxgk_cipher_expansion(rxgk_key k0, int *len_out)
 	return ktor(ret);
 
     ret = krb5_c_encrypt_length(ctx, enctype, 1, &len);
+    if (ret != 0)
+	goto cleanup;
     first_offset = len - 1;
 
     max_offset = -1;
@@ -712,7 +714,7 @@ rxgk_cipher_expansion(rxgk_key k0, int *len_out)
 	    goto cleanup;
 	offset = len - i;
 	max_offset = (offset > max_offset) ? offset : max_offset;
-	if (offset == first_offset) {
+	if (i > 1 && offset == first_offset) {
 	    *len_out = max_offset;
 	    break;
 	}
