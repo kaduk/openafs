@@ -515,6 +515,8 @@ decrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
     size_t length;
 
     zero_rxgkdata(out);
+    memset(&kd_in, 0, sizeof(kd_in));
+    memset(&kd_out, 0, sizeof(kd_out));
 
     ret = krb5_init_context(&ctx);
     if (ret != 0)
@@ -529,16 +531,19 @@ decrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
     kd_in.ciphertext.length = in->len;
     kd_in.ciphertext.data = in->val;
     kd_in.enctype = enctype;
-    /* kd_in.kvno =  */
+    /* kd_in.kvno = */
 
     out->val = kd_out.data = xdr_alloc(in->len);
     if (kd_out.data == NULL) {
 	ret = RXGK_INCONSISTENCY;
 	goto cleanup;
     }
-    kd_out.length = in->len;
+    out->len = kd_out.length = in->len;
 
     ret = krb5_c_decrypt(ctx, keyblock, usage, NULL, &kd_in, &kd_out);
+    if (ret != 0)
+	goto cleanup;
+    /* This is conditional so that failure does not return length zero. */
     out->len = kd_out.length;
 
 cleanup:
