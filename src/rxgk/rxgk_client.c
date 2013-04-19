@@ -47,10 +47,6 @@
 
 #include "rxgk_private.h"
 
-/* This prototype is in afs_prototypes.h, which we can't include here.
- * We will build this object and link it directly. */
-afs_int32 afs_uuid_create(afsUUID * uuid);
-
 static struct rx_securityOps rxgk_client_ops = {
     rxgk_Close,
     rxgk_NewConnection,		/* every new connection */
@@ -71,7 +67,7 @@ static struct rx_securityOps rxgk_client_ops = {
 
 struct rx_securityClass *
 rxgk_NewClientSecurityObject(RXGK_Level level, afs_int32 enctype, rxgk_key k0,
-			     RXGK_Data *token)
+			     RXGK_Data *token, afsUUID *uuid)
 {
     struct rx_securityClass *sc;
     struct rxgk_cprivate *cp;
@@ -99,6 +95,16 @@ rxgk_NewClientSecurityObject(RXGK_Level level, afs_int32 enctype, rxgk_key k0,
 	free(cp);
 	return NULL;
     }
+    if (uuid != NULL) {
+	cp->uuid = malloc(sizeof(*uuid));
+	if (cp->uuid == NULL) {
+	    free(sc);
+	    xdr_free((xdrproc_t)xdr_RXGK_Data, &cp->token);
+	    free(cp);
+	    return NULL;
+	}
+	memcpy(&cp->uuid, uuid, sizeof(*uuid));
+    }
 
     return sc;
 }
@@ -118,7 +124,6 @@ fill_authenticator(RXGK_Authenticator *authenticator, char *nonce,
 		   struct rxgk_cprivate *cp, struct rx_connection *aconn)
 {
     XDR xdrs;
-    afsUUID uuid;
     afs_int32 call_numbers[RX_MAXCALLS], maxcall;
     int ret, i, ncalls;
     u_int len;
@@ -127,24 +132,28 @@ fill_authenticator(RXGK_Authenticator *authenticator, char *nonce,
     memset(&call_numbers, 0, sizeof(call_numbers));
 
     memcpy(authenticator->nonce, nonce, 20);
-    /* Must encode the uuid manually.  XXX only venus needs this. */
-    afs_uuid_create(&uuid);
+    /* Encode the uuid to an opaque, if present. */
     xdrlen_create(&xdrs);
-    if (!xdr_afsUUID(&xdrs, &uuid)) {
-	ret = RXGEN_CC_MARSHAL;
-	goto cleanup;
-    }
-    len = xdr_getpos(&xdrs);
-    authenticator->appdata.val = xdr_alloc(len);
-    if (authenticator->appdata.val == NULL) {
-	ret = RXGEN_CC_MARSHAL;
-	goto cleanup;
-    }
-    xdr_destroy(&xdrs);
-    xdrmem_create(&xdrs, authenticator->appdata.val, len, XDR_ENCODE);
-    if (!xdr_afsUUID(&xdrs, &uuid)) {
-	ret = RXGEN_CC_MARSHAL;
-	goto cleanup;
+    if (cp->uuid != NULL) {
+	if (!xdr_afsUUID(&xdrs, cp->uuid)) {
+	    ret = RXGEN_CC_MARSHAL;
+	    goto cleanup;
+	}
+	len = xdr_getpos(&xdrs);
+	authenticator->appdata.val = xdr_alloc(len);
+	if (authenticator->appdata.val == NULL) {
+	    ret = RXGEN_CC_MARSHAL;
+	    goto cleanup;
+	}
+	xdr_destroy(&xdrs);
+	xdrmem_create(&xdrs, authenticator->appdata.val, len, XDR_ENCODE);
+	if (!xdr_afsUUID(&xdrs, cp->uuid)) {
+	    ret = RXGEN_CC_MARSHAL;
+	    goto cleanup;
+	}
+    } else {
+	authenticator->appdata.val = NULL;
+	authenticator->appdata.len = 0;
     }
 
     authenticator->level = cp->level;

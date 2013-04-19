@@ -109,6 +109,7 @@ struct rx_securityClass * rxgk_NewServerSecurityObject(void *getkey_rock,
 struct rx_securityClass *rxgk_NewClientSecurityObject(RXGK_Level level,
 						      afs_int32 enctype,
 						      rxgk_key k0,
-						      RXGK_Data *token);
+						      RXGK_Data *token,
+						      afsUUID *uuid);
 
 #endif /* OPENAFS_RXGK_H */

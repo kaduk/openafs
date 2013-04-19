@@ -442,7 +442,8 @@ main(int argc, char *argv[])
 		    &k0, &token);
 
     /* Now, do it again, but over rxgk instead of rxnull. */
-    secobj = rxgk_NewClientSecurityObject(info.level, info.enctype, k0, &token);
+    secobj = rxgk_NewClientSecurityObject(info.level, info.enctype, k0, &token,
+					  NULL);
     ret = get_token(secobj, RX_SECIDX_GK, sname, INADDR_LOOPBACK, &info,
 		    &k0, &token);
 

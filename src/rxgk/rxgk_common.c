@@ -67,6 +67,7 @@ release_object(struct rx_securityClass *secobj)
     } else if (priv->type == RXGK_CLIENT) {
 	cp = &priv->c;
 	/* XXX free k0 but it is not a copy yet */
+	free(cp->uuid);
 	free(cp);
     }
 
