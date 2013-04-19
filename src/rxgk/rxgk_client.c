@@ -287,7 +287,9 @@ rxgk_GetResponse(struct rx_securityClass *aobj, struct rx_connection *aconn,
     cc = rx_GetSecurityData(aconn);
 
     /* Decode the challenge to get the nonce. */
-    xdrmem_create(&xdrs, rx_DataOf(apacket), rx_GetDataSize(apacket),
+    if (rx_Contiguous(apacket) < 20)
+	return RXGK_PACKETSHORT;
+    xdrmem_create(&xdrs, rx_DataOf(apacket), rx_Contiguous(apacket),
 		  XDR_DECODE);
     if (!xdr_RXGK_Challenge(&xdrs, &challenge)) {
 	ret = RXGEN_CC_UNMARSHAL;
