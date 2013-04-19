@@ -106,6 +106,13 @@ rxgk_NewClientSecurityObject(RXGK_Level level, afs_int32 enctype, rxgk_key k0,
 /*
  * Helpers for GetResponse.
  */
+
+/*
+ * Populate the RXGK_Authenticator structure.
+ * The caller is responsible for pre-zeroing the structure and freeing
+ * the resulting allocations, including partial allocations in the case
+ * of failure.
+ */
 static int
 fill_authenticator(RXGK_Authenticator *authenticator, char *nonce,
 		   struct rxgk_cprivate *cp, struct rx_connection *aconn)
@@ -120,7 +127,7 @@ fill_authenticator(RXGK_Authenticator *authenticator, char *nonce,
     memset(&call_numbers, 0, sizeof(call_numbers));
 
     memcpy(authenticator->nonce, nonce, 20);
-    /* Must encode the uuid manually. */
+    /* Must encode the uuid manually.  XXX only venus needs this. */
     afs_uuid_create(&uuid);
     xdrlen_create(&xdrs);
     if (!xdr_afsUUID(&xdrs, &uuid)) {
