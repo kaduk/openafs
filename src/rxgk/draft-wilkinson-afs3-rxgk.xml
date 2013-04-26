@@ -289,7 +289,10 @@ enum RXGK_Level {
            terminates.  If the major status code is GSS_S_COMPLETE and the
            output token is zero length, this is a success condition and
            the negotiation loop terminates (this cannot happen on the first
-           iteration of the loop).  Otherwise, if the major status code
+           iteration of the loop).  If the major status code is GSS_S_COMPLETE
+           and the output token is of nonzero length, the negotiation loop
+           proceeds and the token is sent to the server.
+           Otherwise, if the major status code
            does not include GSS_S_CONTINUE_NEEDED, the negotiation loop
            is in an error condition and terminates.  If the major status code
            includes GSS_S_CONTINUE_NEEDED, the output token is sent to the
@@ -304,8 +307,13 @@ enum RXGK_Level {
            GSS_S_CONTINUE_NEEDED, the server also returns an opaque identifier
            in the opaque_out field of the RPC, which will allow the server to
            associate a future RPC call with this partially formed
-           security context.  If the major status code is GSS_S_COMPLETE,
-           the server constructs an RXGK_ClientInfo structure per below.</t><t>The client receives the results of the GSSNegotiate() RPC.
+           security context.  If the major status code is GSS_S_COMPLETE
+           and the ret_flags output of GSS_Accept_sec_context() has the flags
+           GSS_C_CONF_FLAG and GSS_C_INTEG_FLAG both set to true,
+           the server constructs an RXGK_ClientInfo structure per below.
+           If one or both of these flags are false, then negotiation has
+           failed and will be indicated by the server returning a major
+           status code of GSS_S_BAD_QOP.</t><t>The client receives the results of the GSSNegotiate() RPC.
            If the major status code is not GSS_S_COMPLETE and does not
            include GSS_S_CONTINUE_NEEDED, the negotiation loop is in an error
            condition and terminates.  If the most recent call to
