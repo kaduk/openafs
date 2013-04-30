@@ -912,8 +912,7 @@ end
 	   serve slightly different purposes.  A random nonce is also
 	   used in the challenge-response authentication protocol, which
 	   serves yet a different purpose.</t>
-        <t>The client_nonce is important for using the MIC of the StartParams
-	   structure as a defense against man-in-the-middle attacks,
+        <t>The client_nonce ensures that the StartParams structure is unique,
 	   and should be long enough that the client will not generate
 	   collisions within the lifetime of a given set of GSS credentials.
 	   The client_nonce also contributes to the uniqueness of the
