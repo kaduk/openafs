@@ -182,9 +182,9 @@ enum RXGK_Level {
       <figure>
         <artwork>
     /* limits for variable-length arrays */
-    const RXGK_MAXENCTYPES = 10;
-    const RXGK_MAXLEVELS = 10;
-    const RXGK_MAXMIC = 16384;
+    const RXGK_MAXENCTYPES = 255;
+    const RXGK_MAXLEVELS = 255;
+    const RXGK_MAXMIC = 1024;
     const RXGK_MAXNONCE = 1024;
 
     typedef int RXGK_Enctypes&lt;RXGK_MAXENCTYPES&gt;;
