@@ -55,7 +55,8 @@
      on the wire and in the code fragments contained within this document. </t>
       <t>Architecturally, rxgk is split into two parts. The rxgk rx security
      class provides strong encryption using previously negotiated ciphers and
-     keys. It builds on the Kerberos crypto framework for its encryption 
+     keys. It builds on the Kerberos crypto framework <xref target="RFC3961" />
+     for its encryption 
      requirements, but is authentication mechanism independent -- the class
      itself does not require the use of either Kerberos, or GSSAPI. The
      security class simply uses a previously negotiated encryption type, and
