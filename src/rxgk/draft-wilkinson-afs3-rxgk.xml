@@ -256,7 +256,7 @@ enum RXGK_Level {
       <t>The client then calls RXGK_GSSNegotiate, as defined above. This takes
        the following parameters:
     <list style="hanging" hangIndent="6"><t hangText="client_start">The client params structure detailed above.
-        This should remain constant across the negotiation.</t><t hangText="input_token_buffer">The token produced by a call to
+        This will remain constant across the negotiation.</t><t hangText="input_token_buffer">The token produced by a call to
 	GSS_Init_sec_context().</t><t hangText="opaque_in">An opaque token, which was returned by the 
 	server following a previous call to GSSNegotiate in this negotiation. 
 	If this is the first call, opaque_in should be zero-length.</t><t hangText="output_token_buffer">The token output by the server's call
