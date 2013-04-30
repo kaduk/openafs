@@ -1041,6 +1041,10 @@ end
         <t>Use abstract GSSAPI routine names, not the C binding names.</t>
         <t>Discuss packet handling for received packets.</t>
       </section>
+      <section title="Since 04">
+        <t>Correct omissions from description of GSS negotiation loop.</t>
+        <t>Adjust limits on variable-length array lengths.</t>
+      </section>
     </section>
   </back>
 </rfc>
