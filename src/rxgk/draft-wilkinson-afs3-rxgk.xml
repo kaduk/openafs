@@ -334,7 +334,8 @@ enum RXGK_Level {
        the XDR representation of a 
        RXGK_ClientInfo structure, encrypted using gss_wrap() with
        confidentiality protection. The client should decrypt this structure
-       using gss_unwrap().  If the returned value of conf_state is zero,
+       using gss_unwrap().  If the value of conf_state returned from
+       gss_unwrap() is zero,
        the negotiation has failed.</t>
       <t>RXGK_ClientInfo contains the following server populated
        fields:
