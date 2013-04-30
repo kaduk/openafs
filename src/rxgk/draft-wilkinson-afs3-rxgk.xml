@@ -617,7 +617,7 @@ enum RXGK_Level {
         <t>The rxgk response is an XDR encoded structure, with the following 
        signature:
 <figure><artwork>
-    const RXGK_MAXAUTHENTICATOR = 1500	/* better fit in a packet! */
+    const RXGK_MAXAUTHENTICATOR = 1416	/* better fit in a packet! */
     struct RXGK_Response {
         rxgkTime start_time;
         RXGK_Data token;
