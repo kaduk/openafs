@@ -100,12 +100,12 @@ typedef hyper rxgkTime;
        space documented in section 4 of <xref target="RFC4120">RFC4120</xref>.
 
 <figure><artwork>
-const RXGK_CLIENT_ENC_PACKET		= 1026;
-const RXGK_CLIENT_MIC_PACKET		= 1027;
-const RXGK_SERVER_ENC_PACKET		= 1028;
-const RXGK_SERVER_MIC_PACKET		= 1029;
-const RXGK_CLIENT_ENC_RESPONSE		= 1030;
-const RXGK_SERVER_ENC_TOKEN		= 1036;
+const RXGK_CLIENT_ENC_PACKET            = 1026;
+const RXGK_CLIENT_MIC_PACKET            = 1027;
+const RXGK_SERVER_ENC_PACKET            = 1028;
+const RXGK_SERVER_MIC_PACKET            = 1029;
+const RXGK_CLIENT_ENC_RESPONSE          = 1030;
+const RXGK_SERVER_ENC_TOKEN             = 1036;
 </artwork></figure>
 
        The application of these key usage numbers is specified in
