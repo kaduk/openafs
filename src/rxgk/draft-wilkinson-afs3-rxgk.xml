@@ -145,7 +145,8 @@ enum RXGK_Level {
     <section anchor="tokens" title="Token Format">
       <t>An rxgk token is an opaque identifier which is specific to a particular
      application's implementation of rxgk. The token is completely opaque to
-     the client, which just transmits it from server to server. The token MUST
+     the client, which just receives it from one server and passes it
+     to another. The token MUST
      permit the receiving server to identify the corresponding user and session
      key for the incoming connection -- whether that be by decrypting the
      information within the token, or making the token a large random
