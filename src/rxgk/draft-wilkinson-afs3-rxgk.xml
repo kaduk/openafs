@@ -321,10 +321,7 @@ enum RXGK_Level {
            condition and terminates.  If the most recent call to
            GSS_Init_sec_context() returned the major status code
            GSS_S_COMPLETE and an output token, the negotiation loop is in a
-           success condition and terminates.  If the most recent call to
-           GSS_Init_sec_context() returned a major status code including
-           GSS_S_CONTINUE_NEEDED and the output_token_buffer is zero length,
-           the negotiation loop is in error and terminates.  Otherwise,
+           success condition and terminates.  Otherwise,
            the client proceeds to begin the next cycle of the negotiation
            loop.</t></list>
        In general, an error condition at the server
