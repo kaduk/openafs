@@ -163,7 +163,7 @@ enum RXGK_Level {
      by observing other connections. An attacker MUST NOT be able to forge
      tokens which convey a particular session key or identity.</t>
     </section>
-    <section title="Key Negotiation">
+    <section title="Key Negotiation" anchor="keyneg">
       <t>rxgk uses an independent RX RPC service for key negotiation. The 
        location of this service is application dependent. Within a given
        application protocol, a client MUST be able to locate the key
@@ -249,8 +249,10 @@ enum RXGK_Level {
  	 at their earliest convenience.</t><t hangText="client_nonce:">A client-generated string of random bytes,
 	 to be used as input to the key generation.  This nonce SHOULD
 	 be at least 20 octets in length.</t></list>
-       The client then calls GSS_Init_sec_context() to obtain an output token
-       to send to the server. The GSS service name is application dependent.</t>
+       The client then continues the negotiation loop (described below) by
+       calling GSS_Init_sec_context() to obtain an output token
+       to send to the server. The GSS service name is application dependent;
+       for constructing a service name see <xref target="keyneg" />.</t>
       <t>The client then calls RXGK_GSSNegotiate, as defined above. This takes
        the following parameters:
     <list style="hanging" hangIndent="6"><t hangText="client_start">The client params structure detailed above.
