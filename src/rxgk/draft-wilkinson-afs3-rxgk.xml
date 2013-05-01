@@ -121,12 +121,13 @@ const RXGK_SERVER_ENC_TOKEN             = 1036;
 	 authentication, without either integrity or confidentiality 
 	 protection. This mode of operation can provide higher throughput, but
 	 is vulnerable to man in the middle attacks. This corresponds
- 	 to the traditional 'clear' security level.</t><t hangText="Integrity"> (1) Provides integrity protection only. 
+ 	 to the traditional rxkad 'clear' security level.</t>
+         <t hangText="Integrity"> (1) Provides integrity protection only. 
 	  Data is protected from modification by an attacker, but not against 
-	  eavesdropping. This corresponds to the traditional 'auth' security
+	  eavesdropping. This corresponds to the traditional rxkad 'auth' security
 	  level, authenticating the data payload as well as the Rx connection.</t><t hangText="Encryption"> (2) Provides both integrity and 
 	  confidentiality protection. This corresponds to the traditional
-	  'crypt' security level.</t></list>
+	  rxkad 'crypt' security level.</t></list>
      The authentication only, or clear, security level provides faster
      throughput, at the expense of connection security.  The 'clear'
      security level is vulnerable to a man in the middle altering the data
