@@ -181,7 +181,10 @@ enum RXGK_Level {
        construct the target principal name as
        &lt;service name&gt;@&lt;hostname&gt; using the name type
        GSS_C_NT_HOSTBASED_SERVICE.</t>
-      <t>The key negotiation protocol is defined by the following RPC-L:</t>
+      <t>The key negotiation protocol is defined by the RPC-L below.
+       The maximum length of data allowable in an RXGK_Data object,
+       RXGK_MAXDATA, is application-specific, but MUST NOT be less
+       than 1048576.</t>
       <figure>
         <artwork>
     /* limits for variable-length arrays */
@@ -189,9 +192,10 @@ enum RXGK_Level {
     const RXGK_MAXLEVELS = 255;
     const RXGK_MAXMIC = 1024;
     const RXGK_MAXNONCE = 1024;
+    /* const RXGK_MAXDATA = 1048576; */
 
     typedef int RXGK_Enctypes&lt;RXGK_MAXENCTYPES&gt;;
-    typedef opaque RXGK_Data&lt;&gt;;
+    typedef opaque RXGK_Data&lt;RXGK_MAXDATA&gt;;
 
     struct RXGK_StartParams { 
         RXGK_Enctypes enctypes;
