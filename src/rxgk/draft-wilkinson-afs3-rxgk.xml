@@ -448,7 +448,6 @@ enum RXGK_Level {
     };
 
     struct RXGK_TokenInfo {
-        int errorcode;
         RXGK_Enctype enctype;
         RXGK_Level level;
         unsigned int lifetime;
@@ -492,25 +491,9 @@ enum RXGK_Level {
 	 parameter, along with the computed lifetime, bytelife, and
 	 expiration.</t>
 	<t>If the server is unable to perform the CombineTokens operation with
-	 the given arguments, a nonzero value is returned in the errorcode
-	 element of the info parameter; errorcode is zero for
-	 a successful CombineTokens operation.  Errors are returned in
-	 this in-band field as opposed to as the RPC return value because
-	 the error code is security sensitive -- the action taken by the
-	 client upon receipt will affect the security of future actions.</t>
-	<t>If errorcode is nonzero, the values of the other fields in the
-	 RXGK_TokenInfo structure and the value of new_token are undefined.
-         Nonzero values for errorcode should be com_err codes
-         <xref target="COMERR"/>, from an RX,
-         RXGK, or application-specific table.  See
-         <xref target="AFSReg"/> for RXGK error codes.
-         For example,
-         <list style="hanging" hangIndent="6"><t hangText="RXGEN_OPCODE">used when
-             the server will refuse all CombineTokens requests.</t><t hangText="RXGK_BADETYPE">used when none of the enctypes
-             supplied by the client are acceptable to the server.</t><t hangText="RXGK_BADLEVEL">used when none of the security levels
-             supplied by the client are acceptable to the server.</t><t hangText="RXGK_EXPIRED">used when one or more of the input
-             tokens was already expired.</t></list>
-         To reduce the potential for denial of service attacks, servers
+	 the given arguments, a nonzero value is returned and the client's
+	 request fails.</t>
+	<t> To reduce the potential for denial of service attacks, servers
 	 SHOULD only offer the CombineTokens operation to clients connecting
 	 over a secured rxgk connection.  CombineTokens SHOULD NOT be offered
 	 over an RXGK_LEVEL_CLEAR connection.
@@ -1053,6 +1036,7 @@ end
       <section title="Since 04">
         <t>Correct omissions from description of GSS negotiation loop.</t>
         <t>Adjust limits on variable-length array lengths.</t>
+        <t>Remove errorcode field from RXGK_TokenInfo.</t>
       </section>
     </section>
   </back>

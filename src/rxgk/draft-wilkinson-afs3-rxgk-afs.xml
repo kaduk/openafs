@@ -181,18 +181,16 @@
 	   cannot be combined with any other token, and servers MUST reject
 	   attempts to do so.</t>
         <t>If the server is unable to perform the AFSCombineTokens operation
-          with the given arguments, a nonzero value is returned in the
-          errorcode field of token_info; errorcode is zero for a successful
-          AFSCombineTokens operation.  If errorcode is nonzero, the values
-          of the other fields in token_info and the value of new_token
-          are undefined.</t>
+          with the given arguments, a nonzero value is returned.
+          Clients MUST NOT use such an error as an indication to fall back to
+          to a different security class.</t>
         <t>If the returned token is zero-length, then the destination does not
           support rxgk, and the client MAY fall back to using a different
 	  authentication mechanism for that server. An rxgk capable client
 	  operating within an rxgk enabled cell MUST NOT downgrade its 
 	  choice of security layer in any other situation.</t>
         <t>Other aspects of the operation of AFSCombineTokens, including the
-          values for the errorcode field of token_info and the combination
+          combination
           of keys and tokens, are the same as the CombineTokens RPC, documented in
           CombineTokens call, documented in 
           <xref target="I-D.wilkinson-afs3-rxgk"/>.</t>
@@ -556,6 +554,9 @@
         <t>Clarify the scope of the document.</t>
         <t>Use a leap of faith for RegisterAddrsAndKey.</t>
         <t>Specify the nametype of the acceptor identity.</t>
+      </section>
+      <section title="Since 02">
+        <t>Deal with fallout of errorcode's removal from RXGK_TokenInfo.</t>
       </section>
     </section>
   </back>
