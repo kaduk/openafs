@@ -46,6 +46,8 @@
 #include <rx/rx_packet.h>
 #include <hcrypto/rand.h>
 
+#include "rxgk_private.h"
+
 static ssize_t
 etype_to_len(int etype)
 {
@@ -203,6 +205,27 @@ rxgk_key_number(afs_uint16 wire, afs_uint32 local, afs_uint32 *real)
 	return RXGK_BADKEYNO;
     }
     return 0;
+}
+
+/*
+ * Update the key version number on a connection.
+ * Also reset the per-connection statistics.
+ */
+void
+rxgk_update_kvno(struct rx_connection *aconn, afs_uint32 kvno)
+{
+    struct rxgk_sconn *sc;
+    struct rxgk_cconn *cc;
+    void *data;
+
+    data = rx_GetSecurityData(aconn);
+    if (rx_IsServerConn(aconn)) {
+	sc = data;
+	sc->key_number = kvno;
+    } else {
+	cc = data;
+	cc->key_number = kvno;
+    }
 }
 
 void
