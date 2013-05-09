@@ -176,6 +176,35 @@ cleanup:
     return ret;
 }
 
+/*
+ * Given the wire kvno and the local state, return the actual kvno which
+ * should be used for key derivation.  All values are in host byte order.
+ * Return an error if the two input values are inconsistent, 0 otherwise.
+ */
+afs_int32
+rxgk_key_number(afs_uint16 wire, afs_uint32 local, afs_uint32 *real)
+{
+    afs_uint16 lres, diff;
+
+    lres = local % (1u << 16);
+    diff = (afs_uint16)(wire - lres);
+
+    if (diff == 0) {
+	*real = local;
+    } else if (diff == 1) {
+	if (local == MAX_AFS_UINT32)
+	    return RXGK_INCONSISTENCY;
+	*real = local + 1;
+    } else if (diff == (afs_uint16)0xffffu) {
+	if (local == 0)
+	    return RXGK_INCONSISTENCY;
+	*real = local - 1;
+    } else {
+	return RXGK_BADKEYNO;
+    }
+    return 0;
+}
+
 void
 print_data(void *p, int len)
 {

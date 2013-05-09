@@ -76,6 +76,7 @@ void rxgk_populate_header(struct rxgk_header *header,
 afs_int32 rxgk_nonce(RXGK_Data *nonce, int len);
 afs_int32 rxgk_security_overhead(struct rx_connection *aconn, RXGK_Level level,
 				 rxgk_key k0);
+afs_int32 rxgk_key_number(afs_uint16 wire, afs_uint32 local, afs_uint32 *real);
 void print_data(void *p, int len);
 
 /* rxgk_crypto.c */
