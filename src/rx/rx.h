@@ -522,7 +522,7 @@ typedef enum {
 } rx_securityIndex;
 
 struct rx_securityObjectStats {
-    char type;			/* 0:unk 1:null,2:vab 3:kad */
+    char type;			/* 0:unk 1:null,2:vab 3:kad, 4:gk */
     char level;
     char sparec[10];		/* force correct alignment */
     afs_int32 flags;		/* 1=>unalloc, 2=>auth, 4=>expired */

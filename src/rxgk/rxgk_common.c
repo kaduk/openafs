@@ -458,6 +458,40 @@ int
 rxgk_GetStats(struct rx_securityClass *aobj, struct rx_connection *aconn,
 	      struct rx_securityObjectStats *astats)
 {
-    /* XXXBJK */
+    struct rxgkStats *stats;
+    struct rxgk_sconn *sc;
+    union rxgk_private *p;
+    struct rxgk_cprivate *cp;
+    struct rxgk_cconn *cc;
+    void *data;
+
+    astats->type = 4;	/* rxgk */
+    data = rx_GetSecurityData(aconn);
+    if (data == NULL) {
+	astats->flags |= 1;
+	return 0;
+    }
+
+    if (rx_IsServerConn(aconn)) {
+	sc = data;
+	stats = &sc->stats;
+	astats->level = sc->level;
+	if (sc->auth)
+	    astats->flags |= 2;
+	/* rxgkTime is 100s of nanoseconds; time here is seconds */
+	astats->expires = (afs_uint32)(sc->expiration / 10000000);
+    } else {
+	cc = data;
+	stats = &cc->stats;
+	p = rx_GetSecurityData(aconn);
+	cp = &p->c;
+	astats->level = cp->level;
+    }
+
+    astats->packetsReceived = stats->precv;
+    astats->packetsSent = stats->psent;
+    astats->bytesReceived = stats->brecv;
+    astats->bytesSent = stats->bsent;
+	
     return 0;
 }
