@@ -303,14 +303,16 @@ decrypt_authenticator(RXGK_Authenticator *out, struct rx_opaque *in,
     lkvno = sc->key_number;
     ret = rxgk_key_number(wkvno, lkvno, &kvno);
     if (ret != 0)
-	goto cleanup;
+	return ret;
     ret = derive_tk(&tk, sc->k0, rx_GetConnectionEpoch(aconn),
 		    rx_GetConnectionId(aconn), sc->start_time, kvno);
     if (ret != 0)
-	goto cleanup;
+	return ret;
     ret = decrypt_in_key(tk, RXGK_CLIENT_ENC_RESPONSE, &encauth, &packauth);
-    if (ret != 0)
-	goto cleanup;
+    if (ret != 0) {
+	release_key(&tk);
+	return ret;
+    }
     if (kvno > lkvno)
 	rxgk_update_kvno(aconn, kvno);
 
