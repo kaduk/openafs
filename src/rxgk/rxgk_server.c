@@ -282,25 +282,37 @@ cleanup:
 /* Caller is responsible for freeing 'out'. */
 static int
 decrypt_authenticator(RXGK_Authenticator *out, struct rx_opaque *in,
-		      struct rx_connection *aconn, struct rxgk_sconn *sc)
+		      struct rx_connection *aconn, struct rxgk_sconn *sc,
+		      struct rx_packet *apacket)
 {
     XDR xdrs;
     RXGK_Data encauth, packauth;
     rxgk_key tk;
+    afs_int32 lkvno, kvno;
+    afs_int16 wkvno;
     int ret;
 
     memset(&xdrs, 0, sizeof(xdrs));
     zero_rxgkdata(&packauth);
     tk = NULL;
+    kvno = 0;
 
     encauth.len = in->len;
     encauth.val = in->val;
-    /* XXX hardcoding key number 0. */
+    wkvno = ntohs(rx_GetPacketCksum(apacket));
+    lkvno = sc->key_number;
+    ret = rxgk_key_number(wkvno, lkvno, &kvno);
+    if (ret != 0)
+	goto cleanup;
     ret = derive_tk(&tk, sc->k0, rx_GetConnectionEpoch(aconn),
-		    rx_GetConnectionId(aconn), sc->start_time, 0);
+		    rx_GetConnectionId(aconn), sc->start_time, kvno);
     if (ret != 0)
 	goto cleanup;
     ret = decrypt_in_key(tk, RXGK_CLIENT_ENC_RESPONSE, &encauth, &packauth);
+    if (ret != 0)
+	goto cleanup;
+    if (kvno > lkvno)
+	rxgk_update_kvno(aconn, kvno);
 
     xdrmem_create(&xdrs, packauth.val, packauth.len, XDR_DECODE);
     if (!xdr_RXGK_Authenticator(&xdrs, out)) {
@@ -366,7 +378,7 @@ rxgk_CheckResponse(struct rx_securityClass *aobj,
 
     /* Try to decrypt the authenticator. */
     ret = decrypt_authenticator(&authenticator, &response.authenticator, aconn,
-				sc);
+				sc, apacket);
     if (ret != 0)
 	goto cleanup;
     ret = check_authenticator(&authenticator, aconn, sc);

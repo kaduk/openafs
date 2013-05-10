@@ -253,6 +253,8 @@ rxgk_CheckPacket(struct rx_securityClass *aobj, struct rx_call *acall,
     rxgk_key k0, tk;
     rxgkTime start_time;
     afs_int32 keyusage;
+    afs_uint32 lkvno, kvno;
+    afs_uint16 wkvno;
     int isserver, ret;
 
     aconn = rx_ConnectionOf(acall);
@@ -266,6 +268,7 @@ rxgk_CheckPacket(struct rx_securityClass *aobj, struct rx_call *acall,
 	isserver = 1;
 	k0 = sc->k0;
 	start_time = sc->start_time;
+	lkvno = sc->key_number;
     } else {
 	cc = data;
 	cp = &priv->c;
@@ -273,17 +276,22 @@ rxgk_CheckPacket(struct rx_securityClass *aobj, struct rx_call *acall,
 	isserver = 0;
 	k0 = cp->k0;
 	start_time = cc->start_time;
+	lkvno = cc->key_number;
     }
-    /* XXX hardcodes key number zero */
+    wkvno = ntohs(rx_GetPacketCksum(apacket));
+    ret = rxgk_key_number(wkvno, lkvno, &kvno);
+    if (ret != 0)
+	return ret;
     ret = derive_tk(&tk, k0, rx_GetConnectionEpoch(aconn),
-		    rx_GetConnectionId(aconn), start_time, 0);
+		    rx_GetConnectionId(aconn), start_time, kvno);
     keyusage = pick_recv_keyusage(isserver, level);
     if (keyusage == -1)
 	return RXGK_INCONSISTENCY;
 
     switch(level) {
 	case RXGK_LEVEL_CLEAR:
-	    return 0;
+	    ret = 0;
+	    break;
 	case RXGK_LEVEL_AUTH:
 	    ret = check_mic_packet(tk, keyusage, aconn, apacket);
 	    break;
@@ -293,6 +301,8 @@ rxgk_CheckPacket(struct rx_securityClass *aobj, struct rx_call *acall,
 	default:
 	    return RXGK_INCONSISTENCY;
     }
+    if (ret == 0 && kvno > lkvno)
+	rxgk_update_kvno(aconn, kvno);
 
     return ret;
 }
@@ -394,6 +404,8 @@ rxgk_PreparePacket(struct rx_securityClass *aobj, struct rx_call *acall,
     rxgk_key k0, tk;
     rxgkTime start_time;
     afs_int32 keyusage;
+    afs_uint32 lkvno;
+    afs_uint16 wkvno;
     int isserver, ret;
 
     aconn = rx_ConnectionOf(acall);
@@ -407,6 +419,7 @@ rxgk_PreparePacket(struct rx_securityClass *aobj, struct rx_call *acall,
 	isserver = 1;
 	k0 = sc->k0;
 	start_time = sc->start_time;
+	lkvno = sc->key_number;
     } else {
 	cc = data;
 	cp = &priv->c;
@@ -414,10 +427,12 @@ rxgk_PreparePacket(struct rx_securityClass *aobj, struct rx_call *acall,
 	isserver = 0;
 	k0 = cp->k0;
 	start_time = cc->start_time;
+	lkvno = cc->key_number;
     }
-    /* XXX hardcodes key number zero */
+    wkvno = (afs_int16)lkvno;
+    rx_SetPacketCksum(apacket, htons(wkvno));
     ret = derive_tk(&tk, k0, rx_GetConnectionEpoch(aconn),
-		    rx_GetConnectionId(aconn), start_time, 0);
+		    rx_GetConnectionId(aconn), start_time, lkvno);
     keyusage = pick_send_keyusage(isserver, level);
     if (keyusage == -1)
 	return RXGK_INCONSISTENCY;

@@ -215,9 +215,8 @@ pack_wrap_authenticator(RXGK_Data *encdata, RXGK_Authenticator *authenticator,
 	ret = RXGEN_CC_MARSHAL;
 	goto cleanup;
     }
-    /* XXX key number hardcoded at zero. */
     ret = derive_tk(&tk, cp->k0, authenticator->epoch, authenticator->cid,
-		    cc->start_time, 0);
+		    cc->start_time, cc->key_number);
     if (ret != 0)
 	goto cleanup;
     ret = encrypt_in_key(tk, RXGK_CLIENT_ENC_RESPONSE, &data, encdata);
@@ -321,6 +320,8 @@ rxgk_GetResponse(struct rx_securityClass *aobj, struct rx_connection *aconn,
     if (ret != 0)
 	goto cleanup;
     rx_opaque_populate(&response.authenticator, encdata.val, encdata.len);
+    /* Put the kvno we used on the wire for the remote end. */
+    rx_SetPacketCksum(apacket, htons((afs_uint16)cc->key_number));
 
     /* Response is ready, now to shove it in a packet. */
     ret = pack_response(&packed, &response);
