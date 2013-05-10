@@ -288,7 +288,7 @@ decrypt_authenticator(RXGK_Authenticator *out, struct rx_opaque *in,
     XDR xdrs;
     RXGK_Data encauth, packauth;
     rxgk_key tk;
-    afs_int32 lkvno, kvno;
+    afs_uint32 lkvno, kvno;
     afs_int16 wkvno;
     int ret;
 
