@@ -255,13 +255,14 @@ rxgk_CheckPacket(struct rx_securityClass *aobj, struct rx_call *acall,
     afs_int32 keyusage;
     afs_uint32 lkvno, kvno;
     afs_uint16 wkvno;
-    int isserver, ret;
+    int isserver, ret, len;
 
     aconn = rx_ConnectionOf(acall);
     data = rx_GetSecurityData(aconn);
     secobj = rx_SecurityObjectOf(aconn);
     priv = secobj->privateData;
 
+    len = rx_GetDataSize(apacket);
     if (rx_IsServerConn(aconn)) {
 	sc = data;
 	level = sc->level;
@@ -269,6 +270,8 @@ rxgk_CheckPacket(struct rx_securityClass *aobj, struct rx_call *acall,
 	k0 = sc->k0;
 	start_time = sc->start_time;
 	lkvno = sc->key_number;
+	sc->stats.precv++;
+	sc->stats.brecv += len;
     } else {
 	cc = data;
 	cp = &priv->c;
@@ -277,6 +280,8 @@ rxgk_CheckPacket(struct rx_securityClass *aobj, struct rx_call *acall,
 	k0 = cp->k0;
 	start_time = cc->start_time;
 	lkvno = cc->key_number;
+	cc->stats.precv++;
+	cc->stats.brecv += len;
     }
     wkvno = ntohs(rx_GetPacketCksum(apacket));
     ret = rxgk_key_number(wkvno, lkvno, &kvno);
@@ -406,13 +411,14 @@ rxgk_PreparePacket(struct rx_securityClass *aobj, struct rx_call *acall,
     afs_int32 keyusage;
     afs_uint32 lkvno;
     afs_uint16 wkvno;
-    int isserver, ret;
+    int isserver, ret, len;
 
     aconn = rx_ConnectionOf(acall);
     data = rx_GetSecurityData(aconn);
     secobj = rx_SecurityObjectOf(aconn);
     priv = secobj->privateData;
 
+    len = rx_GetDataSize(apacket);
     if (rx_IsServerConn(aconn)) {
 	sc = data;
 	level = sc->level;
@@ -420,6 +426,8 @@ rxgk_PreparePacket(struct rx_securityClass *aobj, struct rx_call *acall,
 	k0 = sc->k0;
 	start_time = sc->start_time;
 	lkvno = sc->key_number;
+	sc->stats.psent++;
+	sc->stats.bsent += len;
     } else {
 	cc = data;
 	cp = &priv->c;
@@ -428,6 +436,8 @@ rxgk_PreparePacket(struct rx_securityClass *aobj, struct rx_call *acall,
 	k0 = cp->k0;
 	start_time = cc->start_time;
 	lkvno = cc->key_number;
+	cc->stats.psent++;
+	cc->stats.bsent += len;
     }
     wkvno = (afs_int16)lkvno;
     rx_SetPacketCksum(apacket, htons(wkvno));
