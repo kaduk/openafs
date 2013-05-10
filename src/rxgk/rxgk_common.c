@@ -78,8 +78,8 @@ release_object(struct rx_securityClass *secobj)
 int
 rxgk_Close(struct rx_securityClass *aobj)
 {
-    /* XXXBJK */
-    return 0;
+    aobj->refCount--;
+    return release_object(aobj);
 }
 
 /* Create a new connection */
