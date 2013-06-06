@@ -212,9 +212,69 @@ supergroup entries share many fields with the user/group entries, but
 the binary format is slightly different.  In all cases, integer fields
 are represented in network byte order.
 
-All entries have a flags field near the start which is used to indicate what
-type the entry is -- PRFREE, PRGRP, PRCONT, PRCELL, PRFOREIGN, or PRINST (not
-used).  The layout of a user or group entry (struct prentry) is:
+All entries have a flags field in the second 16 bits which is used to indicate
+what type the entry is -- PRFREE, PRGRP, PRCONT, PRCELL, PRFOREIGN, or PRINST
+(not used).  The other fields which are invariant in the block structure
+(i.e., present in all types of entry) are id, cellid, and next.  At present
+there is also a reserved field in all entry types at a fixed offset; this
+field can be used for future extensions.  The layout of the invariant fields is
+therefore:
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+octets +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     0 |       [entry-specific]        |          type_flags           |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                              id                               |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                            cellid                             |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                             next                              |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    16 |                       [entry-specific]                        |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                       [entry-specific]                        |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                       [entry-specific]                        |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                       [entry-specific]                        |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    32 |                           reserved                            |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+type_flags specifies the type of this prdb entry:
+0x1	PRFREE    -- the entry is on the free list
+0x2	PRGRP     -- the entry is a group entry
+0x4	PRCONT    -- the entry is a continuation block
+0x8	PRCELL    -- the entry is a cell entry
+0x10	PRFOREIGN -- the entry is for a foreign user
+0x20	PRINST    -- the entry is a sub/super instance
+this makes 0x3f the mask for the "type" bits.
+Other bits are allocated for status flags on the entry:
+0x40	PRACCESS  -- access checking is enabled
+0x80	PRQUOTA   -- group creation quota checking is enabled
+Note that this document specifies the on-disk data format, which is in
+network byte order. Because the fundamental quantum of ubik accesses is
+a 32-bit word, byte swaps between host and network byte order are done
+on 32-bit words, so the in-memory representation may place the bits
+holding type_flags in the other half of the word.
+
+id is the ID number of the user or group.  User entries are positive and
+group entries are negative.
+
+cellid is only used for foreign user entries (not foreign groups).
+Group entries are allocated for system:authuser@remotecell with
+a (negative 32-bit) group id of a particular substructure.  Foreign
+user entries have their cellid field set to the id of the
+system:authuser@remotecell group corresponding to the remotecell of the
+foreign user.  (Additionally, foreign user entries are allocated pts ids
+with a particular substructure.)
+
+next is a pointer to the next continuation block for this entry, or (for
+type PRFREE entries) a pointer to the next block on the free list.
+
+
+The layout of a user or group entry (struct prentry) is:
 
         0                   1                   2                   3
         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -325,34 +385,11 @@ prp_flags and type_flags are consolidated into a single "flags" field for
 API purposes.
 prp_flags hold the access bits for entries, e.g., PRP_STATUS_ANY
 and PRP_ADD_MEM.
-type_flags specifies the type of this prdb entry:
-0x1	PRFREE    -- the entry is on the free list
-0x2	PRGRP     -- the entry is a group entry
-0x4	PRCONT    -- the entry is a continuation block
-0x8	PRCELL    -- the entry is a cell entry
-0x10	PRFOREIGN -- the entry is for a foreign user
-0x20	PRINST    -- the entry is a sub/super instance
-this makes 0x3f the mask for the "type" bits
-0x40	PRACCESS  -- access checking is enabled
-0x80	PRQUOTA   -- group creation quota checking is enabled
-Note that this document specifies the on-disk data format, which is in
-network byte order.  Because prp_flags and type_flags are consolidated
+Because prp_flags and type_flags are consolidated
 into a single 'flags' field for the API, the in-memory layout will have
 prp_flags and type_flags swapped on little-endian machines.
 
-id is the ID number of the user or group.  User entries are positive and
-group entries are negative.
-
-cellid is only used for foreign user entries (not foreign groups).
-Group entries are allocated for system:authuser@remotecell with
-a (negative 32-bit) group id of a particular substructure.  Foreign
-user entries have their cellid field set to the id of the
-system:authuser@remotecell group corresponding to the remotecell of the
-foreign user.  (Additionally, foreign user entries are allocated pts ids
-with a particular substructure.)
-
-next is a pointer to the next continuation block for this entry, or (for
-type PRFREE entries) a pointer to the next block on the free list.
+[id, cellid, and next are described with the entry-invariant fields]
 
 createTime holds the time at which this entry was created, in seconds from
 the Unix epoch.
