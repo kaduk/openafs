@@ -249,7 +249,7 @@ type_flags specifies the type of this prdb entry:
 0x8	PRCELL    -- the entry is a cell entry
 0x10	PRFOREIGN -- the entry is for a foreign user
 0x20	PRINST    -- the entry is a sub/super instance
-this makes 0x3f the mask for the "type" bits.
+0x3f    PRTYPE    -- bitmask for "type" bits
 Other bits are allocated for status flags on the entry:
 0x40	PRACCESS  -- access checking is enabled
 0x80	PRQUOTA   -- group creation quota checking is enabled
