@@ -259,8 +259,9 @@ a 32-bit word, byte swaps between host and network byte order are done
 on 32-bit words, so the in-memory representation may place the bits
 holding type_flags in the other half of the word.
 
-id is the ID number of the user or group.  User entries are positive and
-group entries are negative.
+id is the ID number of the user or group, or the user/group to which
+an continuation or other extension entry belongs.  User entries are positive
+and group entries are negative.
 
 cellid is only used for foreign user entries (not foreign groups).
 Group entries are allocated for system:authuser@remotecell with
