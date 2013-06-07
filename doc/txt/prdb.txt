@@ -217,8 +217,14 @@ what type the entry is -- PRFREE, PRGRP, PRCONT, PRCELL, PRFOREIGN, or PRINST
 (not used).  The other fields which are invariant in the block structure
 (i.e., present in all types of entry) are id, cellid, and next.  At present
 there is also a reserved field in all entry types at a fixed offset; this
-field can be used for future extensions.  The layout of the invariant fields is
-therefore:
+field can be used for future extensions.  Another invariant is that each
+block (outside the header) is pointed to from some other location.  Continuation
+blocks are pointed to from the 'next' field of the previous block, and
+user/group entries are locatable from the name and id hash tables, either
+directly from the header or through a nextName/nextID pointer.  The head
+of the free list is in the prdb header directly.
+
+The layout of the invariant fields is:
 
         0                   1                   2                   3
         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -270,9 +276,12 @@ user entries have their cellid field set to the id of the
 system:authuser@remotecell group corresponding to the remotecell of the
 foreign user.  (Additionally, foreign user entries are allocated pts ids
 with a particular substructure.)
+There is no particularly good reason for the cellid field to remain an
+invariant in future extensions.
 
-next is a pointer to the next continuation block for this entry, or (for
-type PRFREE entries) a pointer to the next block on the free list.
+next is a pointer to the next entry in a chain of related data for this
+entry, e.g. a continuation block.  For type PRFREE entries, it is a pointer
+to the next block on the free list.
 
 
 The layout of a user or group entry (struct prentry) is:
@@ -390,7 +399,10 @@ Because prp_flags and type_flags are consolidated
 into a single 'flags' field for the API, the in-memory layout will have
 prp_flags and type_flags swapped on little-endian machines.
 
-[id, cellid, and next are described with the entry-invariant fields]
+[id and cellid are per the entry-invariant fields]
+
+next is a pointer to the next continuation block for this entry, or (for
+type PRFREE entries) a pointer to the next block on the free list.
 
 createTime holds the time at which this entry was created, in seconds from
 the Unix epoch.
