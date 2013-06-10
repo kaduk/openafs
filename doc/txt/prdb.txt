@@ -166,7 +166,10 @@ prdb.
 
 instcount is reserved for a feature which is not yet implemented.
 
-Five 32-bit fields are reserved for future expansion.
+exthash is a pointer to the head of the list of extended hash tables.
+Further discussion of extended hashes occurs later in this document.
+
+Four 32-bit fields are reserved for future expansion.
 
 The nameHash and idHash fields each contain 8191 entries; each entry is 32 bits,
 so the space consumed by each hash table is 32764 octets.
@@ -213,16 +216,17 @@ the binary format is slightly different.  In all cases, integer fields
 are represented in network byte order.
 
 All entries have a flags field in the second 16 bits which is used to indicate
-what type the entry is -- PRFREE, PRGRP, PRCONT, PRCELL, PRFOREIGN, or PREXT
-(not used).  The other fields which are invariant in the block structure
-(i.e., present in all types of entry) are id, cellid, and next.  At present
-there is also a reserved field in all entry types at a fixed offset; this
-field can be used for future extensions.  Another invariant is that each
-block (outside the header) is pointed to from some other location.  Continuation
-blocks are pointed to from the 'next' field of the previous block, and
-user/group entries are locatable from the name and id hash tables, either
-directly from the header or through a nextName/nextID pointer.  The head
-of the free list is in the prdb header directly.
+what type the entry is -- PRFREE, PRGRP, PRCONT, PRCELL, PRFOREIGN, or PREXT.
+The other fields which are invariant in the block structure
+(i.e., present in all types of entry) are id and next, though for extended hash
+blocks the id field identifies the type of hash table, not a particular
+prdb entry.  Another invariant is that each block (outside the header) is
+pointed to from some other location.  Continuation blocks are pointed to from
+the 'next' field of the previous block, and user/group entries are locatable
+from the name and id hash tables, either directly from the header or through a
+nextName/nextID pointer.  The head of the free list is in the prdb header
+directly.  Extended hash blocks are reachable from the prdb header, and extended
+data blocks have a link field from the corresponding individual entry.
 
 The layout of the invariant fields is:
 
@@ -233,19 +237,9 @@ octets +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        |                              id                               |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                            cellid                             |
+       |                       [entry-specific]                        |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        |                             next                              |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    16 |                       [entry-specific]                        |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                       [entry-specific]                        |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                       [entry-specific]                        |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                       [entry-specific]                        |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    32 |                           reserved                            |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 type_flags specifies the type of this prdb entry:
@@ -287,17 +281,11 @@ holding type_flags in the other half of the word.
 
 id is the ID number of the user or group, or the user/group to which
 an continuation or other extension entry belongs.  User entries are positive
-and group entries are negative.
-
-cellid is only used for foreign user entries (not foreign groups).
-Group entries are allocated for system:authuser@remotecell with
-a (negative 32-bit) group id of a particular substructure.  Foreign
-user entries have their cellid field set to the id of the
-system:authuser@remotecell group corresponding to the remotecell of the
-foreign user.  (Additionally, foreign user entries are allocated pts ids
-with a particular substructure.)
-There is no particularly good reason for the cellid field to remain an
-invariant in future extensions.
+and group entries are negative.  For entries of type PRHASHTBL the 'id'
+field (renamed 'kind') represents the type of hash table as opposed to an
+individual pts entry.  Numbers for hash table types are chosen in an attempt
+to avoid collisions with valid pts ids, though such collisions are not harmful
+if they do occur.
 
 next is a pointer to the next entry in a chain of related data for this
 entry, e.g. a continuation block.  For type PRFREE entries, it is a pointer
@@ -325,7 +313,7 @@ octets +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        |                          changeTime                           |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    32 |                           reserved0                           |
+    32 |                            extdata                            |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        |                           entries[0]                          |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -419,7 +407,17 @@ Because prp_flags and type_flags are consolidated
 into a single 'flags' field for the API, the in-memory layout will have
 prp_flags and type_flags swapped on little-endian machines.
 
-[id and cellid are per the entry-invariant fields]
+id is the ID number of the user or group, or the user/group to which
+an continuation or other extension entry belongs.  User entries are positive
+and group entries are negative.
+
+cellid is only used for foreign user entries (not foreign groups).
+Group entries are allocated for system:authuser@remotecell with
+a (negative 32-bit) group id of a particular substructure.  Foreign
+user entries have their cellid field set to the id of the
+system:authuser@remotecell group corresponding to the remotecell of the
+foreign user.  (Additionally, foreign user entries are allocated pts ids
+with a particular substructure.)
 
 next is a pointer to the next continuation block for this entry, or (for
 type PRFREE entries) a pointer to the next block on the free list.
@@ -437,7 +435,9 @@ changeTime is the most recent time at which the entry was changed with
 a PR_ChangeEntry RPC (that is, renamed or renumbered or had owner
 or name change).  Changing the access flags does not update this time.
 
-reserved[0] is reserved for future use.
+extdata is a pointer to the first extended data block associated with
+this entry.  If multiple extended data attributes are present, they are
+chained together using the nextExtData field of the extended data entry.
 
 entries[0-9] hold the first ten elements of this entry's membership list
 (the users in this group, or the groups of which this user is a member).
