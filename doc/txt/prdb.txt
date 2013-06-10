@@ -101,7 +101,7 @@ octets +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        |                           instcount                           |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                          [reserved]                           |
+       |                           exthash                             |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        |                          [reserved]                           |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -166,7 +166,10 @@ prdb.
 
 instcount is reserved for a feature which is not yet implemented.
 
-Five 32-bit fields are reserved for future expansion.
+exthash is a pointer to the head of the list of extended hash tables.
+Further discussion of extended hashes occurs later in this document.
+
+Four 32-bit fields are reserved for future expansion.
 
 The nameHash and idHash fields each contain 8191 entries; each entry is 32 bits,
 so the space consumed by each hash table is 32764 octets.
@@ -213,16 +216,17 @@ the binary format is slightly different.  In all cases, integer fields
 are represented in network byte order.
 
 All entries have a flags field in the second 16 bits which is used to indicate
-what type the entry is -- PRFREE, PRGRP, PRCONT, PRCELL, PRFOREIGN, or PRINST
-(not used).  The other fields which are invariant in the block structure
-(i.e., present in all types of entry) are id, cellid, and next.  At present
-there is also a reserved field in all entry types at a fixed offset; this
-field can be used for future extensions.  Another invariant is that each
-block (outside the header) is pointed to from some other location.  Continuation
-blocks are pointed to from the 'next' field of the previous block, and
-user/group entries are locatable from the name and id hash tables, either
-directly from the header or through a nextName/nextID pointer.  The head
-of the free list is in the prdb header directly.
+what type the entry is -- PRFREE, PRGRP, PRCONT, PRCELL, PRFOREIGN, or PREXT.
+The other fields which are invariant in the block structure
+(i.e., present in all types of entry) are id and next, though for extended hash
+blocks the id field identifies the type of hash table, not a particular
+prdb entry.  Another invariant is that each block (outside the header) is
+pointed to from some other location.  Continuation blocks are pointed to from
+the 'next' field of the previous block, and user/group entries are locatable
+from the name and id hash tables, either directly from the header or through a
+nextName/nextID pointer.  The head of the free list is in the prdb header
+directly.  Extended hash blocks are reachable from the prdb header, and extended
+data blocks have a link field from the corresponding individual entry.
 
 The layout of the invariant fields is:
 
@@ -233,19 +237,9 @@ octets +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        |                              id                               |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                            cellid                             |
+       |                       [entry-specific]                        |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        |                             next                              |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    16 |                       [entry-specific]                        |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                       [entry-specific]                        |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                       [entry-specific]                        |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                       [entry-specific]                        |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    32 |                           reserved                            |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 type_flags specifies the type of this prdb entry:
@@ -254,9 +248,29 @@ type_flags specifies the type of this prdb entry:
 0x4	PRCONT    -- the entry is a continuation block
 0x8	PRCELL    -- the entry is a cell entry
 0x10	PRFOREIGN -- the entry is for a foreign user
-0x20	PRINST    -- the entry is a sub/super instance
-0x3f    PRTYPE    -- bitmask for "type" bits
-Other bits are allocated for status flags on the entry:
+0x20	PREXT     -- the entry is of an extended type.  It's actual type is
+                     determined by the value in the PREXTMASK bits
+0x0f20  PREXTMASK -- bitmask for determining the type of an extended type entry
+0x0f3f  PRTYPE    -- bitmask for "type" bits
+The "type" bits are used to enumerate the various extended types; the individual
+bits within the PRTYPE bitmask do not individually convey meaning (except for
+PREXT which is set for all of them).  Currently allocated extended types are:
+0x0020  [reserved]
+0x0120  PRHASHTBL -- the entry is part of a prdb hash table.  There can be
+                     multiple additional hash tables allocated (outside of the
+                     prdb header), indicated by a type field within PRHASHTBL
+                     entries.
+                     See the description of hash table entries, below.
+0x0220  PREXTOPT  -- the entry holds extended options/data about a prdb entry.
+                     Subtypes are allocated within PREXTOPT to hold different
+                     types of extention data about entries, but all extended
+                     attributes of an entry are held in PREXTOPT blocks which
+                     chain together from the main block for the entry.
+                     See the description of the invariants for extended option
+                     blocks, below.
+0x0f20  [reserved]
+The next PREXT value to be allocated will be 0x0320.
+Other bits from type_flags are allocated for status flags on the entry:
 0x40	PRACCESS  -- access checking is enabled
 0x80	PRQUOTA   -- group creation quota checking is enabled
 Note that this document specifies the on-disk data format, which is in
@@ -267,17 +281,11 @@ holding type_flags in the other half of the word.
 
 id is the ID number of the user or group, or the user/group to which
 an continuation or other extension entry belongs.  User entries are positive
-and group entries are negative.
-
-cellid is only used for foreign user entries (not foreign groups).
-Group entries are allocated for system:authuser@remotecell with
-a (negative 32-bit) group id of a particular substructure.  Foreign
-user entries have their cellid field set to the id of the
-system:authuser@remotecell group corresponding to the remotecell of the
-foreign user.  (Additionally, foreign user entries are allocated pts ids
-with a particular substructure.)
-There is no particularly good reason for the cellid field to remain an
-invariant in future extensions.
+and group entries are negative.  For entries of type PRHASHTBL the 'id'
+field (renamed 'kind') represents the type of hash table as opposed to an
+individual pts entry.  Numbers for hash table types are chosen in an attempt
+to avoid collisions with valid pts ids, though such collisions are not harmful
+if they do occur.
 
 next is a pointer to the next entry in a chain of related data for this
 entry, e.g. a continuation block.  For type PRFREE entries, it is a pointer
@@ -305,7 +313,7 @@ octets +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        |                          changeTime                           |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    32 |                           reserved0                           |
+    32 |                            extdata                            |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        |                           entries[0]                          |
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -399,7 +407,17 @@ Because prp_flags and type_flags are consolidated
 into a single 'flags' field for the API, the in-memory layout will have
 prp_flags and type_flags swapped on little-endian machines.
 
-[id and cellid are per the entry-invariant fields]
+id is the ID number of the user or group, or the user/group to which
+an continuation or other extension entry belongs.  User entries are positive
+and group entries are negative.
+
+cellid is only used for foreign user entries (not foreign groups).
+Group entries are allocated for system:authuser@remotecell with
+a (negative 32-bit) group id of a particular substructure.  Foreign
+user entries have their cellid field set to the id of the
+system:authuser@remotecell group corresponding to the remotecell of the
+foreign user.  (Additionally, foreign user entries are allocated pts ids
+with a particular substructure.)
 
 next is a pointer to the next continuation block for this entry, or (for
 type PRFREE entries) a pointer to the next block on the free list.
@@ -417,7 +435,9 @@ changeTime is the most recent time at which the entry was changed with
 a PR_ChangeEntry RPC (that is, renamed or renumbered or had owner
 or name change).  Changing the access flags does not update this time.
 
-reserved[0] is reserved for future use.
+extdata is a pointer to the first extended data block associated with
+this entry.  If multiple extended data attributes are present, they are
+chained together using the nextExtData field of the extended data entry.
 
 entries[0-9] hold the first ten elements of this entry's membership list
 (the users in this group, or the groups of which this user is a member).
@@ -578,3 +598,203 @@ with the original user or group entry, extending the original 10 entries
 available in the main entry block (for user/group membership) or the
 original 2 entries available in the main group block (for supergroup
 membership).
+
+
+Extensions to the prdb may require the ability to look up an entry by
+some property other than name or ID, such as extended name or UUID.
+Efficient lookup indicates a hash table, as is used for the Name and ID
+lookups.  The prdb header is not extensible without a PRDBVERSION bump
+or manual intervention to free space, so we provide a mechanism to allocate
+a contiguous group of 192-octet blocks and maintain the prdb per-block
+invariants while using the bulk of the space in each block to hold the
+contents of the hash table.  Multiple hash tables may be allocated, and
+need not be allocated at the same time.  A contiguous group of blocks
+may easily be allocated at eofPtr from the prdb header.  Each hash table
+entry indicates what type of hash table it is for, and even though the blocks
+underlying the hash table are contiguous, the next pointer is still used to
+chain them together, for the benefit of database-verification tools.
+For a general hash table framework, the framework itself need not know the
+format of the data structures it is hashing, but in order to chain together
+entries which hash to the same value, the framework requires the offset
+within the structure of the pointer to the next entry in the chain.
+
+To find the extra hash tables at ptserver startup, the exthash field of
+the prdb header is used to point to the first block of the first extended
+hash table.  Additional hash tables are located using a link field in
+the extended hash table entries.  Since the location of the hash table
+will not change after it is created, the locations of all extended hash
+tables should be cached by the ptserver at startup, instead of following
+the chain of hash tables at runtime.
+
+Of the previously invariant fields for prbd entries, id has little meaning
+for a hash table storage block, but can be repurposed to hold the type ("id")
+of hash table in question, and cellid has no meaning at all and can be
+repurposed.  An attempt is made to allocate values for hash table types
+that do not conflict with pts IDs.
+
+The format of a hash table (PRHASHTBL) entry is:
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+octets +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     0 |           [unused]            |          type_flags           |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                             kind                              |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                           nextTbl                             |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                             next                              |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    16 |                         firstbucket                           |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                           nbuckets                            |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                          linkOffset                           |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                 [reserved for future expansion]               |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    32 |                          buckets[0]                           |
+       +                                                               +
+       ~                             [...]                             ~
+       +                                                               +
+   188 |                         buckets[39]                           |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+type_flags is PRHASHTBL to indicate this is a hash table entry.
+
+kind is an integer constant indicating what kind of hash table this is (that is,
+what piece of data is being hashed).  They are allocated sequentially, chosen
+from a range of integers that is unlikely to conflict with allocated pts IDs
+(this is for the convenience of database verification tools and is not a hard
+requirement):
+-103  PRHEXTNAME   -- The hash table for extended authentication names.
+The next value allocated for a hash table kind will be -104.
+
+nextTbl is a pointer to the first block of the next hash table in the chain
+of extended hash tables.
+
+next is a pointer to the next block in this hash table; it will always be
+the index of the block immediately following the current block.
+
+firstbucket is the index in the logical extended hash table of the first
+bucket contained in this 192-octet block.  E.g., for the first block of a
+given hash table it will be 0, for the second block it will be 40, etc..
+
+nbuckets is the number of buckets in this hash table.  It only needs to be
+set in the first block of each hash table, but can be set in subsequent blocks
+as an additional consistency check.
+
+linkOffset is the offset within a 192-octet entry of the pointer field used
+to chain together entries in this hash table which hash to the same value.
+
+A field is reserved for potential future expansion, and to make the number
+of buckets contained in each block a round number (40).
+
+buckets[40] are the forty hash table buckets contained within this block
+of the hash table.  Each bucket is a pointer to the head of the chain of
+entries which hash to that bucket.
+
+
+The PRHEXTNAME hash table is of size 8192 and uses the lookup3 hash
+function by Bob Jenkins for hashing the opaque authentication data name
+values.  Name data is stored in network byte order, so the appropriate
+variant of lookup3 for the current processor architecture must be used.
+
+
+In order to associate extended authentication names and other extended
+information with existing prdb entries, extension blocks are needed to
+hold the extended name or other data.  Each type of extended information
+will need its own data structure, but a common set of fields invariant
+among extended data is defined so that the entries may be maninpulated
+(traversed) without detailed knowledge of the individual types.
+
+The invariant fields in extended data entries are:
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+octets +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     0 |           [unused]            |          type_flags           |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                               id                              |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                          nextExtData                          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                              next                             |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    16 |                              kind                             |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+type_flags is always PREXT to indicate this is an extended data block.
+
+id is the id of the entry to which this extended data is attached.
+
+nextExtData is a pointer to the next extended data block associated with
+this entry (that is, to the next *logical* extended data block associated
+with this entry; continuations of this block use 'next' for if there is more
+data associated with the logical entry than fits in a single block).
+
+next is a pointer to the next block of this extension kind associated with
+this entry (that is, a "continuation block" for this entry).
+
+kind is a constant indicating what type of extended data this block contains
+(and thus how to interpret the rest of the contents of the block).
+The possible values for "kind" are:
+1      PREXTNAME   -- This entry holds a PTS extended name.
+Values are allocated sequentially; 1 will be followed by 2, 3, etc..
+
+
+The full format of PTS extended name extended data entries, including
+both invariant and extended-name-specific fields, is:
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+octets +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     0 |           [unused]            |          type_flags           |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                               id                              |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                          nextExtData                          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                              next                             |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    16 |                              kind                             |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                           nextHash                            |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                           nametype                            |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                            length                             |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    32 |                             data                              |
+       +                                                               +
+       ~                             [...]                             ~
+       +                                                               +
+   188 |                                                               |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+[type_flags, id, and nextExtData are as per the extended data invariants]
+
+next is a pointer to a continuation block for this extended name, if needed.
+Such continuation blocks have the same structure as initial extended name
+blocks.
+
+kind is always 1.
+
+nextHash is used to chain the hash table of extended names, it is a pointer
+to the next extended name entry in the list of entries whose extended name
+hash to the same value.
+
+nametype holds the value of the PRAUTHTYPE of the extended name held in this
+entry.  Currently PRAUTHTYPE_KRB4 (1) and PRAUTHTYPE_GSS (2) are defined.
+These values are protocol constants and are allocated by standards action
+in the AFS-3 standards group.
+
+length is the number of octets of name data in this (logical) extended name
+entry.  If continuation blocks are needed, they will have the same value
+in the length field as the first extended name block for that name.
+
+data holds the name data.  Unused portions should be zeroed.  If the name data
+does not fit in a single block, additional blocks are allocated and chained
+together using the 'next' field, with name data being divided into 160-octet
+chunks, 160 octets per prdb block, until the last block in the chain which
+holds the remainder of the name data.
