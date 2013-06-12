@@ -10,8 +10,10 @@ afsconf_DeleteKey
 afsconf_DeleteUser
 afsconf_GetCellInfo
 afsconf_GetKey
+afsconf_GetKeyByTypes
 afsconf_GetKeys
 afsconf_GetLatestKey
+afsconf_GetLatestKeysByType
 afsconf_GetLocalCell
 afsconf_GetNoAuthFlag
 afsconf_GetNthUser
@@ -21,6 +23,7 @@ afsconf_SetCellInfo
 afsconf_SetNoAuthFlag
 afsconf_SetSecurityFlags
 afsconf_SuperUser
+afsconf_typedKey_values
 ka_AuthServerConn
 ka_AuthSpecificServersConn
 ka_Authenticate
