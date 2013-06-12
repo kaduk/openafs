@@ -70,6 +70,7 @@ rx_IncrementTimeAndCount
 rx_Init
 rx_InitHost
 rx_InterruptCall
+rx_IsServerConn
 rx_KeepAliveOff
 rx_KeepAliveOn
 rx_KeyCreate
@@ -169,5 +170,6 @@ xdr_afs_int32
 xdr_afs_int64
 xdr_afs_uint32
 xdr_afs_uint64
+afs_xdr_u_int
 xdrlen_create
 xdrrx_create
