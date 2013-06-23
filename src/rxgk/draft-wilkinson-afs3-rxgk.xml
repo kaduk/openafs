@@ -18,13 +18,13 @@
 <rfc category="info" ipr="trust200902" docName="draft-wilkinson-afs3-rxgk-06" submissionType="independent">
   <front>
     <title>rxgk: GSSAPI based security class for RX</title>
-    <author surname="Wilkinson" fullname="Simon Wilkinson">
+    <author initials="S." surname="Wilkinson" fullname="Simon Wilkinson">
       <organization abbrev="YFS">Your File System Inc</organization>
       <address>
         <email>simon@sxw.org.uk</email>
       </address>
     </author>
-    <author surname="Kaduk" fullname="Benjamin Kaduk">
+    <author initials="B." surname="Kaduk" fullname="Benjamin Kaduk">
       <organization abbrev="MIT">MIT Kerberos Consortium</organization>
       <address>
         <email>kaduk@mit.edu</email>
