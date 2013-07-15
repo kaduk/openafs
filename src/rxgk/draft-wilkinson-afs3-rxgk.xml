@@ -1119,6 +1119,10 @@ end
       <section title="Since 05">
         <t>Add markup to split out the GSS negotiation control flow.</t>
       </section>
+      <section title="Since 06">
+        <t>Improvements to the GSS negotiation description.</t>
+        <t>Add the RXGK_BAD_QOP error code.</t>
+      </section>
     </section>
   </back>
 </rfc>
