@@ -293,14 +293,17 @@ enum RXGK_Level {
       <t>Different GSS mechanisms will require a different number of full (or
        half) round trips.  The structure of the loop, with success and
        error conditions noted (noting that RX level errors may occur as well
-       but are not mentioned as part of the loop structure), is enumerated below.
+       which are not mentioned as part of the loop structure),
+       is enumerated below.
        The client drives the loop by calling the GSSNegotiate RPC.  If the
-       server detects a failure of the negotiation loop, it reports this status
+       server detects a failure of the negotiation loop before a security
+       context is established, the server reports this status
        to the client in the RPC return value as an appropriate com_err error
        code.  The steps of the loop are:
        <list style="numbers" hangIndent="6">
          <t>The client calls GSS_Init_sec_context(), supplying an input token
-           if one was returned by a previous call to GSSNegotiate().
+           if a token was returned by the previous (if any) call to
+           GSSNegotiate().
            The client MUST set the mutual_req_flag, conf_req_flag, and
            integ_req_flag booleans to true.
            <list style="symbols">
@@ -322,6 +325,10 @@ enum RXGK_Level {
                does not include GSS_S_CONTINUE_NEEDED, the negotiation loop
                is in an error condition and terminates.</t>
              <t>If the major status code
+               includes GSS_S_CONTINUE_NEEDED and the output token is
+               zero-length, the negotiation loop is in an error condition
+               and terminates.</t>
+             <t>If the major status code
                includes GSS_S_CONTINUE_NEEDED, the output token is sent to the
                server, per the next step.</t></list></t>
          <t>The client calls GSSNegotiate(), supplying the output token from
@@ -338,6 +345,9 @@ enum RXGK_Level {
                a GSSAPI error, the negotiation loop is in an error condition
                and terminates.</t>
              <t>If the major status code includes
+               GSS_S_CONTINUE_NEEDED and the output token is zero-length,
+               the negotiation loop is in an error condition and terminates.</t>
+             <t>If the major status code includes
                GSS_S_CONTINUE_NEEDED, the server also returns an opaque identifier
                in the opaque_out field of the RPC, which will allow the server to
                associate a future RPC call with this partially formed
@@ -345,18 +355,18 @@ enum RXGK_Level {
              <t>If the major status code is GSS_S_COMPLETE
                and the ret_flags output of GSS_Accept_sec_context() has the flags
                GSS_C_CONF_FLAG and GSS_C_INTEG_FLAG both set to true,
-               the server constructs an RXGK_ClientInfo structure per below.</t>
-             <t>The server MAY use the gss_major_status and gss_minor_status
+               the server constructs an RXGK_ClientInfo structure per below.
+               The server MAY use the gss_major_status and gss_minor_status
                output variables of the GSSNegotiate() RPC to report the status
                of GSSAPI calls other than GSS_Accept_sec_context() which are
-               made in the process of constructing the RXGK_ClientInfo
+               performed in the process of constructing the RXGK_ClientInfo
                structure.  If an error occurs during the construction of the
                RXGK_ClientInfo structure, that error is reported in the errorcode
                field of the RXGK_ClientInfo structure.</t>
              <t>If one or both of the GSS_C_CONF_FLAG and GSS_C_INTEG_FLAG
                flags are false, then the negotiated
                security context is unusable for rxgk.  The server constructs
-               an RXGK_ClientInfo structure per below with the errorcode field
+               an RXGK_ClientInfo structure with the errorcode field
                set to indicate the bad quality of protection and all other
                fields empty, returning zero from the GSSNegotiate()
                RPC.</t></list></t>
@@ -373,7 +383,8 @@ enum RXGK_Level {
                token, the loop is in an error condition and terminates.</t>
              <t>If the most recent call to
                GSS_Init_sec_context() returned the major status code
-               GSS_S_COMPLETE and an output token, the negotiation loop is in a
+               GSS_S_COMPLETE and and the GSSNegotiate() RPC returned a
+               zero-length token, the negotiation loop is in a
                success condition and terminates.</t>
              <t>If the most recent call to
                GSS_Init_sec_context() returned the major status code
@@ -396,7 +407,8 @@ enum RXGK_Level {
        determining future actions.</t>
       </section>
       <section title="Returned Information">
-      <t>Upon successful negotiation of a GSS security context, rxgk_info
+      <t>Upon successful completion of the loop (negotiation of a GSS security
+       context), rxgk_info
        contains the XDR representation of a 
        RXGK_ClientInfo structure, encrypted using gss_wrap() with
        confidentiality protection (or potentially some weaker protection if
