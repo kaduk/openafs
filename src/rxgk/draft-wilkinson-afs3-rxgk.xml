@@ -900,7 +900,10 @@ enum RXGK_Level {
           The checksum is invalid, the sealed copy of the sequence and/or call
           number does not match the current state, or similar situations.</t><t hangText="RXGK_DATA_LEN">
           The packet is too large, contains a zero-length iovec entry, or
-          otherwise presents an unacceptable or invalid data length.</t></list>
+          otherwise presents an unacceptable or invalid data length.</t>
+        <t hangText="RXGK_BAD_QOP">
+          The negotiated level of protection is insufficient for the operation
+          being performed.</t></list>
         </t>
     </section>
     <section anchor="AFSReg" title="AFS-3 Registry Considerations">
