@@ -8,6 +8,7 @@
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
 include @TOP_OBJDIR@/src/config/Makefile.lwp
+include @TOP_OBJDIR@/src/config/Makefile.lwptool
 
 
 RPCINCLS=${TOP_INCDIR}/lwp.h ${TOP_INCDIR}/rx/rx.h bosint.h
@@ -42,11 +43,23 @@ LIBS=   ${TOP_LIBDIR}/librx.a \
 	${TOP_LIBDIR}/libafsrfc3961.a \
 	${TOP_LIBDIR}/libafshcrypto_lwp.a
 
-OBJS=bosserver.o bnode.o ezbnodeops.o fsbnodeops.o bosint.ss.o bosint.xdr.o \
-bosoprocs.o cronbnodeops.o
+CLIENT_LIBS=	$(top_builddir)/src/rx/liboafs_rx.la \
+		$(top_builddir)/src/cmd/liboafs_cmd.la \
+		$(top_builddir)/src/kauth/liboafs_kauth.la \
+		$(top_builddir)/src/auth/liboafs_auth.la \
+		$(top_builddir)/src/util/liboafs_util.la \
+		$(top_builddir)/src/volser/liboafs_volser.la
 
-all: bosserver ${TOP_INCDIR}/afs/bosint.h bos ${TOP_LIBDIR}/libbos.a bos_util \
-    smail-notifier
+LT_objs=bosint.xdr.lo bosint.cs.lo boserr.lo
+
+LT_deps= $(top_builddir)/src/rx/liboafs_rx.la \
+	 $(top_builddir)/src/comerr/liboafs_comerr.la
+
+SERVER_OBJS=bosserver.o bnode.o ezbnodeops.o fsbnodeops.o bosint.ss.o \
+	bosint.xdr.o bosoprocs.o cronbnodeops.o
+
+all: bosserver ${TOP_INCDIR}/afs/bosint.h bos liboafs_bos.la \
+    ${TOP_LIBDIR}/libbos.a bos_util smail-notifier
 
 generated: bosint.ss.c bosint.xdr.c bosint.cs.c bosint.h bnode.h boserr.c
 
@@ -59,27 +72,24 @@ ${TOP_INCDIR}/afs/bnode.h: bnode.h
 ${TOP_LIBDIR}/libbos.a: libbos.a
 	${INSTALL_DATA} $? $@
 
-$(OBJS) bosint.xdr.o bosint.cs.o boserr.o: $(INCLS)
+$(SERVER_OBJS) bosint.xdr.lo bosint.xdr.o bosint.cs.lo boserr.o: $(INCLS)
 
 bosint.ss.o: bosint.ss.c ${RPCINCLS}
+bosint.xdr.lo: bosint.xdr.c ${RPCINCLS}
 bosint.xdr.o: bosint.xdr.c ${RPCINCLS}
-bosint.cs.o: bosint.cs.c ${RPCINCLS}
+bosint.cs.lo: bosint.cs.c ${RPCINCLS}
 
-bosint.cs.c: bosint.xg
+bosint.cs.c: bosint.xg bosint.h
 	${RXGEN} -x -A -C -o $@ ${srcdir}/bosint.xg
 
-bosint.ss.c: bosint.xg
+bosint.ss.c: bosint.xg bosint.h
 	${RXGEN} -x -A -S -o $@ ${srcdir}/bosint.xg
 
-bosint.xdr.c: bosint.xg
+bosint.xdr.c: bosint.xg bosint.h
 	${RXGEN} -x -A -c -o $@ ${srcdir}/bosint.xg
 
 bosint.h: bosint.xg
 	${RXGEN} -x -A -h -o $@ ${srcdir}/bosint.xg
-
-bosint.cs.c: bosint.h
-bosint.ss.c: bosint.h
-bosint.xdr.c: bosint.h
 
 bnode.h: boserr.c
 
@@ -97,31 +107,34 @@ bosoprocs.o: bosoprocs.c ${INCLS}
 
 bos.o: bos.c ${INCLS} AFS_component_version_number.o
 
-bos: bos.o $(LIBS) libbos.a
-	$(AFS_LDRULE) bos.o libbos.a $(LIBS) $(LIB_roken) $(LIB_crypt) ${XLIBS}
+bos: bos.o $(CLIENT_LIBS) liboafs_bos.la
+	$(LT_LDRULE_static) bos.o liboafs_bos.la $(CLIENT_LIBS) $(LIB_roken) \
+		$(LIB_crypt) ${XLIBS}
 
 bos_util.o: bos_util.c ${INCLS} AFS_component_version_number.o ${TOP_INCDIR}/afs/bnode.h
 
-bos_util: bos_util.o  $(LIBS)
-	$(AFS_LDRULE) bos_util.o $(LIBS) $(LIB_roken) $(LIB_crypt) ${XLIBS}
+bos_util: bos_util.o  $(CLIENT_LIBS)
+	$(LT_LDRULE_static) bos_util.o $(CLIENT_LIBS) $(LIB_roken) \
+		$(LIB_crypt) ${XLIBS}
 
 ezbnodeops.o: ezbnodeops.c ${INCLS}
 
 fsbnodeops.o: fsbnodeops.c ${INCLS}
 
-libbos.a: bosint.xdr.o bosint.cs.o boserr.o AFS_component_version_number.o
-	-$(RM) -f $@
-	$(AR) crv $@ bosint.xdr.o bosint.cs.o boserr.o AFS_component_version_number.o
-	$(RANLIB) $@
+liboafs_bos.la: liboafs_bos.la.sym $(LT_objs) $(LT_deps)
+	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps)
 
-bosserver: $(OBJS) $(LIBS)
-	$(AFS_LDRULE) $(OBJS) \
+libbos.a: $(LT_objs)
+	$(LT_LDLIB_lwp) $(LT_objs)
+
+bosserver: $(SERVER_OBJS) $(LIBS)
+	$(AFS_LDRULE) $(SERVER_OBJS) \
 		$(LIBS) $(LIB_roken) $(LIB_crypt) ${XLIBS}
 
-smail-notifier.o: smail-notifier.c ${INCLS}
+smail-notifier.o: smail-notifier.c ${INCLS} AFS_component_version_number.o
 
-smail-notifier: smail-notifier.o $(LIBS)
-	$(AFS_LDRULE) smail-notifier.o $(LIBS) $(LIB_roken) ${XLIBS}
+smail-notifier: smail-notifier.o $(CLIENT_LIBS)
+	$(LT_LDRULE_static) smail-notifier.o $(CLIENT_LIBS) $(LIB_roken) ${XLIBS}
 
 #
 # Install targets
@@ -157,6 +170,7 @@ dest: bosserver bos bos_util libbos.a bosint.h bnode.h
 # Misc. targets
 #
 clean:
+	$(LT_CLEAN)
 	$(RM) -f  *.a *.o bos bosserver smail-notifier bos_util \
 		bosint.cs.c bosint.ss.c bosint.xdr.c bosint.h \
 		core boserr.c bnode.h AFS_component_version_number.c 

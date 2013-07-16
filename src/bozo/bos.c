@@ -1285,7 +1285,7 @@ DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
     /* now wait for bnode to disappear */
     count = 0;
     while (1) {
-	IOMGR_Sleep(1);
+	sleep(1);
 	tp = tbuffer;
 	code = BOZO_GetInstanceInfo(aconn, "salvage-tmp", &tp, &istatus);
 	if (code)
