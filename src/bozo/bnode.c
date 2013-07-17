@@ -33,7 +33,6 @@
 #define BNODE_LWP_STACKSIZE	(16 * 1024)
 #define BNODE_ERROR_COUNT_MAX   16   /* maximum number of retries */
 
-int bnode_waiting = 0;
 static PROCESS bproc_pid;	/* pid of waker-upper */
 static struct opr_queue allBnodes;	/**< List of all bnodes */
 static struct opr_queue allProcs;	/**< List of all processes for which we're waiting */
@@ -575,9 +574,7 @@ bproc(void *unused)
 	    /* signalled, probably by incoming signal */
 	    while (1) {
 		options = WNOHANG;
-		bnode_waiting = options | 0x800000;
 		code = waitpid((pid_t) - 1, &status, options);
-		bnode_waiting = 0;
 		if (code == 0 || code == -1)
 		    break;	/* all done */
 		/* otherwise code has a process id, which we now search for */
@@ -807,7 +804,7 @@ bnode_SoftInt(void *param)
     /* int asignal = (int) param; */
 
     IOMGR_Cancel(bproc_pid);
-    return 0;
+    return NULL;
 }
 
 /* Called at signal interrupt level; queues function to be called
@@ -998,19 +995,3 @@ bnode_StopProc(struct bnode_proc *aproc, int asignal)
     bnode_Check(aproc->bnode);
     return code;
 }
-
-#if 0
-int
-bnode_Deactivate(struct bnode *abnode)
-{
-    struct opr_queue *cursor;
-    if (!(abnode->flags & BNODE_ACTIVE))
-	return BZNOTACTIVE;
-
-    if (opr_queue_IsOnQueue(&abnode->q)) {
-	tb->flags &= ~BNODE_ACTIVE;
-	return 0;
-    }
-    return BZNOENT;
-}
-#endif
