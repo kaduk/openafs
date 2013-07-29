@@ -762,6 +762,8 @@ main(int argc, char **argv, char **envp)
     char *auditFileName = NULL;
     struct rx_securityClass **securityClasses;
     afs_int32 numClasses;
+    int DoPeerRPCStats = 0;
+    int DoProcessRPCStats = 0;
 #ifndef AFS_NT40_ENV
     int nofork = 0;
     struct stat sb;
@@ -866,9 +868,9 @@ main(int argc, char **argv, char **envp)
 	}
 #endif
 	else if (strcmp(argv[code], "-enable_peer_stats") == 0) {
-	    rx_enablePeerRPCStats();
+	    DoPeerRPCStats = 1;
 	} else if (strcmp(argv[code], "-enable_process_stats") == 0) {
-	    rx_enableProcessRPCStats();
+	    DoProcessRPCStats = 1;
 	}
 	else if (strcmp(argv[code], "-restricted") == 0) {
 	    bozo_isrestricted = 1;
@@ -943,6 +945,55 @@ main(int argc, char **argv, char **envp)
     }
 #endif
 
+    /* create useful dirs */
+    CreateDirs(DoCore);
+
+    /* Write current state of directory permissions to log file */
+    DirAccessOK();
+
+    /* chdir to AFS log directory */
+    if (DoCore)
+	chdir(DoCore);
+    else
+	chdir(AFSDIR_SERVER_LOGS_DIRPATH);
+
+    /* try to read the key from the config file */
+    tdir = afsconf_Open(AFSDIR_SERVER_ETC_DIRPATH);
+    if (!tdir) {
+	/* try to create local cell config file */
+	struct afsconf_cell tcell;
+	strcpy(tcell.name, "localcell");
+	tcell.numServers = 1;
+	code = gethostname(tcell.hostName[0], MAXHOSTCHARS);
+	if (code) {
+	    bozo_Log("failed to get hostname, code %d\n", errno);
+	    exit(1);
+	}
+	if (tcell.hostName[0][0] == 0) {
+	    bozo_Log("host name not set, can't start\n");
+	    bozo_Log("try the 'hostname' command\n");
+	    exit(1);
+	}
+	memset(tcell.hostAddr, 0, sizeof(tcell.hostAddr));	/* not computed */
+	code =
+	    afsconf_SetCellInfo(NULL, AFSDIR_SERVER_ETC_DIRPATH,
+				&tcell);
+	if (code) {
+	    bozo_Log
+		("could not create cell database in '%s' (code %d), quitting\n",
+		 AFSDIR_SERVER_ETC_DIRPATH, code);
+	    exit(1);
+	}
+	tdir = afsconf_Open(AFSDIR_SERVER_ETC_DIRPATH);
+	if (!tdir) {
+	    bozo_Log
+		("failed to open newly-created cell database, quitting\n");
+	    exit(1);
+	}
+    }
+    /* opened the cell databse */
+    bozo_confdir = tdir;
+
     code = bnode_Init();
     if (code) {
 	printf("bosserver: could not init bnode package, code %d\n", code);
@@ -953,15 +1004,6 @@ main(int argc, char **argv, char **envp)
     bnode_Register("dafs", &dafsbnode_ops, 4);
     bnode_Register("simple", &ezbnode_ops, 1);
     bnode_Register("cron", &cronbnode_ops, 2);
-
-    /* create useful dirs */
-    CreateDirs(DoCore);
-
-    /* chdir to AFS log directory */
-    if (DoCore)
-	chdir(DoCore);
-    else
-	chdir(AFSDIR_SERVER_LOGS_DIRPATH);
 
     /* go into the background and remove our controlling tty, close open
        file desriptors
@@ -995,6 +1037,14 @@ main(int argc, char **argv, char **envp)
 #endif
     }
 
+    /* read init file, starting up programs */
+    if ((code = ReadBozoFile(0))) {
+	bozo_Log
+	    ("bosserver: Something is wrong (%d) with the bos configuration file %s; aborting\n",
+	     code, AFSDIR_SERVER_BOZCONF_FILEPATH);
+	exit(code);
+    }
+
 #if defined(RLIMIT_CORE) && defined(HAVE_GETRLIMIT)
     {
       struct rlimit rlp;
@@ -1008,9 +1058,6 @@ main(int argc, char **argv, char **envp)
       bozo_Log("Core limits now %d %d\n",(int)rlp.rlim_cur,(int)rlp.rlim_max);
     }
 #endif
-
-    /* Write current state of directory permissions to log file */
-    DirAccessOK();
 
     if (rxBind) {
 	afs_int32 ccode;
@@ -1027,7 +1074,6 @@ main(int argc, char **argv, char **envp)
         if (ccode == 1)
             host = SHostAddrs[0];
     }
-
     for (i = 0; i < 10; i++) {
 	if (rxBind) {
 	    code = rx_InitHost(host, htons(AFSCONF_NANNYPORT));
@@ -1044,6 +1090,12 @@ main(int argc, char **argv, char **envp)
 	bozo_Log("Bos giving up, can't initialize rx\n");
 	exit(code);
     }
+
+    /* Set some rx config */
+    if (DoPeerRPCStats)
+	rx_enablePeerRPCStats();
+    if (DoProcessRPCStats)
+	rx_enableProcessRPCStats();
 
     /* Disable jumbograms */
     rx_SetNoJumbo();
@@ -1062,56 +1114,10 @@ main(int argc, char **argv, char **envp)
         exit(1);
     }
 
-    /* try to read the key from the config file */
-    tdir = afsconf_Open(AFSDIR_SERVER_ETC_DIRPATH);
-    if (!tdir) {
-	/* try to create local cell config file */
-	struct afsconf_cell tcell;
-	strcpy(tcell.name, "localcell");
-	tcell.numServers = 1;
-	code = gethostname(tcell.hostName[0], MAXHOSTCHARS);
-	if (code) {
-	    bozo_Log("failed to get hostname, code %d\n", errno);
-	    exit(1);
-	}
-	if (tcell.hostName[0][0] == 0) {
-	    bozo_Log("host name not set, can't start\n");
-	    bozo_Log("try the 'hostname' command\n");
-	    exit(1);
-	}
-	memset(tcell.hostAddr, 0, sizeof(tcell.hostAddr));	/* not computed */
-	code =
-	    afsconf_SetCellInfo(bozo_confdir, AFSDIR_SERVER_ETC_DIRPATH,
-				&tcell);
-	if (code) {
-	    bozo_Log
-		("could not create cell database in '%s' (code %d), quitting\n",
-		 AFSDIR_SERVER_ETC_DIRPATH, code);
-	    exit(1);
-	}
-	tdir = afsconf_Open(AFSDIR_SERVER_ETC_DIRPATH);
-	if (!tdir) {
-	    bozo_Log
-		("failed to open newly-created cell database, quitting\n");
-	    exit(1);
-	}
-    }
-
     /* initialize audit user check */
-    osi_audit_set_user_check(tdir, bozo_IsLocalRealmMatch);
-
-    /* read init file, starting up programs */
-    if ((code = ReadBozoFile(0))) {
-	bozo_Log
-	    ("bosserver: Something is wrong (%d) with the bos configuration file %s; aborting\n",
-	     code, AFSDIR_SERVER_BOZCONF_FILEPATH);
-	exit(code);
-    }
+    osi_audit_set_user_check(bozo_confdir, bozo_IsLocalRealmMatch);
 
     bozo_CreateRxBindFile(host);	/* for local scripts */
-
-    /* opened the cell databse */
-    bozo_confdir = tdir;
 
     /* allow super users to manage RX statistics */
     rx_SetRxStatUserOk(bozo_rxstat_userok);
