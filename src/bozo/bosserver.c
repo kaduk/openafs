@@ -13,6 +13,8 @@
 
 #include <afs/procmgmt.h>
 #include <roken.h>
+#include <afs/opr.h>
+#include <opr/lock.h>
 #include <ctype.h>
 
 #ifdef IGNORE_SOME_GCC_WARNINGS
@@ -55,11 +57,9 @@
 #include "bnode_internal.h"
 #include "bosprototypes.h"
 
-#define BOZO_LWP_STACKSIZE	16000
 extern struct bnode_ops fsbnode_ops, dafsbnode_ops, ezbnode_ops, cronbnode_ops;
 
 struct afsconf_dir *bozo_confdir = 0;	/* bozo configuration dir */
-static PROCESS bozo_pid;
 const char *bozo_fileName;
 FILE *bozo_logFile;
 #ifndef AFS_NT40_ENV
@@ -74,26 +74,28 @@ const char *DoPidFiles = NULL;
 #ifndef AFS_NT40_ENV
 int DoSyslogFacility = LOG_DAEMON;
 #endif
-static afs_int32 nextRestart;
-static afs_int32 nextDay;
 
+/* These globals are protected by the bnode global lock. */
 struct ktime bozo_nextRestartKT, bozo_nextDayKT;
 int bozo_newKTs;
-int rxBind = 0;
-int rxkadDisableDotCheck = 0;
-
-#define ADDRSPERSITE 16         /* Same global is in rx/rx_user.c */
-afs_uint32 SHostAddrs[ADDRSPERSITE];
-
 int bozo_isrestricted = 0;
 int bozo_restdisable = 0;
+static afs_int32 nextRestart;
+static afs_int32 nextDay;
+/* end globals protected by bnode_glock_mutex */
+
+#define ADDRSPERSITE 16         /* Same global is in rx/rx_user.c */
+/* written to only while single-threaded; no locking */
+afs_uint32 SHostAddrs[ADDRSPERSITE];
 
 void
 bozo_insecureme(int sig)
 {
     signal(SIGFPE, bozo_insecureme);
+    BNODE_LOCK;
     bozo_isrestricted = 0;
     bozo_restdisable = 1;
+    BNODE_UNLOCK;
 }
 
 struct bztemp {
@@ -360,6 +362,7 @@ ReadBozoFile(char *aname)
     }
 
     /* don't do server restarts by default */
+    BNODE_LOCK;		/* Make the time structs atomic */
     bozo_nextRestartKT.mask = KTIME_NEVER;
     bozo_nextRestartKT.hour = 0;
     bozo_nextRestartKT.min = 0;
@@ -369,6 +372,7 @@ ReadBozoFile(char *aname)
     bozo_nextDayKT.mask = KTIME_HOUR | KTIME_MIN;
     bozo_nextDayKT.hour = 5;
     bozo_nextDayKT.min = 0;
+    BNODE_UNLOCK;
 
     for (code = 0; code < MAXPARMS; code++)
 	parms[code] = NULL;
@@ -396,11 +400,13 @@ ReadBozoFile(char *aname)
 	    }
 	    /* otherwise we've read in the proper ktime structure; now assign
 	     * it and continue processing */
+	    BNODE_LOCK;
 	    bozo_nextRestartKT.mask = ktmask;
 	    bozo_nextRestartKT.day = ktday;
 	    bozo_nextRestartKT.hour = kthour;
 	    bozo_nextRestartKT.min = ktmin;
 	    bozo_nextRestartKT.sec = ktsec;
+	    BNODE_UNLOCK;
 	    continue;
 	}
 
@@ -414,11 +420,13 @@ ReadBozoFile(char *aname)
 	    }
 	    /* otherwise we've read in the proper ktime structure; now assign
 	     * it and continue processing */
+	    BNODE_LOCK;
 	    bozo_nextDayKT.mask = ktmask;	/* time to restart the system */
 	    bozo_nextDayKT.day = ktday;
 	    bozo_nextDayKT.hour = kthour;
 	    bozo_nextDayKT.min = ktmin;
 	    bozo_nextDayKT.sec = ktsec;
+	    BNODE_UNLOCK;
 	    continue;
 	}
 
@@ -432,7 +440,9 @@ ReadBozoFile(char *aname)
 		code = -1;
 		goto fail;
 	    }
+	    BNODE_LOCK;
 	    bozo_isrestricted = rmode;
+	    BNODE_UNLOCK;
 	    continue;
 	}
 
@@ -523,6 +533,7 @@ WriteBozoFile(char *aname)
 	return -1;
     btemp.file = tfile;
 
+    BNODE_LOCK;		/* for the times */
     fprintf(tfile, "restrictmode %d\n", bozo_isrestricted);
     fprintf(tfile, "restarttime %d %d %d %d %d\n", bozo_nextRestartKT.mask,
 	    bozo_nextRestartKT.day, bozo_nextRestartKT.hour,
@@ -530,6 +541,7 @@ WriteBozoFile(char *aname)
     fprintf(tfile, "checkbintime %d %d %d %d %d\n", bozo_nextDayKT.mask,
 	    bozo_nextDayKT.day, bozo_nextDayKT.hour, bozo_nextDayKT.min,
 	    bozo_nextDayKT.sec);
+    BNODE_UNLOCK;
     code = bnode_ApplyInstance(bzwrite, &btemp);
     if (code || (code = ferror(tfile))) {	/* something went wrong */
 	fclose(tfile);
@@ -569,18 +581,21 @@ bdrestart(struct bnode *abnode, void *arock)
 }
 
 #define	BOZO_MINSKIP 3600	/* minimum to advance clock */
-/* lwp to handle system restarts */
+/* pthread to handle system restarts */
 static void *
 BozoDaemon(void *unused)
 {
     afs_int32 now;
 
     /* now initialize the values */
+    BNODE_LOCK;
     bozo_newKTs = 1;
+    BNODE_UNLOCK;
     while (1) {
-	IOMGR_Sleep(60);
+	sleep(60);
 	now = FT_ApproxTime();
 
+	BNODE_LOCK;
 	if (bozo_restdisable) {
 	    bozo_Log("Restricted mode disabled by signal\n");
 	    bozo_restdisable = 0;
@@ -600,9 +615,12 @@ BozoDaemon(void *unused)
 	/* see if we should restart a server */
 	if (now > nextDay) {
 	    nextDay = ktime_next(&bozo_nextDayKT, BOZO_MINSKIP);
+	    BNODE_UNLOCK;
 
 	    /* call the bnode restartp function, and restart all that require it */
 	    bnode_ApplyInstance(bdrestart, 0);
+	} else {
+	    BNODE_UNLOCK;
 	}
     }
     return NULL;
@@ -764,6 +782,8 @@ main(int argc, char **argv, char **envp)
     afs_int32 numClasses;
     int DoPeerRPCStats = 0;
     int DoProcessRPCStats = 0;
+    int rxBind = 0;
+    int rxkadDisableDotCheck = 0;
 #ifndef AFS_NT40_ENV
     int nofork = 0;
     struct stat sb;
@@ -1107,11 +1127,13 @@ main(int argc, char **argv, char **envp)
 	}
     }
 
-    code = LWP_CreateProcess(BozoDaemon, BOZO_LWP_STACKSIZE, /* priority */ 1,
-			     /* param */ NULL , "bozo-the-clown", &bozo_pid);
-    if (code) {
-	bozo_Log("Failed to create daemon thread\n");
-        exit(1);
+    /* Go multithreaded. */
+    bproc_Init();
+    {
+	pthread_t bozo_pid;
+	pthread_attr_t tattr;
+	opr_Verify(pthread_attr_init(&tattr) == 0);
+	opr_Verify(pthread_create(&bozo_pid, &tattr, BozoDaemon, NULL) == 0);
     }
 
     /* initialize audit user check */
@@ -1134,7 +1156,6 @@ main(int argc, char **argv, char **envp)
 				 BOZO_ExecuteRequest);
     rx_SetMinProcs(tservice, 2);
     rx_SetMaxProcs(tservice, 4);
-    rx_SetStackSize(tservice, BOZO_LWP_STACKSIZE);	/* so gethostbyname works (in cell stuff) */
     if (rxkadDisableDotCheck) {
         rx_SetSecurityConfiguration(tservice, RXS_CONFIG_FLAGS,
                                     (void *)RXS_CONFIG_FLAGS_DISABLE_DOTCHECK);
@@ -1145,7 +1166,7 @@ main(int argc, char **argv, char **envp)
 			  securityClasses, numClasses, RXSTATS_ExecuteRequest);
     rx_SetMinProcs(tservice, 2);
     rx_SetMaxProcs(tservice, 4);
-    rx_StartServer(1);		/* donate this process */
+    rx_StartServer(1);		/* donate this thread */
     return 0;
 }
 

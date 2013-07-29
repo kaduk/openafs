@@ -17,3 +17,8 @@
 
 /* max time to wait for fileserver shutdown */
 #define	FSSDTIME	(30 * 60)	/* seconds */
+
+#include <pthread.h>
+extern pthread_mutex_t bnode_glock_mutex;
+#define BNODE_LOCK opr_mutex_enter(&bnode_glock_mutex)
+#define BNODE_UNLOCK opr_mutex_exit(&bnode_glock_mutex)

@@ -69,6 +69,7 @@ struct bnode {
     char fileGoal;		/* same, but to be stored in file */
     afs_int32 errorStopCount;	/* number of recent error stops */
     afs_int32 errorStopDelay;	/* seconds to wait before retrying start */
+    pthread_cond_t cond;	/* Used to signal events on this bnode */
 };
 
 struct bnode_proc {
@@ -123,6 +124,7 @@ struct bozo_bosEntryStats {
 /* calls back up to the generic bnode layer */
 extern int bnode_SetTimeout(struct bnode *abnode, afs_int32 atimeout);
 extern int bnode_Init(void);
+extern void bproc_Init(void);
 extern int bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName, struct bnode_proc **aproc);
 extern int bnode_InitBnode(struct bnode *abnode, struct bnode_ops *abnodeops, char *aname);
 extern afs_int32 bnode_Create(char *atype, char *ainstance, struct bnode ** abp, char *ap1, char *ap2, char *ap3, char *ap4, char *ap5, char *notifier, int fileGoal, int rewritefile);

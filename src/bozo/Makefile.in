@@ -7,8 +7,8 @@
 
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
-include @TOP_OBJDIR@/src/config/Makefile.lwp
-include @TOP_OBJDIR@/src/config/Makefile.lwptool
+include @TOP_OBJDIR@/src/config/Makefile.pthread
+include @TOP_OBJDIR@/src/config/Makefile.libtool
 
 
 RPCINCLS=${TOP_INCDIR}/lwp.h ${TOP_INCDIR}/rx/rx.h bosint.h
@@ -21,27 +21,16 @@ INCLS=bnode.h \
 	${TOP_INCDIR}/afs/cmd.h \
 	${TOP_INCDIR}/afs/ktime.h
 
-# EH 12/18/90 - have to search librx.a twice on Ultrix 4.0
-LIBS=   ${TOP_LIBDIR}/librx.a \
-	${TOP_LIBDIR}/liblwp.a \
-	${TOP_LIBDIR}/libcmd.a \
-	${TOP_LIBDIR}/libkauth.a \
-	${TOP_LIBDIR}/libvolser.a \
-	${TOP_LIBDIR}/libvldb.a \
-	${TOP_LIBDIR}/libauth.a \
-	${TOP_LIBDIR}/librxstat.a \
-	${TOP_LIBDIR}/librxkad.a \
-	${TOP_LIBDIR}/libubik.a \
-	${TOP_LIBDIR}/librx.a \
-	${TOP_LIBDIR}/liblwp.a \
-	${TOP_LIBDIR}/libafscom_err.a \
-	${TOP_LIBDIR}/libaudit.a \
-	${TOP_LIBDIR}/util.a \
-	${TOP_LIBDIR}/libopr.a \
-	${TOP_LIBDIR}/libsys.a \
-	${TOP_LIBDIR}/libprocmgmt.a \
-	${TOP_LIBDIR}/libafsrfc3961.a \
-	${TOP_LIBDIR}/libafshcrypto_lwp.a
+SERVER_LIBS=	$(top_builddir)/src/rx/liboafs_rx.la \
+		$(top_builddir)/src/cmd/liboafs_cmd.la \
+		$(top_builddir)/src/auth/liboafs_auth.la \
+		$(top_builddir)/src/util/liboafs_util.la \
+		$(top_builddir)/src/rxkad/liboafs_rxkad.la \
+		$(top_builddir)/src/opr/liboafs_opr.la \
+		$(top_builddir)/src/rxstat/liboafs_rxstat.la \
+		$(top_builddir)/src/kauth/liboafs_kauth.la \
+		$(top_builddir)/src/lwp/liboafs_lwpcompat.la \
+		$(TOP_LIBDIR)/libprocmgmt.a
 
 CLIENT_LIBS=	$(top_builddir)/src/rx/liboafs_rx.la \
 		$(top_builddir)/src/cmd/liboafs_cmd.la \
@@ -125,11 +114,11 @@ liboafs_bos.la: liboafs_bos.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps)
 
 libbos.a: $(LT_objs)
-	$(LT_LDLIB_lwp) $(LT_objs)
+	$(LT_LDLIB_static) $(LT_objs)
 
-bosserver: $(SERVER_OBJS) $(LIBS)
-	$(AFS_LDRULE) $(SERVER_OBJS) \
-		$(LIBS) $(LIB_roken) $(LIB_crypt) ${XLIBS}
+bosserver: $(SERVER_OBJS) $(SERVER_LIBS)
+	$(LT_LDRULE_static) $(SERVER_OBJS) \
+		$(SERVER_LIBS) $(LIB_roken) $(LIB_crypt) ${XLIBS} $(MT_LIBS)
 
 smail-notifier.o: smail-notifier.c ${INCLS} AFS_component_version_number.o
 

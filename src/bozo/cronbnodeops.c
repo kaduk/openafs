@@ -12,6 +12,8 @@
 
 #include <afs/procmgmt.h>
 #include <roken.h>
+#include <afs/opr.h>
+#include <opr/lock.h>
 
 #include <ctype.h>
 
@@ -92,10 +94,13 @@ ScheduleCronBnode(struct cronbnode *abnode)
     struct bnode_proc *tp;
 
     /* If this proc is shutdown, tell bproc() to no longer run this job */
+    BNODE_LOCK;
     if (abnode->b.goal == BSTAT_SHUTDOWN) {
+	BNODE_UNLOCK;
 	bnode_SetTimeout((struct bnode *)abnode, 0);
 	return 0;
     }
+    BNODE_UNLOCK;
 
     /* otherwise we're supposed to be running, figure out when */
     if (abnode->when == 0) {

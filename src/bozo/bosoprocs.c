@@ -12,6 +12,8 @@
 #include <afs/stds.h>
 
 #include <roken.h>
+#include <afs/opr.h>
+#include <opr/lock.h>
 
 #ifdef AFS_NT40_ENV
 #include <sys/utime.h>
@@ -48,11 +50,15 @@ SBOZO_GetRestartTime(struct rx_call *acall, afs_int32 atype, struct bozo_netKTim
     code = 0;			/* assume success */
     switch (atype) {
     case 1:
+	BNODE_LOCK;
 	memcpy(aktime, &bozo_nextRestartKT, sizeof(struct ktime));
+	BNODE_UNLOCK;
 	break;
 
     case 2:
+	BNODE_LOCK;
 	memcpy(aktime, &bozo_nextDayKT, sizeof(struct ktime));
+	BNODE_UNLOCK;
 	break;
 
     default:
@@ -80,11 +86,15 @@ SBOZO_SetRestartTime(struct rx_call *acall, afs_int32 atype, struct bozo_netKTim
     code = 0;			/* assume success */
     switch (atype) {
     case 1:
+	BNODE_LOCK;
 	memcpy(&bozo_nextRestartKT, aktime, sizeof(struct ktime));
+	BNODE_UNLOCK;
 	break;
 
     case 2:
+	BNODE_LOCK;
 	memcpy(&bozo_nextDayKT, aktime, sizeof(struct ktime));
+	BNODE_UNLOCK;
 	break;
 
     default:
@@ -95,7 +105,9 @@ SBOZO_SetRestartTime(struct rx_call *acall, afs_int32 atype, struct bozo_netKTim
     if (code == 0) {
 	/* try to update the bozo init file */
 	code = WriteBozoFile(0);
+	BNODE_LOCK;
 	bozo_newKTs = 1;
+	BNODE_UNLOCK;
     }
 
   fail:
@@ -114,10 +126,13 @@ SBOZO_Exec(struct rx_call *acall, char *acmd)
 	code = BZACCESS;
 	goto fail;
     }
+    BNODE_LOCK;
     if (bozo_isrestricted) {
 	code = BZACCESS;
+	BNODE_UNLOCK;
 	goto fail;
     }
+    BNODE_UNLOCK;
     if (DoLogging)
 	bozo_Log("%s is executing the shell command '%s'\n", caller, acmd);
 
@@ -179,11 +194,14 @@ SBOZO_UnInstall(struct rx_call *acall, char *aname)
 	osi_auditU(acall, BOS_UnInstallEvent, code, AUD_STR, aname, AUD_END);
 	return code;
     }
+    BNODE_LOCK;
     if (bozo_isrestricted) {
+	BNODE_UNLOCK;
 	code = BZACCESS;
 	osi_auditU(acall, BOS_UnInstallEvent, code, AUD_STR, aname, AUD_END);
 	return code;
     }
+    BNODE_UNLOCK;
 
     /* construct local path from canonical (wire-format) path */
     if (ConstructLocalBinPath(aname, &filepath)) {
@@ -276,8 +294,12 @@ SBOZO_Install(struct rx_call *acall, char *aname, afs_int32 asize, afs_int32 mod
 
     if (!afsconf_SuperUser(bozo_confdir, acall, caller))
 	return BZACCESS;
-    if (bozo_isrestricted)
+    BNODE_LOCK;
+    if (bozo_isrestricted) {
+	BNODE_UNLOCK;
 	return BZACCESS;
+    }
+    BNODE_UNLOCK;
 
     /* construct local path from canonical (wire-format) path */
     if (ConstructLocalBinPath(aname, &fpp)) {
@@ -763,7 +785,9 @@ SBOZO_CreateBnode(struct rx_call *acall, char *atype, char *ainstance,
 	code = BZACCESS;
 	goto fail;
     }
+    BNODE_LOCK;
     if (bozo_isrestricted) {
+	BNODE_UNLOCK;
 	const char *salvpath = AFSDIR_CANONICAL_SERVER_SALVAGER_FILEPATH;
 	/* for DAFS, 'bos salvage' will pass "salvageserver -client" instead */
 	const char *salsrvpath = AFSDIR_CANONICAL_SERVER_SALSRV_FILEPATH " -client ";
@@ -777,6 +801,8 @@ SBOZO_CreateBnode(struct rx_call *acall, char *atype, char *ainstance,
 	    code = BZACCESS;
 	    goto fail;
 	}
+    } else {
+    BNODE_UNLOCK;
     }
 
     code =
@@ -821,10 +847,13 @@ SBOZO_DeleteBnode(struct rx_call *acall, char *ainstance)
 	code = BZACCESS;
 	goto fail;
     }
+    BNODE_LOCK;
     if (bozo_isrestricted) {
+	BNODE_UNLOCK;
 	code = BZACCESS;
 	goto fail;
     }
+    BNODE_UNLOCK;
     if (DoLogging)
 	bozo_Log("%s is executing DeleteBnode '%s'\n", caller, ainstance);
 
@@ -1157,10 +1186,13 @@ SBOZO_Prune(struct rx_call *acall, afs_int32 aflags)
 	code = BZACCESS;
 	goto fail;
     }
+    BNODE_LOCK;
     if (bozo_isrestricted) {
+	BNODE_UNLOCK;
 	code = BZACCESS;
 	goto fail;
     }
+    BNODE_UNLOCK;
     if (DoLogging)
 	bozo_Log("%s is executing Prune (flags=%d)\n", caller, aflags);
 
@@ -1236,6 +1268,9 @@ int bozo_nbosEntryStats =
  * NOTE: This initialization is a bit ugly. This was caused because
  * the path names require procedural as opposed to static initialization.
  * The other fields in the struct are however, statically initialized.
+ *
+ * This routine is only called while the bosserver is single-threaded;
+ * it needs no locking.
  */
 int
 initBosEntryStats(void)
@@ -1280,10 +1315,13 @@ StatEachEntry(IN struct bozo_bosEntryStats *stats)
     return 1;
 }
 
-/* DirAccessOK - checks the mode bits on the AFS dir and decendents and
+/*
+ * DirAccessOK - checks the mode bits on the AFS dir and decendents and
  * returns 0 if some are not OK and 1 otherwise.  For efficiency, it doesn't do
- * this check more often than every 5 seconds. */
-
+ * this check more often than every 5 seconds.
+ * In principle we should serialize calls to this function due to the global
+ * state in lastResult and the stats array, but it probably doesn't matter.
+ */
 int
 DirAccessOK(void)
 {
@@ -1417,11 +1455,14 @@ SBOZO_GetLog(struct rx_call *acall, char *aname)
 	code = BZACCESS;
 	goto fail;
     }
+    BNODE_LOCK;
     if (bozo_isrestricted && strchr(aname, '/')
 	&& strcmp(aname, AFSDIR_CANONICAL_SERVER_SLVGLOG_FILEPATH)) {
+	BNODE_UNLOCK;
 	code = BZACCESS;
 	goto fail;
     }
+    BNODE_UNLOCK;
 
     /* construct local path from canonical (wire-format) path */
     if (ConstructLocalLogPath(aname, &logpath)) {
@@ -1498,7 +1539,9 @@ SBOZO_GetInstanceStrings(struct rx_call *acall, char *abnodeName,
 afs_int32
 SBOZO_GetRestrictedMode(struct rx_call *acall, afs_int32 *arestmode)
 {
+    BNODE_LOCK;
     *arestmode = bozo_isrestricted;
+    BNODE_UNLOCK;
     return 0;
 }
 
@@ -1511,13 +1554,16 @@ SBOZO_SetRestrictedMode(struct rx_call *acall, afs_int32 arestmode)
     if (!afsconf_SuperUser(bozo_confdir, acall, caller)) {
 	return BZACCESS;
     }
+    BNODE_LOCK;
     if (bozo_isrestricted) {
+	BNODE_UNLOCK;
 	return BZACCESS;
     }
     if (arestmode != 0 && arestmode != 1) {
 	return BZDOM;
     }
     bozo_isrestricted = arestmode;
+    BNODE_UNLOCK;
     code = WriteBozoFile(0);
 
     return code;
