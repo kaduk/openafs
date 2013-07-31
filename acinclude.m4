@@ -1508,6 +1508,7 @@ AC_CHECK_FUNCS([ \
 	setitimer \
 	setvbuf \
 	sigaction \
+	sigprocmask \
 	strcasestr \
 	strerror \
 	sysconf \
