@@ -40,7 +40,18 @@ pmgt_ProcessSpawnVE(const char *spath, char *sargv[], char *senvp[],
     /* create child process to exec spath */
     if ((pid = fork()) == 0) {
 	/* child process */
+#ifdef HAVE_SIGPROCMASK
+	sigset_t mask;
+#endif
 	int i;
+
+	/* get rid of any latent signal masks */
+#ifdef HAVE_SIGPROCMASK
+	sigemptyset(&mask);
+	sigprocmask(SIG_SETMASK, &mask, NULL);
+#else
+	sigsetmask(0);
+#endif
 
 	/* close random fd's above stderr */
 	for (i = 3; i < 64; i++) {
