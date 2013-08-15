@@ -373,10 +373,13 @@
       <t>Implementations supporting automatic key management through the AFS-3
         protocol MUST provide the VL_RegisterAddrsAndKey RPC (similar to the
         VL_RegisterAddrs RPC).  This RPC is called by a fileserver to
-        register itself with the VLDB; it MUST be called over an rxgk-secured
-        connection.  For the purpose of this RPC, the fileserver acts as the
-        client and the vlserver as the server.  Once the RPC completes, the
-        client can generate a key to be used as the fileserver's server key.</t>
+        register itself with the VLDB; it MUST be called over a secure
+        connection.  In particular, it MUST NOT be called over an rxkad
+        connection.</t>
+      <t>For the purpose of this RPC, the fileserver acts as the
+        client and the vlserver as the server.  Once the RPC completes, both
+        peers of the RPC call can generate a key to be used as the fileserver's
+        long-term server key.</t>
       <t>vlservers MUST NOT permit calls to VL_RegisterAddrsAndKey for UUIDs
         which already exist within the vldb, unless that UUID already has
         a server-specific key registered. When a new fileserver first registers
