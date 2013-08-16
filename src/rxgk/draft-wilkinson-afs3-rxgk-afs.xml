@@ -458,6 +458,7 @@
        which is required in order for a client to
        accept secure callbacks.
      </t>
+      <section title="The SetCallBackKey operation">
       <t>A cache manager may set a key for secure callbacks by issuing
        the following RPC (in the RXAFS service):
       <figure><artwork>
@@ -465,9 +466,8 @@
 		          opaque mech_data&lt;&gt;) = XXX;
 </artwork></figure>
       <list style="hanging" hangIndent="6">
-      <t hangText="securityIndex:">The securityIndex of the mechanism for
-         which this key is being set. In the rxgk case, this will be
-         rxgk's security index, 4.</t>
+      <t hangText="securityIndex:">The security index of the mechanism for
+         which this key is being set. The security index for rxk is 4.</t>
       <t hangText="mech_data:">This contains the security object specific
          data. In rxgk's case this is an XDR encoded RXGK_CallBackKeyData
          structure.</t></list>
@@ -480,26 +480,42 @@
 	afs_int32 lifetime;
 	afs_int32 bytelife;
 	/* no rxgkTime expirationtime */
-	RXGK_TokenContainer token;
+	RXGK_Data token;
 	/* no identities needed */
     }
 </artwork></figure>
-       The CallBackKeyData structure contains the shared connection master
-       key K0, as well as information needed to use the key such as its
-       enctype and the security level with which the key and token should
-       be used and lifetime information for the derived keys used on the
-       callback connection.  It also contains a token which the fileserver
-       will present to the cache manager during the rx challenge/response
-       process on the callback connection (where the fileserver acts as the
-       Rx client and the cache manager as the Rx server).  There is no
-       technical reason for this token to have the same structure as the
-       tokens presented to AFS-3 services, but the outer container is reused
-       for simplicity.  Similar to generic rxgk applications, the
-       encrypted_token component of the RXGK_TokenContainer contained in
-       the RXGK_CallBackKeyData structure need not be an actual encrypted
-       blob, and could be a large random identifier which keys a lookup
-       table, or some other mechanism which satisfies the required properties
-       for an rxgk token.</t>
+       <list style="hanging" hangIndent="6">
+         <t hangText="enctype">The encryption type of K0.</t>
+         <t hangText="K0">The raw key data for the callback connection's
+           connection master key.</t>
+         <t hangText="level">The security level to be used for the
+           callback connection.</t>
+         <t hangText="lifetime">The maximum number of seconds that a 
+	   key derived from K0 may be used for, before the connection is rekeyed.
+	   If 0, keys have no time-based limit.</t>
+         <t hangText="bytelife:">The maximum amount of data (expressed as
+           the log base 2 of the number of bytes) that may be transferred
+           using a key derived from K0
+           before the connection is rekeyed. If 0, there is no data-based limit on
+           key usage.</t>
+         <t hangText="token">An opaque token that permits the client to
+           identify the key and connection parameters used for the
+           callback connection.  This token behaves as a generic rxgk token,
+           as described in section 5 of <xref target="I-D.wilkinson-afs3-rxgk"/>,
+           and its contents and encoding are implementation-defined.
+           In particular, a client implementation might be able to leave this
+           token empty and store the key and connection parameters in an
+           internal per-fileserver storage location.  A client implementation
+           might also reuse wholesale the token format defined in this document,
+           filling the token field with an XDR-encoded RXGK_TokenContainer
+           containing an encrypted encoded RXGK_Token, with a per-client
+           secret key.</t>
+       </list>
+       No expiration or start time need be transferred in this RPC (as are
+       included in an RXGK_Token and RXGK_ClientInfo), because the callback
+       connection is implicitly authorized to continue for as long as the
+       client is interested in data from the fileserver.</t>
+      </section>
       <section title="Lifetime and scope of the callback channel">
         <t>The RXAFS_SetCallBackKey RPC must be performed over a secure
          channel.  When used to set callback keys for rxgk, this means that
