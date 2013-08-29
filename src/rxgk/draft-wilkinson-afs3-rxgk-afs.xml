@@ -153,9 +153,12 @@
 		     OUT RXGK_Data *new_token,
 		     OUT RXGK_TokenInfo *token_info) = 3;
 	</artwork></figure>
-        <list style="hanging" hangIndent="6"><t hangText="token0:">An rxgk token obtained using the
-            GSSNegotiate RPC.</t><t hangText="token1:">Either an rxgk token obtained using the 
-            GSSNegotiate RPC, or empty (zero-length).</t><t hangText="options:">An RXGK_CombineOpeions structure containing
+        <list style="hanging" hangIndent="6">
+          <t hangText="token0:">An rxgk token obtained using the
+            GSSNegotiate RPC.</t>
+          <t hangText="token1:">Either an rxgk token obtained using the 
+            GSSNegotiate RPC, or empty (zero-length).</t>
+          <t hangText="options:">An RXGK_CombineOpeions structure containing
             a list of enctypes acceptable to the client and a list of
             security levels acceptable to the client.</t><t hangText="destination:">The UUID of the server new_token is
             intended for. Fileserver UUIDs may be obtained from the VLDB
