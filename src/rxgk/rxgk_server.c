@@ -71,6 +71,9 @@ static struct rx_securityOps rxgk_server_ops = {
     0,				/* spare 2 */
 };
 
+/* All zeros for rxnull */
+static struct rx_securityOps null_ops;
+
 struct rx_securityClass *
 rxgk_NewServerSecurityObject(void *getkey_rock, rxgk_getkey_func getkey)
 {
@@ -94,6 +97,41 @@ rxgk_NewServerSecurityObject(void *getkey_rock, rxgk_getkey_func getkey)
     sp->flags = 0;
     sp->rock = getkey_rock;
     sp->getkey = getkey;
+
+    return sc;
+}
+
+/*
+ * We need a custom rxnull security object so that we can have a getkey
+ * function available for SRXGK_GSSNegotiate to use to get a key in which
+ * to encrypt the resulting token.
+ */
+struct rx_securityClass *
+rxgk_NewNullServerSecurityObject(void *getkey_rock, rxgk_getkey_func getkey)
+{
+    struct rx_securityClass *sc;
+    struct rxgk_nullprivate *sp;
+
+    sc = calloc(1, sizeof(*sc));
+    if (sc == NULL)
+	return NULL;
+    sp = calloc(1, sizeof(*sp));
+    if (sp == NULL) {
+	free(sc);
+	return NULL;
+    }
+    sp->rxgk = calloc(1, sizeof(*sp->rxgk));
+    if (sp->rxgk == NULL) {
+	free(sc);
+	free(sp);
+	return NULL;
+    }
+    sp->rxgk->rock = getkey_rock;
+    sp->rxgk->getkey = getkey;
+    sp->valid = 1u << RX_SECIDX_GK;
+    sc->ops = &null_ops;
+    sc->refCount = 1;
+    sc->privateData = sp;
 
     return sc;
 }

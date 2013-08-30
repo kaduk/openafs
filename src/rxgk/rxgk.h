@@ -106,6 +106,8 @@ typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 *kvno,
 				      afs_int32 *enctype, rxgk_key *key);
 struct rx_securityClass * rxgk_NewServerSecurityObject(void *getkey_rock,
 						       rxgk_getkey_func getkey);
+struct rx_securityClass * rxgk_NewNullServerSecurityObject(
+	void *getkey_rock, rxgk_getkey_func getkey);
 
 /* rxgk_client.c */
 struct rx_securityClass *rxgk_NewClientSecurityObject(RXGK_Level level,
