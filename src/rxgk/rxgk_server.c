@@ -211,7 +211,10 @@ decrypt_token(RXGK_Data *out, struct rx_opaque *encopaque, afs_int32 kvno,
     service_key = NULL;
     zero_rxgkdata(&enctoken);
 
-    ret = sp->getkey(sp->rock, kvno, enctype, &service_key);
+    if (kvno <= 0 || enctype <= 0)
+	return RXGK_BAD_TOKEN;
+
+    ret = sp->getkey(sp->rock, &kvno, &enctype, &service_key);
     if (ret != 0)
 	goto cleanup;
     /* Must alias for type compliance */

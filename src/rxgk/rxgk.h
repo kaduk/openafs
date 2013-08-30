@@ -81,7 +81,7 @@ void rxgk_update_kvno(struct rx_connection *aconn, afs_uint32 kvno);
 void print_data(void *p, int len);
 
 /* rxgk_crypto.c */
-afs_int32 dummy_getkey(void *rock, afs_int32 kvno, afs_int32 enctype,
+afs_int32 dummy_getkey(void *rock, afs_int32 *kvno, afs_int32 *enctype,
 		       rxgk_key *key);
 afs_int32 make_key(rxgk_key *key_out, void *raw_key, afs_int32 length,
 		   afs_int32 enctype);
@@ -102,8 +102,8 @@ afs_int32 derive_tk(rxgk_key *tk, rxgk_key k0, afs_uint32 epoch,
 afs_int32 rxgk_cipher_expansion(rxgk_key k0, int *len_out);
 
 /* rxgk_server.c */
-typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 kvno,
-				      afs_int32 enctype, rxgk_key *key);
+typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 *kvno,
+				      afs_int32 *enctype, rxgk_key *key);
 struct rx_securityClass * rxgk_NewServerSecurityObject(void *getkey_rock,
 						       rxgk_getkey_func getkey);
 

@@ -134,13 +134,13 @@ etype_to_len(int etype)
  * the key from file every time.
  */
 afs_int32
-dummy_getkey(void *rock, afs_int32 kvno, afs_int32 enctype, rxgk_key *key)
+dummy_getkey(void *rock, afs_int32 *kvno, afs_int32 *enctype, rxgk_key *key)
 {
-    if (kvno <= 0)
+    if (kvno == NULL || *kvno < 0)
 	return RXGK_BADKEYNO;
-    if (enctype <= 0)
+    if (enctype == NULL || *enctype < 0)
 	return RXGK_BADETYPE;
-    return get_server_key(key, &kvno, &enctype);
+    return get_server_key(key, kvno, enctype);
 }
 
 /*
