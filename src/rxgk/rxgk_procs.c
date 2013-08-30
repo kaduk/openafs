@@ -404,30 +404,24 @@ out:
  * Returns RX errors.
  */
 static afs_int32
-pack_wrap_token(RXGK_Token *token, RXGK_Data *out)
+pack_wrap_token(rxgk_key server_key, afs_int32 kvno, afs_int32 enctype,
+		RXGK_Token *token, RXGK_Data *out)
 {
     RXGK_Data packed_token, encrypted_token;
     RXGK_TokenContainer container;
-    rxgk_key server_key;
-    afs_int32 ret, kvno, enctype;
+    afs_int32 ret;
 
     zero_rxgkdata(&packed_token);
     zero_rxgkdata(&encrypted_token);
     zero_rxgkdata(out);
     container.encrypted_token.len = 0;
     container.encrypted_token.val = NULL;
-    server_key = NULL;
 
     /* XDR-encode the token in to packed_token. */
     ret = pack_token(token, &packed_token);
     if (ret != 0)
 	goto out;
 
-    /* Get the default key. */
-    kvno = enctype = 0;
-    ret = get_server_key(&server_key, &kvno, &enctype);
-    if (ret != 0)
-	goto out;
     ret = encrypt_in_key(server_key, RXGK_SERVER_ENC_TOKEN, &packed_token,
 			 &encrypted_token);
     if (ret != 0)
@@ -448,7 +442,6 @@ out:
     xdr_free((xdrproc_t)xdr_RXGK_Data, &packed_token);
     xdr_free((xdrproc_t)xdr_RXGK_Data, &encrypted_token);
     xdr_free((xdrproc_t)xdr_RXGK_TokenContainer, &container);
-    release_key(&server_key);
     return ret;
 }
 
@@ -515,13 +508,41 @@ make_single_identity(afs_uint32 *minor, PrAuthName **identity, gss_name_t name)
 }
 
 /*
+ * Grab the getkey service-specific data for this connection, and use
+ * its getkey function to get a key with which to encrypt a token.
+ * In principle, we could have hooks to allow the idea of an "active kvno",
+ * so that a higher kvno than is used could be present in the database
+ * to allow transparent rekeying when keys must be distributed amongst
+ * multiple hosts.
+ * For now, though, just use the highest kvno.
+ *
+ * Returns RX errors.
+ */
+static afs_int32
+get_long_term_key(struct rx_call *acall, rxgk_key *key, afs_int32 *kvno,
+		  afs_int32 *enctype)
+{
+    struct rx_connection *conn;
+    struct rx_service *svc;
+    struct rxgk_getkey_sspecific_data *gk;
+    afs_int32 ret;
+
+    conn = rx_ConnectionOf(acall);
+    svc = rx_ServiceOf(conn);
+    gk = rx_GetServiceSpecific(svc, RXGK_NEG_SSPECIFIC_GETKEY);
+
+    return (*gk->getkey)(gk->rock, kvno, enctype, key);
+}
+
+/*
  * Create a token from the specified TokenInfo, key, start time, and list
  * of identities.  Encrypts the token and stores it as an rx_opaque.
  * Returns RX errors.
  */
 static afs_int32
 make_token(struct rx_opaque *out, RXGK_TokenInfo *info, gss_buffer_t k0,
-	   rxgkTime start, PrAuthName *identities, int nids)
+	   rxgkTime start, PrAuthName *identities, int nids, rxgk_key key,
+	   afs_int32 kvno, afs_int32 enctype)
 {
     RXGK_Token token;
     afs_int32 ret;
@@ -540,7 +561,7 @@ make_token(struct rx_opaque *out, RXGK_TokenInfo *info, gss_buffer_t k0,
     token.K0.len = k0->length;
     token.identities.len = nids;
     token.identities.val = identities;
-    ret = pack_wrap_token(&token, out);
+    ret = pack_wrap_token(key, kvno, enctype, &token, out);
     xdr_free((xdrproc_t)xdr_RXGK_Token, &token);
     return ret;
 }
@@ -561,7 +582,8 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     PrAuthName *identity;
     RXGK_Level level;
     rxgkTime start_time;
-    afs_int32 ret;
+    rxgk_key key;
+    afs_int32 ret, kvno, enctype;
     afs_uint32 time_rec, dummy;
     size_t len;
     char *tmp;
@@ -571,6 +593,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     memset(&gss_token_in, 0, sizeof(gss_token_in));
     memset(&gss_token_out, 0, sizeof(gss_token_out));
     memset(&k0, 0, sizeof(k0));
+    memset(&key, 0, sizeof(key));
     creds = GSS_C_NO_CREDENTIAL;
     gss_ctx = GSS_C_NO_CONTEXT;
     client_name = GSS_C_NO_NAME;
@@ -687,7 +710,14 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     /* Do not bother making a token if we have a policy error. */
     if (localinfo.errorcode != 0)
 	goto out;
-    ret = make_token(&info.token, &localinfo, &k0, start_time, identity, 1);
+    /* Get a key to encrypt the token in. */
+    ret = get_long_term_key(z_call, &key, &kvno, &enctype);
+    if (ret != 0)
+	goto out;
+    ret = make_token(&info.token, &localinfo, &k0, start_time, identity, 1, key,
+		     kvno, enctype);
+    /* Clean up right away so as to not leave key material around */
+    release_key(&key);
     if (ret != 0)
 	goto out;
 
