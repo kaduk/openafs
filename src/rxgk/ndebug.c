@@ -440,6 +440,10 @@ main(int argc, char *argv[])
 
     ret = get_token(secobj, RX_SECIDX_NULL, sname, INADDR_LOOPBACK, &info,
 		    &k0, &token);
+    if (ret != 0) {
+	printf("Failed to get token over rxnull\n");
+	exit(1);
+    }
 
     /* Now, do it again, but over rxgk instead of rxnull. */
     secobj = rxgk_NewClientSecurityObject(info.level, info.enctype, k0, &token,
