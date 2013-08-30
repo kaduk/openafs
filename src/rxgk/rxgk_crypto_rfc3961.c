@@ -177,6 +177,61 @@ out:
 }
 
 /*
+ * Copy a given key.  The caller must use release_key to deallocate the memory
+ * allocated for the new rxgk_key.
+ */
+afs_int32
+copy_key(rxgk_key key_in, rxgk_key *key_out)
+{
+    krb5_keyblock *keyblock;
+
+    keyblock = key_in;
+    return make_key(key_out, keyblock->keyvalue.data, keyblock->keyvalue.length,
+		    keyblock->keytype);
+}
+
+/*
+ * Generate a random key.  The caller must use release_key to deallocate the
+ * memory allocated for the new rxgk_key.
+ */
+afs_int32
+random_key(afs_int32 enctype, rxgk_key *key_out)
+{
+    krb5_keyblock *keyblock;
+    void *buf;
+    krb5_context ctx;
+    krb5_error_code ret;
+    ssize_t len;
+
+    buf = keyblock = NULL;
+
+    if (key_out == NULL)
+	return RXGK_INCONSISTENCY;
+
+    ret = krb5_init_context(&ctx);
+    if (ret != 0)
+	return ktor(ret);
+    keyblock = malloc(sizeof(*keyblock));
+    if (keyblock == NULL)
+	goto out;
+    len = etype_to_len(enctype);
+    buf = malloc(len);
+    if (buf == NULL)
+	goto out;
+    krb5_generate_random_block(buf, (size_t)len);
+    ret = krb5_keyblock_init(ctx, enctype, buf, len, keyblock);
+
+    *key_out = keyblock;
+    keyblock = NULL;
+
+out:
+    krb5_free_context(ctx);
+    free(buf);
+    free(keyblock);
+    return ktor(ret);
+}
+
+/*
  * Get the long-term shared key of the cell (from KeyFileExt).  We attempt to
  * extract the specified kvno and enctype, unless zero is specified, when we
  * extract the default key/enctype.
