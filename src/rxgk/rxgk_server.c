@@ -142,6 +142,48 @@ rxgk_NewService_SecObj(u_short port, struct rx_service **service_out,
     return RXGK_INCONSISTENCY;
 }
 
+/*
+ * Helper for NewEphemeralService_SecObj.
+ * The rock contains a key, and we just return a copy of it, after some
+ * sanity checking on the kvno and enctype.
+ */
+#define EPHEMERAL_ENCTYPE	18
+static afs_int32
+copy_getkey(void *rock, afs_int32 *kvno, afs_int32 *enctype, rxgk_key *new_key)
+{
+    rxgk_key secret_key = rock;
+
+    if (enctype == NULL || (*enctype != 0 && *enctype != EPHEMERAL_ENCTYPE))
+	return RXGK_BADETYPE;
+    if (kvno == NULL || *kvno < 0 || *kvno > 1)
+	return RXGK_BADKEYNO;
+
+    *enctype = EPHEMERAL_ENCTYPE;
+    *kvno = 1;
+    return copy_key(secret_key, new_key);
+}
+
+/*
+ * Creates an ephemeral random key which is used as the "long-term" private
+ * key for the rxnull and rxgk security objects which are returned.  This
+ * is intended to be used for applications where generating a new key each
+ * time the application starts up is reasonable.
+ */
+afs_int32
+rxgk_NewEphemeralService_SecObj(u_short port, struct rx_service **service_out,
+				char *serviceName,
+				struct rx_securityClass **secObjs, int nsecObjs)
+{
+    rxgk_key key;
+    afs_int32 ret;
+
+    ret = random_key(EPHEMERAL_ENCTYPE, &key);
+    if (ret != 0)
+	return ret;
+    return rxgk_NewService_SecObj(port, service_out, serviceName, secObjs,
+				  nsecObjs, &copy_getkey, key);
+}
+
 /* Did a connection properly authenticate? */
 int
 rxgk_CheckAuthentication(struct rx_securityClass *aobj,
