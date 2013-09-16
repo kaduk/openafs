@@ -509,6 +509,7 @@ bnode_Create(char *atype, char *ainstance, struct bnode ** abp, char *ap1,
      ** this function as a parameter... */
     tb->fileGoal = fileGoal;
 
+    /* Leave a ref on the bnode after creation, the caller will release it. */
     bnode_Hold(tb);
 
     if (rewritefile != 0)
