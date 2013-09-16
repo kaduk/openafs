@@ -664,14 +664,14 @@ bnode_InitBnode(struct bnode *abnode, struct bnode_ops *abnodeops,
 }
 
 static void
-bnode_DeleteProc(struct bnode_proc *aproc, int awhen, int astatus)
+bnode_DeleteProc(struct bnode_proc *aproc, int atimeout, int astatus)
 {
     struct bnode *abnode = aproc->bnode;
 
     /* count restarts in last 30 seconds */
-    if (awhen > abnode->rsTime + 30) {
+    if (atimeout > abnode->rsTime + 30) {
 	/* it's been 30 seconds we've been counting */
-	abnode->rsTime = awhen;
+	abnode->rsTime = atimeout;
 	abnode->rsCount = 0;
     }
 
