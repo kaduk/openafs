@@ -1077,6 +1077,12 @@ main(int argc, char **argv, char **envp)
     }
 #endif
 
+    code = bnode_InitProcs();
+    if (code != 0) {
+	bozo_Log("bosserver: could not create helper threads, code %d\n", code);
+	exit(code);
+    }
+
     if (rxBind) {
 	afs_int32 ccode;
 	if (AFSDIR_SERVER_NETRESTRICT_FILEPATH ||
