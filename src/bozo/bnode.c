@@ -1154,15 +1154,13 @@ bnode_Int(int asignal)
 }
 #endif
 
-/* intialize the whole system */
+/* intialize the locks and queues */
 int
 bnode_Init(void)
 {
 #ifdef AFS_PTHREAD_ENV
-    pthread_attr_t tattr;
     sigset_t mask;
 #else
-    PROCESS junk;
     struct sigaction newaction;
 #endif
     afs_int32 code;
@@ -1188,26 +1186,12 @@ bnode_Init(void)
     sigaddset(&mask, SIGQUIT);
     sigaddset(&mask, SIGFPE);
     opr_Verify(pthread_sigmask(SIG_BLOCK, &mask, NULL) == 0);
-
-    opr_Verify(pthread_attr_init(&tattr) == 0);
-    opr_Verify(pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED) == 0);
-    code = pthread_create(&bproc_pid, &tattr, bproc, NULL);
-    if (code)
-	return code;
-
-    code = pthread_create(&sighand_pid, &tattr, signal_handler, NULL);
-    if (code)
-	return code;
 #else
-    LWP_InitializeProcessSupport(1, &junk);	/* just in case */
-    IOMGR_Initialize();
-    code = LWP_CreateProcess(bproc, BNODE_LWP_STACKSIZE,
-			     /* priority */ 1, (void *) /* parm */ 0,
-			     "bnode-manager", &bproc_pid);
-    if (code)
-	return code;
-
     memset(&newaction, 0, sizeof(newaction));
+    newaction.sa_handler = bozo_insecureme;
+    code = sigaction(SIGFPE, &newaction, NULL);
+    if (code)
+	return errno;
     newaction.sa_handler = bnode_Int;
     code = sigaction(SIGCHLD, &newaction, NULL);
     if (code)
@@ -1221,6 +1205,38 @@ bnode_Init(void)
 #endif
 
     return code;
+}
+
+/* Fire up helper processes (bproc, signal handler) */
+int
+bnode_InitProcs(void)
+{
+#ifdef AFS_PTHREAD_ENV
+    pthread_attr_t tattr;
+#else
+    PROCESS junk;
+#endif
+    afs_int32 code;
+
+#ifdef AFS_PTHREAD_ENV
+    opr_Verify(pthread_attr_init(&tattr) == 0);
+    opr_Verify(pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED) == 0);
+    code = pthread_create(&bproc_pid, &tattr, bproc, NULL);
+    if (code)
+	return code;
+
+    code = pthread_create(&sighand_pid, &tattr, signal_handler, NULL);
+#else
+    LWP_InitializeProcessSupport(1, &junk);	/* just in case */
+    IOMGR_Initialize();
+    code = LWP_CreateProcess(bproc, BNODE_LWP_STACKSIZE,
+			     /* priority */ 1, (void *) /* parm */ 0,
+			     "bnode-manager", &bproc_pid);
+    if (code)
+	return code;
+#endif
+
+    return 0;
 }
 
 /* free token list returned by parseLine */

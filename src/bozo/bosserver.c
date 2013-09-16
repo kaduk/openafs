@@ -1068,6 +1068,12 @@ main(int argc, char **argv, char **envp)
     }
 #endif
 
+    code = bnode_InitProcs();
+    if (code != 0) {
+	bozo_Log("bosserver: could not create helper threads, code %d\n", code);
+	exit(code);
+    }
+
     /* Read init file, starting up programs. Also starts watcher threads. */
     Lock_Init(&configUpdate_lock);
     if ((code = ReadBozoFile(0))) {
