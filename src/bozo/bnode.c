@@ -271,8 +271,8 @@ bnode_WaitAll(void)
 	bnode_Hold(tb);
 	BNODE_UNLOCK;
 	code = bnode_WaitStatus(tb, tb->goal);
-	BNODE_LOCK;
 	bnode_Release(tb);
+	BNODE_LOCK;
 	if (code)
 	    goto out;
     }
@@ -379,8 +379,8 @@ bnode_ApplyInstance(int (*aproc) (struct bnode *tb, void *), void *arock)
 	bnode_Hold(tb);
 	BNODE_UNLOCK;
 	code = (*aproc) (tb, arock);
-	BNODE_LOCK;
 	bnode_Release(tb);
+	BNODE_LOCK;
 	if (code)
 	    goto out;
     }
