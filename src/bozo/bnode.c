@@ -1095,15 +1095,13 @@ bnode_Int(int asignal)
 }
 #endif
 
-/* intialize the whole system */
+/* intialize the locks and queues */
 int
 bnode_Init(void)
 {
 #ifdef AFS_PTHREAD_ENV
-    pthread_attr_t tattr;
     sigset_t mask;
 #else
-    PROCESS junk;
     struct sigaction newaction;
 #endif
     afs_int32 code;
@@ -1130,7 +1128,39 @@ bnode_Init(void)
     sigaddset(&mask, SIGQUIT);
     sigaddset(&mask, SIGFPE);
     pthread_sigmask(SIG_BLOCK, &mask, NULL);
+#else
+    memset(&newaction, 0, sizeof(newaction));
+    newaction.sa_handler = bozo_insecureme;
+    code = sigaction(SIGFPE, &newaction, NULL);
+    if (code)
+	return errno;
+    newaction.sa_handler = bnode_Int;
+    code = sigaction(SIGCHLD, &newaction, NULL);
+    if (code)
+	return errno;
+    code = sigaction(SIGQUIT, &newaction, NULL);
+    if (code)
+	return errno;
+    code = sigaction(SIGTERM, &newaction, NULL);
+    if (code)
+	return errno;
+#endif
 
+    return code;
+}
+
+/* Fire up helper processes (bproc, signal handler) */
+int
+bnode_InitProcs(void)
+{
+#ifdef AFS_PTHREAD_ENV
+    pthread_attr_t tattr;
+#else
+    PROCESS junk;
+#endif
+    afs_int32 code;
+
+#ifdef AFS_PTHREAD_ENV
     pthread_attr_init(&tattr);
     pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED);
 
@@ -1149,22 +1179,6 @@ bnode_Init(void)
 			     "bnode-manager", &bproc_pid);
     if (code)
 	return code;
-
-    memset(&newaction, 0, sizeof(newaction));
-    newaction.sa_handler = bozo_insecureme;
-    code = sigaction(SIGFPE, &newaction, NULL);
-    if (code)
-	return errno;
-    newaction.sa_handler = bnode_Int;
-    code = sigaction(SIGCHLD, &newaction, NULL);
-    if (code)
-	return errno;
-    code = sigaction(SIGQUIT, &newaction, NULL);
-    if (code)
-	return errno;
-    code = sigaction(SIGTERM, &newaction, NULL);
-    if (code)
-	return errno;
 #endif
 
     return code;
