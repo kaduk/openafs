@@ -646,7 +646,7 @@ build_tools: config comerr rxgen
 	+${COMPILE_PART1} util ${COMPILE_PART2A} buildtools_clean
 
 finale: project cmd comerr afsd butc tbutc tbudb @ENABLE_KERNEL_MODULE@ libuafs audit kauth log \
-	ptserver tptserver scout bu_utils ubik uss bozo @VFSCK@ volser tvolser tsalvaged \
+	ptserver tptserver scout bu_utils ubik uss bozo tbozo @VFSCK@ volser tvolser tsalvaged \
 	dviced dvolser libafscp\
 	venus update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
 	libafsauthent libadmin man-pages \
