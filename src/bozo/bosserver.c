@@ -301,7 +301,8 @@ StripLine(char *abuffer)
     return 0;
 }
 
-/* write one bnode's worth of entry into the file */
+/* Write one bnode's worth of entry into the file.  No bnode_Lock() needed, as
+ * it only accesses fields which are constant over the life of the bnode. */
 static int
 bnode_Write(struct bnode *abnode, FILE *out)
 {
@@ -309,6 +310,7 @@ bnode_Write(struct bnode *abnode, FILE *out)
     char tbuffer[BOZO_BSSIZE];
     afs_int32 code;
 
+    opr_mutex_assert(&allBnodes_mutex);
     if (abnode->notifier)
 	fprintf(out, "bnode %s %s %d %s\n", abnode->type->name,
 		abnode->name, abnode->fileGoal, abnode->notifier);
