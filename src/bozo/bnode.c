@@ -767,6 +767,7 @@ bnode_DeleteProc(struct bnode_proc *aproc, int awhen, int astatus)
     bnode_Check(abnode);
     bnode_Release(abnode);	/* bnode delete can happen here */
     opr_queue_Remove(&aproc->q);
+    bnode_FreeTokens(aproc->tlist);
     free(aproc);
 }
 
