@@ -1093,6 +1093,7 @@ bnode_Init(void)
     sigaddset(&mask, SIGQUIT);
     sigaddset(&mask, SIGFPE);
     pthread_sigmask(SIG_BLOCK, &mask, NULL);
+#endif
 
     return code;
 }
@@ -1110,6 +1111,7 @@ bnode_InitProcs(void)
 #endif
     afs_int32 code;
 
+#ifdef AFS_PTHREAD_ENV
     pthread_attr_init(&tattr);
     pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED);
 
