@@ -1277,16 +1277,9 @@ proc_handler(void *param)
 {
     struct bnode_proc *tproc = (struct bnode_proc *) param;
     struct timeval tv;
-    sigset_t set;
     int status;
 
-    sigemptyset(&set);
-    sigaddset(&set, SIGKILL);
-    sigaddset(&set, SIGTERM);
-    sigaddset(&set, SIGQUIT);
-    pthread_sigmask(SIG_UNBLOCK, &set, NULL);
     tproc->pid = bnode_SpawnProc(tproc);
-    pthread_sigmask(SIG_BLOCK, &set, NULL);
     opr_mutex_enter(&tproc->mutex);
     opr_cv_signal(&tproc->started);	/* tell bnode_NewProc we started */
     opr_mutex_exit(&tproc->mutex);
