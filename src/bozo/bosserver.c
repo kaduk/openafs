@@ -311,7 +311,8 @@ bnode_Write(struct bnode *abnode, FILE *out)
     char tbuffer[BOZO_BSSIZE];
     afs_int32 code;
 
-    opr_mutex_assert(&allBnodes_mutex);
+    opr_Assert(allBnodes_lock.readers_reading > 0
+               || allBnodes_lock.excl_locked == WRITE_LOCK);
     if (abnode->notifier)
 	fprintf(out, "bnode %s %s %d %s\n", abnode->type->name,
 		abnode->name, abnode->fileGoal, abnode->notifier);
