@@ -23,6 +23,7 @@ int bnode_HasCore(struct bnode *abnode);
 int bnode_WaitAll(void);
 int bnode_SetGoal(struct bnode *abnode, int agoal);
 int bnode_SetFileGoal(struct bnode *abnode, int agoal);
+int bnode_ApplyInstanceNoLock(int (*aproc)(struct bnode *, void *), void *arock);
 int bnode_ApplyInstance(int (*aproc)(struct bnode *, void *), void *arock);
 int bnode_Register(char *, struct bnode_ops *, int);
 int bnode_DeleteName(char *);

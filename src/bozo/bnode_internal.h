@@ -48,7 +48,6 @@ struct bnode_token {
 
 struct bnode {
     struct opr_queue q;		/* prev/next entry in top-level's list */
-    struct opr_queue tempq;	/* prev/next entry in temporary list */
     char *name;			/* instance name */
     afs_int32 nextTimeout;	/* next time this guy should be woken */
     afs_int32 period;		/* period between calls */

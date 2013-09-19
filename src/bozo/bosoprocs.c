@@ -36,6 +36,7 @@
 
 extern struct ktime bozo_nextRestartKT, bozo_nextDayKT;
 extern struct Lock allBnodes_lock;
+extern struct Lock newBnodes_lock;
 extern struct afsconf_dir *bozo_confdir;
 extern int bozo_newKTs;
 extern int DoLogging;
@@ -912,20 +913,23 @@ SBOZO_RestartAll(struct rx_call *acall)
     if (DoLogging)
 	bozo_Log("%s is executing RestartAll\n", caller);
 
+    ObtainReadLock(&newBnodes_lock);
+
     /* start shutdown of all processes */
-    code = bnode_ApplyInstance(sdproc, NULL);
+    code = bnode_ApplyInstanceNoLock(sdproc, NULL);
     if (code)
 	goto fail;
 
     /* wait for all done */
-    code = bnode_ApplyInstance(swproc, NULL);
+    code = bnode_ApplyInstanceNoLock(swproc, NULL);
     if (code)
 	goto fail;
 
     /* start them up again */
-    code = bnode_ApplyInstance(stproc, NULL);
+    code = bnode_ApplyInstanceNoLock(stproc, NULL);
 
   fail:
+    ReleaseReadLock(&newBnodes_lock);
     osi_auditU(acall, BOS_RestartAllEvent, code, AUD_END);
     return code;
 }
@@ -944,13 +948,15 @@ SBOZO_ReBozo(struct rx_call *acall)
     if (DoLogging)
 	bozo_Log("%s is executing ReBozo\n", caller);
 
+    ObtainReadLock(&newBnodes_lock);
+
     /* start shutdown of all processes */
-    code = bnode_ApplyInstance(sdproc, NULL);
+    code = bnode_ApplyInstanceNoLock(sdproc, NULL);
     if (code)
 	goto fail;
 
     /* wait for all done */
-    code = bnode_ApplyInstance(swproc, NULL);
+    code = bnode_ApplyInstanceNoLock(swproc, NULL);
     if (code)
 	goto fail;
 
@@ -1543,10 +1549,12 @@ bozo_ShutdownAndExit(void *param)
 	("Shutdown of BOS server and processes in response to signal %d\n",
 	 asignal);
 
+    ObtainReadLock(&newBnodes_lock);
+
     /* start shutdown of all processes */
-    if ((code = bnode_ApplyInstance(sdproc, NULL)) == 0) {
+    if ((code = bnode_ApplyInstanceNoLock(sdproc, NULL)) == 0) {
 	/* wait for shutdown to complete */
-	code = bnode_ApplyInstance(swproc, NULL);
+	code = bnode_ApplyInstanceNoLock(swproc, NULL);
     }
 
     if (code) {
