@@ -963,16 +963,6 @@ main(int argc, char **argv, char **envp)
     }
 #endif
 
-    /*
-     * go into the background and remove our controlling tty, close open
-     * file desriptors
-     */
-
-#ifndef AFS_NT40_ENV
-    if (!nofork)
-	daemon(1, 0);
-#endif /* ! AFS_NT40_ENV */
-
     /* create useful dirs */
     CreateDirs(DoCore);
 
@@ -1032,6 +1022,16 @@ main(int argc, char **argv, char **envp)
     bnode_Register("dafs", &dafsbnode_ops, 4);
     bnode_Register("simple", &ezbnode_ops, 1);
     bnode_Register("cron", &cronbnode_ops, 2);
+
+    /*
+     * go into the background and remove our controlling tty, close open
+     * file desriptors
+     */
+
+#ifndef AFS_NT40_ENV
+    if (!nofork)
+	daemon(1, 0);
+#endif /* ! AFS_NT40_ENV */
 
     if ((!DoSyslog)
 #ifndef AFS_NT40_ENV
