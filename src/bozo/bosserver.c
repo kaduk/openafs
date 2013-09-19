@@ -47,7 +47,6 @@
 #include <afs/audit.h>
 #include <afs/cellconfig.h>
 #include <afs/opr.h>
-#include <opr/lock.h>
 #include <lock.h>
 
 #if defined(AFS_SGI_ENV)
@@ -61,6 +60,8 @@
 
 #define BOZO_LWP_STACKSIZE	16000
 extern struct bnode_ops fsbnode_ops, dafsbnode_ops, ezbnode_ops, cronbnode_ops;
+extern struct opr_queue allBnodes;
+extern struct Lock allBnodes_lock;
 
 struct afsconf_dir *bozo_confdir = 0;	/* bozo configuration dir */
 #ifdef AFS_PTHREAD_ENV
@@ -536,7 +537,8 @@ WriteBozoFile(char *aname)
 	    bozo_nextDayKT.day, bozo_nextDayKT.hour, bozo_nextDayKT.min,
 	    bozo_nextDayKT.sec);
 
-    opr_mutex_assert(&allBnodes_mutex);
+    opr_Assert(allBnodes_lock.readers_reading > 0
+               || allBnodes_lock.excl_locked == WRITE_LOCK);
     for (opr_queue_Scan(&allBnodes, cursor)) {
 	struct bnode *tb = opr_queue_Entry(cursor, struct bnode, q);
 	code = bnode_Write(tb, tfile);

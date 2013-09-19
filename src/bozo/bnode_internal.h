@@ -18,18 +18,6 @@
 #define BOP_HASCORE(bnode)	((*(bnode)->ops->hascore)((bnode)))
 #define BOP_PROCSTARTED(bnode,p)	((*(bnode)->ops->procstarted)((bnode),(p)))
 
-extern struct opr_queue allBnodes;		/**< List of all bnodes */
-extern opr_mutex_t allBnodes_mutex;
-extern opr_cv_t allBnodes_cv;
-extern int allBnodesStatus;			/* 0 == normal, 1 == in use */
-#define BNODE_LOCK	opr_mutex_enter(&allBnodes_mutex);
-#define BNODE_LOCK_WAIT							\
-    opr_mutex_enter(&allBnodes_mutex);					\
-    while (allBnodesStatus != 0) {					\
-	opr_cv_wait(&allBnodes_cv, &allBnodes_mutex);			\
-    }
-#define BNODE_UNLOCK	opr_mutex_exit(&allBnodes_mutex)
-
 struct bnode_proc;
 
 struct bnode_ops {
@@ -60,6 +48,7 @@ struct bnode_token {
 
 struct bnode {
     struct opr_queue q;		/* prev/next entry in top-level's list */
+    struct opr_queue tempq;	/* prev/next entry in temporary list */
     char *name;			/* instance name */
     afs_int32 nextTimeout;	/* next time this guy should be woken */
     afs_int32 period;		/* period between calls */

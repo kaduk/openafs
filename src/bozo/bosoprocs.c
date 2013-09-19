@@ -28,7 +28,6 @@
 #include <afs/audit.h>
 #include <afs/kautils.h>
 #include <afs/opr.h>
-#include <opr/lock.h>
 
 #include "bnode.h"
 #include "bnode_internal.h"
@@ -36,6 +35,7 @@
 #include "bosprototypes.h"
 
 extern struct ktime bozo_nextRestartKT, bozo_nextDayKT;
+extern struct Lock allBnodes_lock;
 extern struct afsconf_dir *bozo_confdir;
 extern int bozo_newKTs;
 extern int DoLogging;
@@ -78,8 +78,7 @@ SBOZO_SetRestartTime(struct rx_call *acall, afs_int32 atype, struct bozo_netKTim
     if (DoLogging)
 	bozo_Log("%s is executing SetRestartTime\n", caller);
 
-    BNODE_LOCK_WAIT;
-    /* We don't need to set the Status to 1, as we don't drop the lock */
+    ObtainWriteLock(&allBnodes_lock);
     code = 0;			/* assume success */
     switch (atype) {
     case 1:
@@ -100,7 +99,7 @@ SBOZO_SetRestartTime(struct rx_call *acall, afs_int32 atype, struct bozo_netKTim
 	code = WriteBozoFile(0);
 	bozo_newKTs = 1;
     }
-    BNODE_UNLOCK;
+    ReleaseWriteLock(&allBnodes_lock);
 
   fail:
     osi_auditU(acall, BOS_SetRestartEvent, code, AUD_END);
@@ -1526,11 +1525,10 @@ SBOZO_SetRestrictedMode(struct rx_call *acall, afs_int32 arestmode)
     if (arestmode != 0 && arestmode != 1) {
 	return BZDOM;
     }
-    BNODE_LOCK_WAIT;
-    /* We don't need to set the Status to 1, as we don't drop the lock */
+    ObtainWriteLock(&allBnodes_lock);
     bozo_isrestricted = arestmode;
     code = WriteBozoFile(0);
-    BNODE_UNLOCK;
+    ReleaseWriteLock(&allBnodes_lock);
 
     return code;
 }
