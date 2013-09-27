@@ -113,11 +113,6 @@ bosserver: $(OBJS) $(BOSLIBS)
 	$(LT_LDRULE_static) $(OBJS) $(BOSLIBS) $(LIB_hcrypto) $(LIB_roken) $(LIB_crypt) $(MT_LIBS) $(XLIBS)
 
 install: bosserver bos bos_util libbos.a bosint.h bnode.h
-	${INSTALL} -d ${DESTDIR}${afssrvbindir}
-	${INSTALL} -d ${DESTDIR}${afssrvsbindir}
-	${INSTALL} -d ${DESTDIR}${bindir}
-	${INSTALL} -d ${DESTDIR}${includedir}/afs
-	${INSTALL} -d ${DESTDIR}${libdir}/afs
 	if [ "x$(ENABLE_PTHREADED_BOS)" = "xyes" ] ; then \
 		${LT_INSTALL_DATA} bnode.h ${DESTDIR}${includedir}/afs/bnode.h; \
 		${LT_INSTALL_DATA} bosint.h ${DESTDIR}${includedir}/afs/bosint.h; \
@@ -129,11 +124,6 @@ install: bosserver bos bos_util libbos.a bosint.h bnode.h
 	fi
 
 dest: bosserver bos bos_util libbos.a bosint.h bnode.h
-	${INSTALL} -d ${DESTDIR}${afssrvbindir}
-	${INSTALL} -d ${DESTDIR}${afssrvsbindir}
-	${INSTALL} -d ${DESTDIR}${bindir}
-	${INSTALL} -d ${DESTDIR}${includedir}/afs
-	${INSTALL} -d ${DESTDIR}${libdir}/afs
 	if [ "x$(ENABLE_PTHREADED_BOS)" = "xyes" ] ; then \
 		${LT_INSTALL_DATA} bnode.h ${DESTDIR}${includedir}/afs/bnode.h; \
 		${LT_INSTALL_DATA} bosint.h ${DESTDIR}${includedir}/afs/bosint.h; \
