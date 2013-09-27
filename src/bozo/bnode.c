@@ -807,6 +807,10 @@ bproc(void *unused)
 
 #define MAXSLEEP 999999			/* maxint doesn't work in select */
 
+#ifdef AFS_PTHREAD_ENV
+    opr_mutex_enter(&bproc_mutex);
+#endif
+
     while (1) {
 	/* first figure out how long to sleep */
 	nextTimeout = FT_ApproxTime() + MAXSLEEP;
