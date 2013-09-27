@@ -1076,7 +1076,7 @@ bnode_SoftInt(void *param)
     /* int asignal = (int) param; */
 
     IOMGR_Cancel(bproc_pid);
-    return 0;
+    return NULL;
 }
 
 /**
