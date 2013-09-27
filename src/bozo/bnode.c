@@ -599,6 +599,7 @@ static int
 bnode_DeleteNoLock(struct bnode *abnode)
 {
     afs_int32 code;
+    afs_int32 temp;
 
     opr_Assert(allBnodes_lock.excl_locked == WRITE_LOCK);
 
@@ -607,6 +608,15 @@ bnode_DeleteNoLock(struct bnode *abnode)
 	return 0;
     }
     abnode->flags &= ~BNODE_DELETE;
+
+    /* make sure the bnode is idle before zapping */
+    bnode_Hold(abnode);
+    code = BOP_GETSTAT(abnode, &temp);
+    bnode_Release(abnode);
+    if (code)
+	return code;
+    if (temp != BSTAT_SHUTDOWN)
+	return BZBUSY;
 
     /* all clear to zap */
     opr_queue_Remove(&abnode->q);
