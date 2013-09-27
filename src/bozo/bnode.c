@@ -359,10 +359,10 @@ bnode_SetFileGoal(struct bnode *abnode, int agoal)
 
     if (abnode->fileGoal == agoal)
 	return 0;		/* already done */
-    ObtainReadLock(&allBnodes_lock);
+    ObtainWriteLock(&allBnodes_lock);
     abnode->fileGoal = agoal;
     WriteBozoFile(0);
-    ReleaseReadLock(&allBnodes_lock);
+    ReleaseWriteLock(&allBnodes_lock);
     return 0;
 }
 
