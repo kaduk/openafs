@@ -773,6 +773,7 @@ bnode_DeleteProc(struct bnode_proc *aproc, int awhen, int astatus)
     }
     BOP_PROCEXIT(abnode, aproc);
     bnode_Check(abnode);
+    /* We had a ref on the bnode for the process.  Remove it now. */
     bnode_Release(abnode);	/* bnode delete can happen here */
     opr_queue_Remove(&aproc->q);
     bnode_FreeTokens(aproc->tlist);
@@ -1341,6 +1342,7 @@ bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName,
     struct bnode_proc *tp;
 
     opr_Assert(allProcs_lock.excl_locked == WRITE_LOCK);
+    opr_Assert(abnode->refCount > 0);
 
     tp = calloc(1, sizeof(struct bnode_proc));
     code = bnode_ParseLine(aexecString, &tp->tlist);	/* try parsing first */
@@ -1348,9 +1350,9 @@ bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName,
 	return code;
     opr_queue_Init(&tp->q);
     opr_Assert(abnode->refCount > 0);
-    ObtainWriteLock(&allBnodes_lock);	// @@@ how did we find this? should already have reference so read lock is fine?
+    ObtainReadLock(&allBnodes_lock);
     bnode_Hold(abnode);		/* hold a ref for duration of proc */
-    ReleaseWriteLock(&allBnodes_lock);
+    ReleaseReadLock(&allBnodes_lock);
     tp->bnode = abnode;
     tp->comLine = aexecString;
     tp->coreName = coreName;	/* may be null */
