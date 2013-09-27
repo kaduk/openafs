@@ -302,8 +302,8 @@ StripLine(char *abuffer)
     return 0;
 }
 
-/* Write one bnode's worth of entry into the file.  No bnode_Lock() needed, as
- * it only accesses fields which are constant over the life of the bnode. */
+/* Write one bnode's worth of entry into the file.  The allBnodes_lock
+ * protects the content that we are accessing. */
 static int
 bnode_Write(struct bnode *abnode, FILE *out)
 {
