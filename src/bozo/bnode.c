@@ -659,6 +659,7 @@ bnode_InitBnode(struct bnode *abnode, struct bnode_ops *abnodeops,
 		char *aname)
 {
     opr_Assert(allBnodes_lock.excl_locked == WRITE_LOCK);
+    opr_Assert(newBnodes_lock.excl_locked == WRITE_LOCK);
 
     /* format the bnode properly */
     memset(abnode, 0, sizeof(struct bnode));
