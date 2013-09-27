@@ -222,8 +222,8 @@ cron_timeout(struct bnode *bn)
 	abnode->killSent = 1;
 	bnode_SetTimeout((struct bnode *)abnode, 0);
     }
-    ReleaseWriteLock(&allProcs_lock);
   out:
+    ReleaseWriteLock(&allProcs_lock);
     return code;
 }
 
