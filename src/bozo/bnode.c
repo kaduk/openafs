@@ -558,16 +558,6 @@ bnode_DeleteName(char *ainstance)
         goto out;
     }
 
-    /* make sure the bnode is idle before zapping */
-    code = BOP_GETSTAT(abnode, &stat);
-    if (code) {
-	goto out;
-    }
-    if (stat != BSTAT_SHUTDOWN) {
-	code = BZBUSY;
-	goto out;
-    }
-
     code = bnode_DeleteNoLock(abnode);
 
   out:
