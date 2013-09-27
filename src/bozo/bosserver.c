@@ -1060,14 +1060,6 @@ main(int argc, char **argv, char **envp)
 #endif
     }
 
-    /* read init file, starting up programs */
-    if ((code = ReadBozoFile(0))) {
-	bozo_Log
-	    ("bosserver: Something is wrong (%d) with the bos configuration file %s; aborting\n",
-	     code, AFSDIR_SERVER_BOZCONF_FILEPATH);
-	exit(code);
-    }
-
 #if defined(RLIMIT_CORE) && defined(HAVE_GETRLIMIT)
     {
       struct rlimit rlp;
@@ -1085,6 +1077,14 @@ main(int argc, char **argv, char **envp)
     code = bnode_InitProcs();
     if (code != 0) {
 	bozo_Log("bosserver: could not create helper threads, code %d\n", code);
+	exit(code);
+    }
+
+    /* Read init file, starting up programs. Also starts watcher threads. */
+    if ((code = ReadBozoFile(0))) {
+	bozo_Log
+	    ("bosserver: Something is wrong (%d) with the bos configuration file %s; aborting\n",
+	     code, AFSDIR_SERVER_BOZCONF_FILEPATH);
 	exit(code);
     }
 
