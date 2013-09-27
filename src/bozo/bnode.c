@@ -1310,22 +1310,22 @@ bnode_SpawnProc(struct bnode_proc *aproc)
 static void *
 proc_handler(void *param)
 {
-    struct bnode_proc *tproc = (struct bnode_proc *) param;
+    struct bnode_proc *tp = (struct bnode_proc *) param;
     struct timeval tv;
     int status;
 
-    tproc->pid = bnode_SpawnProc(tproc);
-    opr_mutex_enter(&tproc->mutex);
-    opr_cv_signal(&tproc->started);	/* tell bnode_NewProc we started */
-    opr_mutex_exit(&tproc->mutex);
+    tp->pid = bnode_SpawnProc(tp);
+    opr_mutex_enter(&tp->mutex);
+    opr_cv_signal(&tp->started);	/* tell bnode_NewProc we started */
+    opr_mutex_exit(&tp->mutex);
 
-    if (tproc->pid < 0)
+    if (tp->pid < 0)
 	goto out;	
 
-    waitpid(tproc->pid, &status, 0);
+    waitpid(tp->pid, &status, 0);
     FT_GetTimeOfDay(&tv, 0);
     ObtainWriteLock(&allProcs_lock);
-    bnode_DeleteProc(tproc, tv.tv_sec, status);
+    bnode_DeleteProc(tp, tv.tv_sec, status);
     ReleaseWriteLock(&allProcs_lock);
 
   out:
