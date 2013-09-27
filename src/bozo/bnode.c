@@ -590,9 +590,7 @@ bnode_Release(struct bnode *abnode)
     opr_Assert(abnode->refCount > 0);
     abnode->refCount--;
     if (abnode->refCount == 0 && abnode->flags & BNODE_DELETE) {
-	ObtainWriteLock(&allBnodes_lock);
-	bnode_DeleteNoLock(abnode);
-	ReleaseWriteLock(&allBnodes_lock);
+	bnode_Delete(abnode);
     }
     return 0;
 }
