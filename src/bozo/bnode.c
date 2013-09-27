@@ -1361,7 +1361,7 @@ bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName,
 	bozo_Log("Failed to create thread for bnode '%s'\n", abnode->name);
     } else {
 	opr_cv_wait(&tp->started, &tp->mutex);
-        code = (tp->pid > 0) ? 0 : -(tp->pid);	/* get errno from tp->pid */
+	code = (tp->pid > 0) ? 0 : -(tp->pid);	/* get errno from tp->pid */
     }
     opr_mutex_exit(&tp->mutex);
 #else
