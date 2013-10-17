@@ -10,6 +10,7 @@
 <!ENTITY RFC4402 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.4402.xml">
 <!ENTITY RFC4506 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.4506.xml">
 <!ENTITY RFC6113 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6113.xml">
+<!ENTITY RFC6649 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6649.xml">
 ]>
 <?rfc toc='yes'?>
 <?rfc symrefs='yes'?>
@@ -53,6 +54,13 @@
      Representation Standardard,
      <xref target="RFC4506">XDR</xref>, is used to represent data structures
      on the wire and in the code fragments contained within this document. </t>
+      <t>rxgk is intended to replace the existing rxkad security class, which
+     is limited to very weak cryptography (<xref target="RFC6649">approximately
+     single-DES</xref>), owing to its roots in the era of
+     Kerberos 4, and is deficient in many other ways.  rxgk will bring in
+     stronger cryptography with key derivation for different operations,
+     as well as allowing for flexible initial authentication via the
+     <xref target="RFC2743">GSS-API</xref>.</t>
       <t>Architecturally, rxgk is split into two parts. The rxgk rx security
      class provides strong encryption using previously negotiated ciphers and
      keys. It builds on the Kerberos crypto framework <xref target="RFC3961" />
@@ -117,10 +125,12 @@ const RXGK_SERVER_ENC_TOKEN             = 1036;
       <t>rxgk supports the negotiation of a range of different security levels.
        These, along with the protocol constants that represent them during
        key negotiation, are:
-     <list style="hanging" hangIndent="6"><t hangText="Authentication only"> (0) Provides only connection 
+     <list style="hanging" hangIndent="6">
+	 <t hangText="Authentication only"> (0) Provides only connection 
 	 authentication, without either integrity or confidentiality 
 	 protection. This mode of operation can provide higher throughput, but
-	 is vulnerable to man in the middle attacks. This corresponds
+	 is vulnerable to man in the middle attacks and gives no protection
+	 against eavesdropping. This corresponds
  	 to the traditional rxkad 'clear' security level.</t>
          <t hangText="Integrity"> (1) Provides integrity protection only. 
 	  Data is protected from modification by an attacker, but not against 
@@ -128,12 +138,6 @@ const RXGK_SERVER_ENC_TOKEN             = 1036;
 	  level, authenticating the data payload as well as the Rx connection.</t><t hangText="Encryption"> (2) Provides both integrity and 
 	  confidentiality protection. This corresponds to the traditional
 	  rxkad 'crypt' security level.</t></list>
-     The authentication only, or clear, security level provides faster
-     throughput, at the expense of connection security.  The 'clear'
-     security level is vulnerable to a man in the middle altering the data
-     passed over the connection, whereas the 'integrity' security level
-     prevents such attacks by sending a cryptographic checksum of the data
-     being transmitted.
 <figure><artwork>
 enum RXGK_Level {
     RXGK_LEVEL_CLEAR = 0,
@@ -159,6 +163,13 @@ enum RXGK_Level {
      will use "encrypt" and "decrypt" to refer to these operations on tokens.
      If the token is an encrypted blob, it should be encrypted using the
      key usage RXGK_SERVER_ENC_TOKEN.</t>
+      <t>At a minimum, the decrypted token would need to include the
+     master session key K0 (and enctype).
+     A decrypted token would also be expected to contain a representation
+     of the user's identity, the token expiration time,
+     and various connection parameters, such as the negotiated lifetimes
+     (see <xref target="keyneg" />), but operation without those parameters
+     is conceivable.</t>
       <t>The token MUST NOT expose the session key on the wire. The token MUST be
      sufficiently random that an attacker cannot predict suitable token values
      by observing other connections. An attacker MUST NOT be able to forge
@@ -237,15 +248,23 @@ enum RXGK_Level {
        to worst, with the 
        client's favoured option occurring first within the list. The 
        parameters are:
-    <list style="hanging" hangIndent="6"><t hangText="enctypes:">List of encryption types from the 
+    <list style="hanging" hangIndent="6">
+       <t hangText="enctypes:">List of encryption types from the 
 	 Kerberos Encryption Type Number registry created in RFC3961 and 
 	 maintained by IANA. This list indicates the encryption types that
- 	 the client is prepared to support.</t><t hangText="levels:">List of supported rxgk transport encryption
-	 levels. See <xref target="levels"/> for allowed values.</t><t hangText="lifetime:">The maximum number of seconds that a connection
+ 	 the client is prepared to support.</t>
+       <t hangText="levels:">List of supported rxgk transport encryption
+	 levels. See <xref target="levels"/> for allowed values.</t>
+       <t hangText="lifetime:">The maximum number of seconds that a connection
 	 key should be used before rekeying. A value of 0 indicates that the
 	 connection should not be rekeyed based on its lifetime. This lifetime
-         is advisory; <xref target="rekeying" /> describes its use.</t>
-         <t hangText="bytelife:">The maximum amount of data to be transferred
+         is advisory -- a connection that is past its lifetime should be
+         permitted to continue, but endpoints SHOULD attempt to rekey the
+         connection (as per <xref target="rekeying" />)
+         at their earliest convenience.  The use of the lifetime to determine
+         when to rekey a connection is described
+         in <xref target="rekeying" />.</t>
+       <t hangText="bytelife:">The maximum amount of data to be transferred
 	 over the connection before it should be rekeyed, expressed as
 	 log base 2 of the number of bytes. A 
  	 value of 0 indicates that there is no limit on the number of
@@ -258,36 +277,62 @@ enum RXGK_Level {
 	 along with the lifetime.</t>
        <t hangText="client_nonce:">A client-generated string of random bytes,
 	 to be used as input to the key generation.  This nonce SHOULD
-	 be at least 20 octets in length.</t></list>
+	 be at least 20 octets in length, but SHOULD NOT be longer than
+         the longest key generation seed length in the
+         <xref target="RFC3961" /> profile of the proposed enctypes.</t></list>
        The client then continues the negotiation loop (described below) by
        calling GSS_Init_sec_context() to obtain an output token
        to send to the server. The GSS service name is application dependent;
        for constructing a service name see <xref target="keyneg" />.</t>
-      <t>The client then calls RXGK_GSSNegotiate, as defined above. This takes
+      <t>The client then calls GSSNegotiate, as defined above. This takes
        the following parameters:
     <list style="hanging" hangIndent="6"><t hangText="client_start">The client params structure detailed above.
         This will remain constant across the negotiation.</t><t hangText="input_token_buffer">The token produced by a call to
 	GSS_Init_sec_context().</t><t hangText="opaque_in">An opaque token, which was returned by the 
 	server following a previous call to GSSNegotiate in this negotiation. 
-	If this is the first call, opaque_in should be zero-length.</t><t hangText="output_token_buffer">The token output by the server's call
-	to GSS_Accept_sec_context().</t><t hangText="opaque_out">An opaque token, which the server may use to
+	If this is the first call, opaque_in should be zero-length.</t>
+      <t hangText="output_token_buffer">The token output by the server's call
+	to GSS_Accept_sec_context().  It is RECOMMENDED that error tokens
+        be sent, if produced.</t>
+      <t hangText="opaque_out">An opaque token, which the server may use to
 	preserve state information between multiple RPCs in the same context
 	negotiation. The client should use this value as opaque_in in its next
-	call to GSSNegotiate in this context negotiation.</t><t hangText="gss_major_status">The major status code output by the server's
-	      call to GSS_Accept_sec_context().</t><t hangText="gss_minor_status">The minor status code returned by
+	call to GSSNegotiate in this context negotiation.</t>
+      <t hangText="gss_major_status">An indication of the major status code
+	      output by the server's call to GSS_Accept_sec_context().
+	      The abstract GSS-API does not specify the encoding for status
+	      values, so the return value cannot necessarily just be transmitted
+	      as-is.  The status code GSS_S_COMPLETE is given the value 0,
+	      and the encoding of all other status codes is unspecified.
+	      As such, any distinction between non-zero values is
+	      purely informational.</t>
+      <t hangText="gss_minor_status">The minor status code returned by
 	      GSS_Accept_sec_context(). Implementors should note that minor status
-	      codes are not portable between GSSAPI implementations.</t><t hangText="rxgk_info">If gss_major_status == GSS_S_COMPLETE this contains an
+	      codes are not portable between GSSAPI implementations and
+	      therefore this field can only be of informative value.</t>
+      <t hangText="rxgk_info">If gss_major_status == GSS_S_COMPLETE this contains an
 	encrypted block containing the server's response to the client. See
 	below.</t></list></t>
        </section>
        <section title="GSS Negotiation Loop">
-       <t>The client proceeds through a GSS security context initialization loop,
-       with alternating calls to GSS_Init_sec_context() and the
-       GSSNegotiate() RPC, until an error or success condition is reached.
-       Each call to GSSNegotiate will return an output token from
-       GSS_Accept_sec_context() and/or an output opaque to be
-       used as an input for a subsequent call to GSSNegotiate, if
-       such a subsequent call is necessary.</t>
+       <t>The client runs a standard GSS negotiation loop over
+        GSS_Init_sec_context() <xref target="RFC2743" /> (see also the
+        C example in <xref target="RFC2744" />).  Security context tokens
+        generated by GSS_Init_sec_context() are sent in a GSSNegotiate()
+        RPC, and security context tokens generated by the server's call
+        to GSS_Accept_sec_context() are returned as the results of this RPC.</t>
+       <t>The server calls GSS_Accept_sec_context() to process security
+        context tokens sent as the input_token_buffer input parameter of the
+        GSSNegotiate() RPC.  The server sends the response token, as well
+        as an opaque context identifier, in the output_token_buffer and
+        opaque_out output parameters of the GSSNegotiate() RPC, respectively.</t>
+       <t>This is repeated until the security context token exchange is
+        complete (i.e., both GSS_Init_sec_context() and GSS_Accpet_sec_context()
+        return GSS_S_COMPLETE) or an error results (GSS_Init_sec_context()
+        or GSS_Accept_sec_context() return any major status other than
+        GSS_S_COMPLETE or GSS_S_CONTINUE_NEEDED).  The opaque_out returned
+        from any GSSNegotiate() RPC is sent as the opaque_in input of the
+        next GSSNegotiate() call, if any.</t>
       <t>All calls to GSSNegotiate in the loop MUST occur on the same Rx
        connection.</t>
       <t>Different GSS mechanisms will require a different number of full (or
@@ -408,12 +453,19 @@ enum RXGK_Level {
       </section>
       <section title="Returned Information">
       <t>Upon successful completion of the loop (negotiation of a GSS security
-       context), rxgk_info
-       contains the XDR representation of a 
-       RXGK_ClientInfo structure, encrypted using gss_wrap() with
-       confidentiality protection (or potentially some weaker protection if
-       an appropriate security context could not be negotiated).
-       The client should decrypt this structure
+       context), rxgk_info contains a GSS wrap token (as generated by
+       GSS_Wrap() using the acceptor's established security context) taken
+       over the XDR encoding of an RXGK_ClientInfo structure.  If
+       confidentiality protection is available (the conf_ret_flag was set),
+       then conf_flag MUST be set to true in the call to GSS_Wrap().
+       If confidentiality proection is not available, then the RXGK_ClientInfo
+       MUST NOT contain a valid token.  It is only appropriate to use GSS_Wrap()
+       without confidentiality protection for the returned RXGK_ClientInfo
+       when using the errorcode field of the RXGK_ClientInfo structure to
+       report an error in the negotiation process.  The unavailability of
+       confidentiality protection itself is one error that might be indicated
+       in such a fashion.
+       The client should decrypt the received rxgk_info structure
        using gss_unwrap().  If the value of conf_state returned from
        gss_unwrap() is zero,
        then the negotiation has failed to obtain a valid token.  In this
@@ -421,7 +473,8 @@ enum RXGK_Level {
        additional information.</t>
       <t>RXGK_ClientInfo contains the following server populated
        fields:
-    <list style="hanging" hangIndent="6"><t hangText="errorcode">A policy (rather than connection establishment) 
+    <list style="hanging" hangIndent="6">
+      <t hangText="errorcode">A policy (rather than connection establishment) 
         error code. If non-zero, an error has occurred, the resulting key
 	negotiation has failed, and the rest of the values in this structure
 	are undefined.  These policy error codes are from com_err tables
@@ -429,20 +482,25 @@ enum RXGK_Level {
 	and may represent such conditions as insufficient authorization
 	or that the client has too many active connections to the service.
         Error codes may be RXGK errors (see <xref target="AFSReg"/>)
-        or from an application-specific table.</t><t hangText="enctype">The encryption type selected by the server.
+        or from an application-specific table.</t>
+      <t hangText="enctype">The encryption type selected by the server.
 	This SHALL be one of the types listed by the client in its StartParams
-	structure.</t><t hangText="level">The rxgk security level selected by the server, see
-	<xref target="levels"/> for allowed values.</t><t hangText="lifetime">The connection lifetime, in seconds, as determined
+	structure.</t>
+      <t hangText="level">The rxgk security level selected by the server, see
+	<xref target="levels"/> for allowed values.</t>
+      <t hangText="lifetime">The connection lifetime, in seconds, as determined
 	by the server. The server MAY honor the client's request, but the server
 	MUST choose a value at least as restrictive as the value requested by
 	the client. A value of zero indicates that the connection should not be
-	rekeyed based on its lifetime.</t><t hangText="bytelife">The maximum amount of data (as log base 2 of the
+	rekeyed based on its lifetime.</t>
+      <t hangText="bytelife">The maximum amount of data (as log base 2 of the
 	number of bytes) that
 	may be transfered using this key. The server MAY honor the client's
 	request, but the server MUST choose a value at least as restrictive
 	as the value requested by the client. A value of 0 indicates that the
 	connection should not be rekeyed based on the number of bytes
-	transmitted over the connection.</t><t hangText="expiration">The time, expressed as an rxgkTime, at which 
+	transmitted over the connection.</t>
+      <t hangText="expiration">The time, expressed as an rxgkTime, at which 
 	this token expires. The expiration time MAY be set administratively
 	by the server, and SHOULD reflect the expiration time of the
 	underlying GSSAPI credential. The token SHOULD NOT expire later
@@ -460,19 +518,20 @@ enum RXGK_Level {
 	proposed by the client.</t>
       <t>The client may then compute K0, by taking the nonce it sent to the
         server (client_nonce) and the one it has just received (server_nonce),
-        combining them together, and passing them to GSS_Pseudo_random() with
+        combining them together, and passing them to
+        GSS_Pseudo_random() <xref target="RFC4401" /> with
         the GSS_C_PRF_KEY_FULL option:</t>
       <figure>
         <artwork>
 	GSS_Pseudo_random(gssapi_context, 
 			  GSS_C_PRF_KEY_FULL, 
 			  client_nonce || server_nonce, 
-			  K, 
+			  K_len, 
 			  *K0);
      </artwork>
       </figure>
       <t>|| is the concatenation operation.</t>
-      <t>K, the desired output length, is the key generation seed length as
+      <t>K_len is the required output length as
         specified in the RFC3961 profile of the negotiated enctype.</t>
       <t>The ouput of GSS_Pseudo_random must then be passed through the
         random-to-key operation specified in the RFC3961 profile for the
@@ -1040,6 +1099,7 @@ end
 	   &RFC4402;
 	   &RFC4506;
 	   &RFC6113;
+	   &RFC6649;
    </references>
     <section title="Acknowledgements">
       <t>rxgk was originally developed over a number of AFS Hackathons. The
