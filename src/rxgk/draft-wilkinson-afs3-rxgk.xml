@@ -1149,6 +1149,11 @@ end
         <t>Improvements to the GSS negotiation description.</t>
         <t>Add the RXGK_BAD_QOP error code.</t>
       </section>
+      <section title="Since 07">
+        <t>Refer to an external description of the GSS loop structure.</t>
+        <t>Describe rxkad and why it is bad.</t>
+        <t>Describe the minimal and expected token contents.</t>
+      </section>
     </section>
   </back>
 </rfc>
