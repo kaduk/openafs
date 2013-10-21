@@ -344,7 +344,7 @@ enum RXGK_Level {
        gss_major_status/gss_minor_status output arguments, and the
        'errorcode' field of the RXGK_ClientInfo.
        The errorcode field should be used to report an error (using a
-       com_err error code) if any of the following are true:
+       com_err error code) if either of the following are true:
        <list style="numbers">
          <t>The acceptor's security context negotiation is complete but a
            non-GSS error occurred while constructing the RXGK_ClientInfo.</t>
