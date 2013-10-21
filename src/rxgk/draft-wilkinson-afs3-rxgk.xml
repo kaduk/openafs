@@ -354,12 +354,9 @@ enum RXGK_Level {
        If the errorcode field of the RXGK_ClientInfo is nonzero, the other
        fields in the RXGK_ClientInfo MUST be set to zero or zero-length,
        as appropriate.
-       If an error is returned from GSS_Accept_sec_context(),
-       this failure is reported in the gss_major_status and gss_minor_status
-       output arguments of the RPC.  
-       If an error is returned from a GSS library call after the acceptor's
-       security context negotiation is complete but before the RXGK_ClientInfo
-       is successfully constructed, encoded, and protected using GSS_Wrap(),
+       If an error is returned from GSS_Accept_sec_context() or any other
+       GSS library call, during security context establishment or the
+       preparation of the rxgk_info output parameter,
        this failure is reported in the gss_major_status and gss_minor_status
        output arguments of the RPC.  If a non-GSS error occurs during
        the context negotiation loop, this error is reported as a com_err
