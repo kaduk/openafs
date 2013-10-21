@@ -344,7 +344,7 @@ enum RXGK_Level {
        for the initiator to report errors in context establishment to the
        acceptor.  The acceptor has three ways in which errors can be
        reported back to the initiator: the RPC return value, the
-       gss_major_status and gss_minor_status output arguments, and the
+       gss_major_status/gss_minor_status output arguments, and the
        'errorcode' field of the RXGK_ClientInfo.
        The errorcode field should be used to report an error (using a
        com_err error code) if any of the following are true:
@@ -353,46 +353,44 @@ enum RXGK_Level {
            non-GSS error occurred while constructing the RXGK_ClientInfo.</t>
          <t>The acceptor's security context negotiation is complete but the
            security context does not provide the necessary functionality for
-           rxgk (see below).</t>
-         <t>The acceptor experienced an error during the security context
-           negotiation but the latest call to GSS_Accept_sec_context()
-           returned true in the prot_ready_state argument.
+           rxgk (see below).
          </t>
        </list>
        If the errorcode field of the RXGK_ClientInfo is nonzero, the other
        fields in the RXGK_ClientInfo MUST be set to zero or zero-length,
        as appropriate.
-       If an error is returned from GSS_Accept_sec_context() but the
-       partially constructed context does not support per-message protection,
+       If an error is returned from GSS_Accept_sec_context(),
        this failure is reported in the gss_major_status and gss_minor_status
-       output arguments of the RPC.  If some other error occurs during
-       the context negotiation loop, this error is reported as a com_err
-       error code in the RPC return value.
+       output arguments of the RPC.  
        If an error is returned from a GSS library call after the acceptor's
        security context negotiation is complete but before the RXGK_ClientInfo
        is successfully constructed, encoded, and protected using GSS_Wrap(),
        this failure is reported in the gss_major_status and gss_minor_status
-       output arguments of the RPC.
-       Because the values of the GSS error codes are not specified in the
+       output arguments of the RPC.  If a non-GSS error occurs during
+       the context negotiation loop, this error is reported as a com_err
+       error code in the RPC return value.</t>
+      <t>Because the values of the GSS error codes are not specified in the
        abstract GSS API, we use the values for GSS_S_COMPLETE and
        GSS_S_CONTINUE_NEEDED from the C bindings in
        <xref target="RFC2744" />; other values serve to
        indicate that an error occurred, but are otherwise purely informational
-       in nature.  When the initiator receives indication onf an error from the
+       in nature.  When the initiator receives indication of an error from the
        acceptor, the initiator terminates its half of the context negotiation
        loop.  In general, such an error should be reported
        back to the user and no automated failover should occur other than
        a limited number of retries.</t>
-      <t>The initiator MUST set all three of the mutual_req_flag,
+      <t>rxgk requires mutual authentication, message confidentiality,
+       and message integrity protection.
+       The initiator MUST set all three of the mutual_req_flag,
        conf_req_flag, and integ_req_flag booleans to true when it calls
        GSS_Init_sec_context().  Both initiator and acceptor MUST verify
        that all three flags mutual_state, conf_avail, and integ_avail are
        true after the context is established.  If one or more of those
-       flags are false in the returned values from GSS_Accept_sec_context(),
-       the acceptor MUST provide a nonzero value in
+       flags are false in the final returned values from
+       GSS_Accept_sec_context(), the acceptor MUST provide a nonzero value in
        the errorcode field of the returned RXGK_ClientInfo (and not populate
        the other fields of that structure).  If one or more of these flags
-       are false in the returned values from GSS_Init_sec_context(),
+       are false in the final returned values from GSS_Init_sec_context(),
        the initiator MUST ignore any fields other than errorcode in the
        RXGK_ClientInfo received from the acceptor.</t>
       <t>Failure of the negotiation loop or failure to establish a sufficiently
