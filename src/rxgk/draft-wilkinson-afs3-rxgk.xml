@@ -310,10 +310,7 @@ enum RXGK_Level {
 	      GSS_Accept_sec_context(). Implementors should note that minor status
 	      codes are not portable between GSSAPI implementations and
 	      therefore this field can only be of informative value.</t>
-      <t hangText="rxgk_info">If the acceptor's security context negotiation
-        is complete, or an error has occurred in its negotiation but
-        GSS_Accept_sec_context() has returned true in the prot_ready_state
-        field, this
+      <t hangText="rxgk_info">If gss_major_status == GSS_S_COMPLETE, this
         contains the output of GSS_Wrap() performed over an XDR encoded
         RXGK_ClientInfo structure from the server, containing the server's
         response to the client.  See below.</t></list></t>
