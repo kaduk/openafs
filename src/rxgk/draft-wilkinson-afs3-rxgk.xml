@@ -377,19 +377,17 @@ enum RXGK_Level {
        back to the user and no automated failover should occur other than
        a limited number of retries.</t>
       <t>rxgk requires mutual authentication, message confidentiality,
-       and message integrity protection.
-       The initiator MUST set all three of the mutual_req_flag,
-       conf_req_flag, and integ_req_flag booleans to true when it calls
-       GSS_Init_sec_context().  Both initiator and acceptor MUST verify
-       that all three flags mutual_state, conf_avail, and integ_avail are
-       true after the context is established.  If one or more of those
-       flags are false in the final returned values from
-       GSS_Accept_sec_context(), the acceptor MUST provide a nonzero value in
+       and message integrity protection.  Both initiator and acceptor
+       MUST check the mutual_state, conf_avail, and integ_avail flags
+       for the completed security context.  Accordingly, the initiator
+       MUST set the corresponding request flags, mutual_req_flag,
+       conf_req_flag, and integ_req_flag.
+       If the acceptor detects that one or more of these flags are missing,
+       it MUST report the error in
        the errorcode field of the returned RXGK_ClientInfo (and not populate
-       the other fields of that structure).  If one or more of these flags
-       are false in the final returned values from GSS_Init_sec_context(),
-       the initiator MUST ignore any fields other than errorcode in the
-       RXGK_ClientInfo received from the acceptor.</t>
+       the other fields of that structure).
+       If the initiator detects that one or more of these flags are missing,
+       it MUST fail the key negotiation attempt.</t>
       <t>Failure of the negotiation loop or failure to establish a sufficiently
        protected security context will in general affect the client's future
        behavior, potentially even the security class used for future connections,
