@@ -321,8 +321,8 @@ enum RXGK_Level {
        <section title="GSS Negotiation Loop">
        <t>The client and server proceed through a standard GSS negotiation
         loop <xref target="GSSLOOP" /> (see also GSS call descriptions in
-        <xref target="RFC2743">RFC 2743</xref> and C bindings in
-        <xref target="RFC2744">RFC 2744</xref>), using the GSSNegotiatie()
+        <xref target="RFC2743" /> and C bindings in
+        <xref target="RFC2744" />), using the GSSNegotiate()
         RPC as the communication channel for exchanging context tokens.
         The client acts as the GSS initiator, calling GSS_Init_sec_context(),
         and the server is the GSS acceptor, calling GSS_Accept_sec_context().
@@ -330,39 +330,33 @@ enum RXGK_Level {
         context negotiation (GSS_Init_sec_context() and GSS_Accept_sec_context()
         return GSS_S_COMPLETE) or an error occurs with the negotiation.</t>
       <t>GSS security context token exchanges are synchronous and may involve
-       any number of context tokens larger than or equal to one.  The structure
-       of the GSS negotiation loop follows <xref target="GSSLOOP" />,
-       with the GSSNegotiate RPC being the application communication channel
-       over which token exchanges occur.  All calls to GSSNegotiate() in the
-       loop MUST occur on the same Rx connection.
-       GSS security context tokens are
+       any number of context tokens larger than or equal to one.
+       All calls to GSSNegotiate() in the loop MUST occur on the same
+       Rx connection.  GSS security context tokens are
        transferred from initiator to acceptor in the input_token_buffer
        argument of the RPC, and security context tokens are transferred
        from the acceptor to the initiator in the output_token_buffer
        argument of the RPC.  The opaque_in and opaque_out arguments of the
        RPC allow the acceptor to retain state on the security context
-       being constructed across multiple calls to GSSNegotiate().</t>
+       being constructed across multiple calls to GSSNegotiate(); the
+       contents of these opaques are application-specific.</t>
       <t>Due to the stateless nature of Rx RPC servers, there is no need
        for the initiator to report errors in context establishment to the
        acceptor.  The acceptor has three ways in which errors can be
        reported back to the initiator: the RPC return value, the
        gss_major_status and gss_minor_status output arguments, and the
-       'errorcode' field of the RXGK_ClientInfo.  The 'errorcode' field
-       is only usable if the acceptor's security context negotiation is
-       complete or the partially constructed security context is able to
-       support per-message protection operations (as indicated by the
-       prot_ready_state output parameter from GSS_Accept_sec_context()).
+       'errorcode' field of the RXGK_ClientInfo.
        The errorcode field should be used to report an error (using a
        com_err error code) if any of the following are true:
        <list style="numbers">
-         <t>The acceptor's security context negotiation is complete but an
-           error occurred while constructing the RXGK_ClientInfo.</t>
+         <t>The acceptor's security context negotiation is complete but a
+           non-GSS error occurred while constructing the RXGK_ClientInfo.</t>
          <t>The acceptor's security context negotiation is complete but the
            security context does not provide the necessary functionality for
            rxgk (see below).</t>
          <t>The acceptor experienced an error during the security context
            negotiation but the latest call to GSS_Accept_sec_context()
-           returned true in the prot_ready_state parameter.
+           returned true in the prot_ready_state argument.
          </t>
        </list>
        If the errorcode field of the RXGK_ClientInfo is nonzero, the other
@@ -382,7 +376,7 @@ enum RXGK_Level {
        Because the values of the GSS error codes are not specified in the
        abstract GSS API, we use the values for GSS_S_COMPLETE and
        GSS_S_CONTINUE_NEEDED from the C bindings in
-       <xref target="RFC2744">RFC 2744</xref>; other values serve to
+       <xref target="RFC2744" />; other values serve to
        indicate that an error occurred, but are otherwise purely informational
        in nature.  When the initiator receives indication onf an error from the
        acceptor, the initiator terminates its half of the context negotiation
