@@ -394,8 +394,8 @@ enum RXGK_Level {
        protected security context will in general affect the client's future
        behavior, potentially even the security class used for future connections,
        so care should be taken to report errors in a secure fashion when
-       possible.  A failure of the negotiation loop (reported as a nonzero
-       RPC return value, i.e., an RX abort) may occur for transient reasons
+       possible.  A failure of the negotiation loop
+       may occur for transient reasons
        and should not necessarily be interpreted to mean that rxgk is not
        usable on this connection (see <xref target="security"/>), whereas
        an error returned in the errorcode field of the RXGK_ClientInfo object
