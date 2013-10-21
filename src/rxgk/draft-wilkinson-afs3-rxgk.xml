@@ -326,9 +326,7 @@ enum RXGK_Level {
         The loop continues until both parties have completed the security
         context negotiation (GSS_Init_sec_context() and GSS_Accept_sec_context()
         return GSS_S_COMPLETE) or an error occurs with the negotiation.</t>
-      <t>GSS security context token exchanges are synchronous and may involve
-       any number of context tokens larger than or equal to one.
-       All calls to GSSNegotiate() in the loop MUST occur on the same
+      <t>All calls to GSSNegotiate() in the loop MUST occur on the same
        Rx connection.  GSS security context tokens are
        transferred from initiator to acceptor in the input_token_buffer
        argument of the RPC, and security context tokens are transferred
@@ -365,17 +363,18 @@ enum RXGK_Level {
        this failure is reported in the gss_major_status and gss_minor_status
        output arguments of the RPC.  If a non-GSS error occurs during
        the context negotiation loop, this error is reported as a com_err
-       error code in the RPC return value.</t>
+       error code in the RPC return value.
+       When the initiator receives indication of an error from the
+       acceptor, the initiator terminates its half of the context negotiation
+       loop.  In general, such an error should be reported
+       back to the user and no automated failover should occur other than
+       a limited number of retries.</t>
       <t>Because the values of the GSS error codes are not specified in the
        abstract GSS API, we use the values for GSS_S_COMPLETE and
        GSS_S_CONTINUE_NEEDED from the C bindings in
        <xref target="RFC2744" />; other values serve to
        indicate that an error occurred, but are otherwise purely informational
-       in nature.  When the initiator receives indication of an error from the
-       acceptor, the initiator terminates its half of the context negotiation
-       loop.  In general, such an error should be reported
-       back to the user and no automated failover should occur other than
-       a limited number of retries.</t>
+       in nature.</t>
       <t>rxgk requires mutual authentication, message confidentiality,
        and message integrity protection.  Both initiator and acceptor
        MUST check the mutual_state, conf_avail, and integ_avail flags
