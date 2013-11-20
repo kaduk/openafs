@@ -316,13 +316,14 @@ enum RXGK_Level {
         response to the client.  See below.</t></list></t>
        </section>
        <section title="GSS Negotiation Loop">
-       <t>The client and server proceed through a standard GSS negotiation
-        loop <xref target="GSSLOOP" /> (see also GSS call descriptions in
-        <xref target="RFC2743" /> and C bindings in
-        <xref target="RFC2744" />), using the GSSNegotiate()
-        RPC as the communication channel for exchanging context tokens.
-        The client acts as the GSS initiator, calling GSS_Init_sec_context(),
-        and the server is the GSS acceptor, calling GSS_Accept_sec_context().
+       <t>The client and server undergo a standard GSS negotiation loop,
+        using the GSSNegotiate() RPC as the communication channel for
+        exchanging context tokens.  The client acts as the GSS initiator,
+        calling GSS_Init_sec_context(), and the server is the GSS acceptor,
+        calling GSS_Accept_sec_context() <xref target="RFC2743" />,
+        <xref target="RFC2744" />.  A description of the structure of the
+        GSS negotiation loop, consolidating the requirements from RFC 2743 into
+        a single location, is found in <xref target="GSSLOOP" />.
         The loop continues until both parties have completed the security
         context negotiation (GSS_Init_sec_context() and GSS_Accept_sec_context()
         return GSS_S_COMPLETE) or an error occurs with the negotiation.</t>
