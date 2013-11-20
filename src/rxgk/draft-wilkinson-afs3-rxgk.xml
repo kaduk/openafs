@@ -1156,6 +1156,11 @@ end
         <t>Describe rxkad and why it is bad.</t>
         <t>Describe the minimal and expected token contents.</t>
       </section>
+      <section title="Since 08">
+        <t>Update GSSLOOP reference (it is no longer targetting standards-track)
+          and deal with the fallout accordingly.</t>
+        <t>Be internally consistent about encoding GSS major status codes.</t>
+      </section>
     </section>
   </back>
 </rfc>
