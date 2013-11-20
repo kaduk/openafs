@@ -1039,7 +1039,7 @@ end
 	  <author initials="B." surname="Kaduk" fullname="Benjamin Kaduk">
 	    <organization>MIT Kerberos Consortium</organization>
 	  </author>
-	  <date month="October" day="21" year="2013" />
+	  <date month="November" day="20" year="2013" />
 	  <abstract>
 	    <t>This document specifies the generic structure of the
 	      negotiation loop to establish a GSS security context
@@ -1050,9 +1050,9 @@ end
 	    </t>
 	  </abstract>
 	</front>
-	<seriesInfo name="Internet-Draft" value="draft-kaduk-kitten-gss-loop-00"/>
+	<seriesInfo name="Internet-Draft" value="draft-kaduk-kitten-gss-loop-01"/>
 	<format type="HTML"
-	    target="http://tools.ietf.org/html/draft-kaduk-kitten-gss-loop-00"/>
+	    target="http://tools.ietf.org/html/draft-kaduk-kitten-gss-loop-01"/>
       </reference>
     </references>
     <references title="Normative References">
