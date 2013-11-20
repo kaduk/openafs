@@ -302,10 +302,11 @@ enum RXGK_Level {
 	      output by the server's call to GSS_Accept_sec_context().
 	      The abstract GSS-API does not specify the encoding for status
 	      values, so the return value cannot necessarily just be transmitted
-	      as-is.  The status code GSS_S_COMPLETE is given the value 0,
-	      and the encoding of all other status codes is unspecified.
-	      As such, any distinction between non-zero values is
-	      purely informational.</t>
+	      as-is.  The status code values for GSS_S_COMPLETE (0) and
+	      GSS_S_CONTINUE_NEEDED (1) from the C bindings in
+	      <xref target="RFC2744" /> are used and the encoding of all other
+	      status codes is unspecified As such, any distinction between
+	      other non-zero values is purely informational.</t>
       <t hangText="gss_minor_status">The minor status code returned by
 	      GSS_Accept_sec_context(). Implementors should note that minor status
 	      codes are not portable between GSSAPI implementations and
