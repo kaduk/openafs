@@ -49,9 +49,12 @@ main(int argc, char *argv[])
 {
     struct rx_service *service;
     struct rx_securityClass *secobjs[5];
+    struct rxgk_getkey_sspecific_data gk;
     int ret;
     u_short port = 8888;
     u_short svc = 34567;
+
+    memset(&gk, 0, sizeof(gk));
 
     ret = rx_Init(htons(port));
     if (ret != 0) {
@@ -69,6 +72,10 @@ main(int argc, char *argv[])
 	dprintf(2, "Registering service failed\n");
         exit(1);
     }
+    /* Register the getkey function for token generation. */
+    gk.getkey = &dummy_getkey;
+    gk.rock = NULL;
+    rx_SetServiceSpecific(service, RXGK_NEG_SSPECIFIC_GETKEY, &gk);
 
     rx_SetMinProcs(service, 2);
     rx_SetMaxProcs(service, 2);
