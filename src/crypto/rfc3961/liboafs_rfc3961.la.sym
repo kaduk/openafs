@@ -13,7 +13,6 @@ oafs_h_krb5_decrypt
 oafs_h_krb5_enctype_keybits
 oafs_h_krb5_data_free
 oafs_h_krb5_data_alloc
-oafs_h_krb5_generate_random_block
 oafs_h_krb5_keyblock_get_enctype
 oafs_h_krb5_keyblock_init
 oafs_h_krb5_copy_keyblock
