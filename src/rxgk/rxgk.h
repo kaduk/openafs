@@ -85,8 +85,6 @@ afs_int32 dummy_getkey(void *rock, afs_int32 *kvno, afs_int32 *enctype,
 		       rxgk_key *key);
 afs_int32 make_key(rxgk_key *key_out, void *raw_key, afs_int32 length,
 		   afs_int32 enctype);
-afs_int32 copy_key(rxgk_key key_in, rxgk_key *key_out);
-afs_int32 random_key(afs_int32 enctype, rxgk_key *key_out);
 afs_int32 get_server_key(rxgk_key *key, afs_int32 *kvno, afs_int32 *enctype);
 void release_key(rxgk_key *key);
 afs_int32 mic_length(rxgk_key key, size_t *out);
