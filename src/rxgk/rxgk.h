@@ -64,6 +64,16 @@ static_inline rxgkTime RXGK_NOW(void)
  * of a key.  It has (at least) the keyblock and length, kvno, and enctype. */
 typedef void * rxgk_key;
 
+/* We use service-specific data to hold long-term key information for the
+ * key-negotiation service (34567). */
+#define RXGK_NEG_SSPECIFIC_GETKEY	0
+typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 *kvno,
+				      afs_int32 *enctype, rxgk_key *key);
+struct rxgk_getkey_sspecific_data {
+    rxgk_getkey_func getkey;
+    void *rock;
+};
+
 /* rxgk_util.c */
 void zero_rxgkdata(RXGK_Data *data);
 afs_int32 copy_rxgkdata(RXGK_Data *out, RXGK_Data *in);
@@ -104,8 +114,6 @@ afs_int32 derive_tk(rxgk_key *tk, rxgk_key k0, afs_uint32 epoch,
 afs_int32 rxgk_cipher_expansion(rxgk_key k0, int *len_out);
 
 /* rxgk_server.c */
-typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 *kvno,
-				      afs_int32 *enctype, rxgk_key *key);
 struct rx_securityClass * rxgk_NewServerSecurityObject(void *getkey_rock,
 						       rxgk_getkey_func getkey);
 
