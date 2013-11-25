@@ -116,6 +116,12 @@ afs_int32 rxgk_cipher_expansion(rxgk_key k0, int *len_out);
 /* rxgk_server.c */
 struct rx_securityClass * rxgk_NewServerSecurityObject(void *getkey_rock,
 						       rxgk_getkey_func getkey);
+afs_int32 rxgk_NewService_SecObj(u_short port,
+				 struct rx_service **service_out,
+				 char *serviceName,
+				 struct rx_securityClass **secObjs,
+				 int nsecObjs, rxgk_getkey_func getkey,
+				 void *getkey_rock);
 
 /* rxgk_client.c */
 struct rx_securityClass *rxgk_NewClientSecurityObject(RXGK_Level level,

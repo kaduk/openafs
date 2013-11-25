@@ -98,6 +98,50 @@ rxgk_NewServerSecurityObject(void *getkey_rock, rxgk_getkey_func getkey)
     return sc;
 }
 
+/*
+ * Wrapper around rxgk_NewServerSecurityObject and rx_NewService.
+ * We need to register a key negotiation service for anything with
+ * an rxgk server security object; this wrapper takes care of a bit
+ * of the boilerplate and also helps ensure that the routine to
+ * fetch the long-term key for the token negotiation service is
+ * the same as that used for the security object which will receive
+ * those tokens.
+ */
+afs_int32
+rxgk_NewService_SecObj(u_short port, struct rx_service **service_out,
+		       char *serviceName,
+		       struct rx_securityClass **secObjs, int nsecObjs,
+		       rxgk_getkey_func getkey, void *getkey_rock)
+{
+    struct rx_service *service = NULL;
+    struct rx_securityClass *so = NULL;
+    struct rxgk_getkey_sspecific_data *gk;
+    afs_int32 ret;
+    u_short svc = 34567;
+
+    if (nsecObjs < 5 || secObjs == NULL || service_out == NULL)
+	return RX_INVALID_OPERATION;
+
+    gk = calloc(1, sizeof(*gk));
+
+    so = rxgk_NewServerSecurityObject(getkey_rock, getkey);
+    service = rx_NewService(port, svc, serviceName, secObjs, nsecObjs,
+			     RXGK_ExecuteRequest);
+
+    if (gk != NULL && so != NULL && service != NULL) {
+	secObjs[RX_SECIDX_GK] = so;
+	so = NULL;
+	*service_out = service;
+	service = NULL;
+	gk->getkey = getkey;
+	gk->rock = getkey_rock;
+	rx_SetServiceSpecific(*service_out, RXGK_NEG_SSPECIFIC_GETKEY, gk);
+	return 0;
+    } /* else */
+    free(gk);
+    return RXGK_INCONSISTENCY;
+}
+
 /* Did a connection properly authenticate? */
 int
 rxgk_CheckAuthentication(struct rx_securityClass *aobj,
