@@ -110,8 +110,6 @@ struct rx_securityClass * rxgk_NewServerSecurityObject(void *getkey_rock,
 						       rxgk_getkey_func getkey);
 struct rx_securityClass * rxgk_NewNullServerSecurityObject(
 	void *getkey_rock, rxgk_getkey_func getkey);
-afs_int32 rxgk_NewEphemeralServerSecurityObjects(
-	struct rx_securityClass *objs[2]);
 
 /* rxgk_client.c */
 struct rx_securityClass *rxgk_NewClientSecurityObject(RXGK_Level level,

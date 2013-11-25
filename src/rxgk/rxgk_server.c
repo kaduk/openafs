@@ -136,51 +136,6 @@ rxgk_NewNullServerSecurityObject(void *getkey_rock, rxgk_getkey_func getkey)
     return sc;
 }
 
-/*
- * Helper for NewEphemeralSserverSecurityObjects.
- * The rock contains a key, and we just return a copy of it, after some
- * sanity checking on the kvno and enctype.
- */
-#define EPHEMERAL_ENCTYPE	18
-static afs_int32
-copy_getkey(void *rock, afs_int32 *kvno, afs_int32 *enctype, rxgk_key *new_key)
-{
-    rxgk_key secret_key = rock;
-
-    if (enctype == NULL || (*enctype != 0 && *enctype != EPHEMERAL_ENCTYPE))
-	return RXGK_BADETYPE;
-    if (kvno == NULL || *kvno < 0 || *kvno > 1)
-	return RXGK_BADKEYNO;
-
-    *enctype = EPHEMERAL_ENCTYPE;
-    *kvno = 1;
-    return copy_key(secret_key, new_key);
-}
-
-/*
- * Creates an ephemeral random key which is used as the "long-term" private
- * key for the rxnull and rxgk security objects which are returned.  This
- * is intended to be used for applications where generating a new key each
- * time the application starts up is reasonable.
- */
-afs_int32
-rxgk_NewEphemeralServerSecurityObjects(struct rx_securityClass *objs[2])
-{
-    rxgk_key key;
-    afs_int32 ret;
-
-    if (objs == NULL)
-	return RXGK_INCONSISTENCY;
-
-    ret = random_key(EPHEMERAL_ENCTYPE, &key);
-    objs[0] = rxgk_NewNullServerSecurityObject(key, &copy_getkey);
-    objs[1] = rxgk_NewServerSecurityObject(key, &copy_getkey);
-
-    if (objs[0] == NULL || objs[1] == NULL)
-	return RXGK_INCONSISTENCY;
-    return 0;
-}
-
 /* Did a connection properly authenticate? */
 int
 rxgk_CheckAuthentication(struct rx_securityClass *aobj,
