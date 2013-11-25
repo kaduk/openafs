@@ -84,25 +84,6 @@ struct rxgk_sconn {
     rxgk_key k0;
 };
 
-/*
- * Security Object private data for rxnull connections serving
- * RXGK_GSSNegotiate requests -- there needs to be a way to know what
- * key material to use to encrypt the resulting token.
- * Attempt to avoid being rxgk-specific by wrapping the struct with
- * getkey pointer and rock inside another struct, which has space for
- * pointers if other security classes need to hang things off an rxnull
- * security object.
- */
-struct rxgk_nullgetkey {
-    void *rock;
-    rxgk_getkey_func getkey;
-};
-struct rxgk_nullprivate {
-    afs_int32 valid;
-    void *pad[4];
-    struct rxgk_nullgetkey *rxgk;
-};
-
 int rxgk_CheckAuthentication(struct rx_securityClass *aobj,
 			     struct rx_connection *aconn);
 int rxgk_CreateChallenge(struct rx_securityClass *aobj,
