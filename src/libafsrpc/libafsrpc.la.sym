@@ -64,6 +64,7 @@ rx_GetServerDebug
 rx_GetServerPeers
 rx_GetServerStats
 rx_GetServerVersion
+rx_GetServiceSpecific
 rx_GetSpecific
 rx_HostOf
 rx_IncrementTimeAndCount
@@ -104,6 +105,7 @@ rx_SetNoJumbo
 rx_SetSecurityData
 rx_SetSecurityHeaderSize
 rx_SetSecurityMaxTrailerSize
+rx_SetServiceSpecific
 rx_SetSpecific
 rx_SlowReadPacket
 rx_SlowWritePacket
