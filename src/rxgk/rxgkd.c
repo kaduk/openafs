@@ -59,13 +59,9 @@ main(int argc, char *argv[])
 	exit(1);
     }
 
-    ret = rxgk_NewEphemeralServerSecurityObjects(secobjs);
-    if (ret != 0) {
-	printf("Failed to generate security objects\n");
-	exit(1);
-    }
-    secobjs[RX_SECIDX_GK] = secobjs[1];
+    secobjs[0] = rxgk_NewNullServerSecurityObject(NULL, &dummy_getkey);
     secobjs[1] = secobjs[2] = secobjs[3] = NULL;
+    secobjs[RX_SECIDX_GK] = rxgk_NewServerSecurityObject(NULL, &dummy_getkey);
 
     service = rx_NewService(port, svc, "rxgkd", secobjs, 5 /* nSecObjs */,
 			    RXGK_ExecuteRequest);
