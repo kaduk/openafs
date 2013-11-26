@@ -883,11 +883,7 @@ rxk_NewSocketHost(afs_uint32 ahost, short aport)
     memcpy((caddr_t) bindnam->b_rptr + SO_MSGOFFSET, (caddr_t) & myaddr,
 	   addrsize);
     bindnam->b_wptr = bindnam->b_rptr + (addrsize + SO_MSGOFFSET + 1);
-#if defined(AFS_NBSD40_ENV)
-    code = sobind(newSocket, bindnam, addrsize, osi_curproc());
-#else
     code = sobind(newSocket, bindnam, addrsize);
-#endif
     if (code) {
 	soclose(newSocket);
 #if !defined(AFS_HPUX1122_ENV)
@@ -1321,7 +1317,7 @@ osi_Panic(char *msg, ...)
 # ifdef AFS_LINUX20_ENV
     * ((char *) 0) = 0;
 # else
-    panic(msg);
+    panic("%s", msg);
 # endif
 #endif
 }

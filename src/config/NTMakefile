@@ -94,6 +94,9 @@ idirs: doclink
 !	IF (!EXIST($(OJT)\crypto\hcrypto))
 		$(MKDIR) $(OJT)\crypto\hcrypto
 !	ENDIF
+!	IF (!EXIST($(OJT)\crypto\rfc3961))
+		$(MKDIR) $(OJT)\crypto\rfc3961
+!	ENDIF
 !	IF (!EXIST($(OJT)\dir))
 		$(MKDIR) $(OJT)\dir
 !	ENDIF
@@ -159,6 +162,9 @@ idirs: doclink
 !	ENDIF
 !	IF (!EXIST($(OJT)\libafsauthent))
 		$(MKDIR) $(OJT)\libafsauthent
+!	ENDIF
+!	IF (!EXIST($(OJT)\libafscp))
+		$(MKDIR) $(OJT)\libafscp
 !	ENDIF
 !	IF (!EXIST($(OJT)\libafsrpc))
 		$(MKDIR) $(OJT)\libafsrpc

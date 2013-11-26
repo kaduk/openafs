@@ -234,7 +234,17 @@ AFSCleanup( IN PDEVICE_OBJECT LibDeviceObject,
                 // We may be performing some cleanup on the Fcb so grab it exclusive to ensure no collisions
                 //
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSCleanup Acquiring Fcb lock %p EXCL %08lX\n",
+			      &pFcb->NPFcb->Resource,
+			      PsGetCurrentThread()));
+
+		AFSAcquireExcl( &pFcb->NPFcb->Resource,
+				TRUE);
+
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSCleanup Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                               &pFcb->NPFcb->SectionObjectResource,
@@ -318,7 +328,7 @@ AFSCleanup( IN PDEVICE_OBJECT LibDeviceObject,
 					    NULL,
 					    NULL);
 		}
-		__except( EXCEPTION_EXECUTE_HANDLER)
+		__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
 		{
 
 		    ntStatus = GetExceptionCode();
@@ -335,22 +345,13 @@ AFSCleanup( IN PDEVICE_OBJECT LibDeviceObject,
 		    SetFlag( pObjectInfo->Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
                 }
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSCleanup Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                               &pFcb->NPFcb->SectionObjectResource,
                               PsGetCurrentThread()));
 
                 AFSReleaseResource( &pFcb->NPFcb->SectionObjectResource);
-
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
-                              AFS_TRACE_LEVEL_VERBOSE,
-                              "AFSCleanup Acquiring Fcb lock %p EXCL %08lX\n",
-                              &pFcb->NPFcb->Resource,
-                              PsGetCurrentThread()));
-
-                AFSAcquireExcl( &pFcb->NPFcb->Resource,
-                                TRUE);
 
                 //
                 // Unlock all outstanding locks on the file, again, unconditionally

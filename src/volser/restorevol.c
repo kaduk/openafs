@@ -77,8 +77,8 @@ readvalue(int size)
     ptr = (char *)&value;
 
     s = sizeof(value) - size;
-    if (size < 0) {
-	fprintf(stderr, "Too much data in afs_int32\n");
+    if (s < 0) {
+	fprintf(stderr, "Too much data for afs_int32\n");
 	return 0;
     }
 
@@ -162,6 +162,11 @@ ReadDumpHeader(struct DumpHeader *dh)
 
 	case 't':
 	    dh->nDumpTimes = ntohl(readvalue(2)) >> 1;
+	    if (dh->nDumpTimes > MAXDUMPTIMES) {
+		fprintf(stderr, "Too many dump times in header (%d > %d)\n",
+			dh->nDumpTimes, MAXDUMPTIMES);
+		dh->nDumpTimes = MAXDUMPTIMES;
+	    }
 	    for (i = 0; i < dh->nDumpTimes; i++) {
 		dh->dumpTimes[i].from = ntohl(readvalue(4));
 		dh->dumpTimes[i].to = ntohl(readvalue(4));

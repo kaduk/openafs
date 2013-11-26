@@ -103,10 +103,19 @@ AFSQueryFileInfo( IN PDEVICE_OBJECT LibDeviceObject,
                                      &stAuthGroup);
 
             ntStatus = AFSVerifyEntry( &stAuthGroup,
-                                       pCcb->DirectoryCB);
+				       pCcb->DirectoryCB,
+				       FALSE);
 
             if ( NT_SUCCESS( ntStatus))
             {
+
+		AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSQueryFileInfo FID %08lX-%08lX-%08lX-%08lX Clearing Verify Flag\n",
+			      pFcb->ObjectInformation->FileId.Cell,
+			      pFcb->ObjectInformation->FileId.Volume,
+			      pFcb->ObjectInformation->FileId.Vnode,
+			      pFcb->ObjectInformation->FileId.Unique));
 
                 ClearFlag( pFcb->ObjectInformation->Flags, AFS_OBJECT_FLAGS_VERIFY);
             }
@@ -2200,7 +2209,16 @@ AFSSetDispositionInfo( IN PIRP Irp,
             {
                 BOOLEAN bMmFlushed;
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSSetDispositionInfo Acquiring Fcb lock %p EXCL %08lX\n",
+			      &pFcb->NPFcb->Resource,
+			      PsGetCurrentThread()));
+
+		AFSAcquireExcl( &pFcb->NPFcb->Resource,
+				TRUE);
+
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSSetDispositionInfo Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                               &pFcb->NPFcb->SectionObjectResource,
@@ -2254,7 +2272,7 @@ AFSSetDispositionInfo( IN PIRP Irp,
                         }
                     }
                 }
-		__except( EXCEPTION_EXECUTE_HANDLER)
+		__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
 		{
 
 		    bMmFlushed = FALSE;
@@ -2271,13 +2289,21 @@ AFSSetDispositionInfo( IN PIRP Irp,
 				  ntStatus));
 		}
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSSetDispositionInfo Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                               &pFcb->NPFcb->SectionObjectResource,
                               PsGetCurrentThread()));
 
                 AFSReleaseResource( &pFcb->NPFcb->SectionObjectResource);
+
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSSetDispositionInfo Releasing Fcb lock %p EXCL %08lX\n",
+			      &pFcb->NPFcb->Resource,
+			      PsGetCurrentThread()));
+
+		AFSReleaseResource( &pFcb->NPFcb->Resource);
 
                 if ( !bMmFlushed)
                 {
@@ -3452,7 +3478,7 @@ AFSSetRenameInfo( IN PIRP Irp)
                 // permit the locks to be obtained out of order risking a deadlock.
                 //
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSSetRenameInfo Acquiring Fcb lock %p EXCL %08lX\n",
                               &pTargetFcb->NPFcb->Resource,
@@ -3461,7 +3487,7 @@ AFSSetRenameInfo( IN PIRP Irp)
                 AFSAcquireExcl( &pTargetFcb->NPFcb->Resource,
                                 TRUE);
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSSetRenameInfo Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                               &pTargetFcb->NPFcb->SectionObjectResource,
@@ -3487,7 +3513,7 @@ AFSSetRenameInfo( IN PIRP Irp)
 				      &uniTargetName));
 		    }
 		}
-		__except( EXCEPTION_EXECUTE_HANDLER)
+		__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                 {
 
 		    ntStatus = GetExceptionCode();
@@ -3502,7 +3528,7 @@ AFSSetRenameInfo( IN PIRP Irp)
 				  ntStatus));
                 }
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSSetRenameInfo Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                               &pTargetFcb->NPFcb->SectionObjectResource,
@@ -3644,7 +3670,7 @@ AFSSetAllocationInfo( IN PIRP Irp,
     if( pFcb->Header.AllocationSize.QuadPart > pBuffer->AllocationSize.QuadPart)
     {
 
-        AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+	AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                       AFS_TRACE_LEVEL_VERBOSE,
                       "AFSSetAllocationInfo Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                       &pFcb->NPFcb->SectionObjectResource,
@@ -3659,7 +3685,7 @@ AFSSetAllocationInfo( IN PIRP Irp,
 	    bUserMapped = !MmCanFileBeTruncated( pFileObject->SectionObjectPointer,
 						 &pBuffer->AllocationSize);
 	}
-	__except( EXCEPTION_EXECUTE_HANDLER)
+	__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
 	{
 
 	    bUserMapped = FALSE;
@@ -3676,7 +3702,7 @@ AFSSetAllocationInfo( IN PIRP Irp,
 			  ntStatus));
 	}
 
-        AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+	AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                       AFS_TRACE_LEVEL_VERBOSE,
                       "AFSSetAllocationInfo Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                       &pFcb->NPFcb->SectionObjectResource,
@@ -3870,7 +3896,7 @@ AFSSetEndOfFileInfo( IN PIRP Irp,
         if( pBuffer->EndOfFile.QuadPart < pFcb->Header.FileSize.QuadPart)
         {
 
-            AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+	    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                           AFS_TRACE_LEVEL_VERBOSE,
                           "AFSSetEndOfFileInfo Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                           &pFcb->NPFcb->SectionObjectResource,
@@ -3885,7 +3911,7 @@ AFSSetEndOfFileInfo( IN PIRP Irp,
 		bUserMapped = !MmCanFileBeTruncated( pFileObject->SectionObjectPointer,
 						     &pBuffer->EndOfFile);
 	    }
-	    __except( EXCEPTION_EXECUTE_HANDLER)
+	    __except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
 	    {
 
 		bUserMapped = FALSE;
@@ -3902,7 +3928,7 @@ AFSSetEndOfFileInfo( IN PIRP Irp,
 			      ntStatus));
 	    }
 
-            AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+	    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                           AFS_TRACE_LEVEL_VERBOSE,
                           "AFSSetEndOfFileInfo Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                           &pFcb->NPFcb->SectionObjectResource,
@@ -3925,7 +3951,7 @@ AFSSetEndOfFileInfo( IN PIRP Irp,
                 //
                 AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
                               AFS_TRACE_LEVEL_VERBOSE,
-                              "AFSSetAllocationInfo Acquiring Fcb PagingIo lock %p EXCL %08lX\n",
+			      "AFSSetEndOfFileInfo Acquiring Fcb PagingIo lock %p EXCL %08lX\n",
                               &pFcb->NPFcb->PagingResource,
                               PsGetCurrentThread()));
 
@@ -3974,7 +4000,7 @@ AFSSetEndOfFileInfo( IN PIRP Irp,
             //
             AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
                           AFS_TRACE_LEVEL_VERBOSE,
-                          "AFSSetAllocationInfo Acquiring Fcb PagingIo lock %p EXCL %08lX\n",
+			  "AFSSetEndOfFileInfo Acquiring Fcb PagingIo lock %p EXCL %08lX\n",
                           &pFcb->NPFcb->PagingResource,
                           PsGetCurrentThread()));
 

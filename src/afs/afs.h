@@ -657,6 +657,7 @@ struct SimpleLocks {
 #endif
 #define CCreating	0x00400000	/* avoid needless store after open truncate */
 #define CPageHog	0x00800000	/* AIX - dumping large cores is a page hog. */
+#define CCorrupt	0x01000000	/* corrupt dir already reported */
 #define CDCLock		0x02000000	/* Vnode lock held over call to GetDownD */
 #define CBulkFetching	0x04000000	/* stats are being fetched by bulk stat */
 #define CExtendedFile	0x08000000	/* extended file via ftruncate call. */
@@ -1412,7 +1413,7 @@ extern struct brequest afs_brs[NBRS];	/* request structures */
 
 #define afs_CacheIsTooFull() \
     (afs_blocksUsed - afs_blocksDiscarded > \
-	PERCENT(CM_DCACHECOUNTFREEPCT, afs_cacheBlocks) || \
+	PERCENT(CM_DCACHESPACEFREEPCT, afs_cacheBlocks) || \
      afs_freeDCCount - afs_discardDCCount < \
 	PERCENT(100 - CM_DCACHECOUNTFREEPCT, afs_cacheFiles))
 
@@ -1502,6 +1503,7 @@ struct afs_fakestat_state {
 };
 
 extern int afs_fakestat_enable;
+extern int afs_rmtsys_enable;
 extern int afsd_dynamic_vcaches;
 
 /*

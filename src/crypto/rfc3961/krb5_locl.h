@@ -14,10 +14,12 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef AFS_NT40_ENV
 #include <sys/param.h>
 #include <inttypes.h>
-#include <sys/types.h>
 #include <sys/errno.h>
+#endif
+#include <sys/types.h>
 
 #endif
 
@@ -258,10 +260,13 @@ void krb5_free_keyblock(krb5_context, krb5_keyblock *);
 int krb5_data_ct_cmp(const krb5_data *, const krb5_data *);
 int der_copy_octet_string(const krb5_data *, krb5_data *);
 int copy_EncryptionKey(const krb5_keyblock *, krb5_keyblock *);
-int ct_memcmp(const void *p1, const void *p2, size_t len);
 krb5_error_code krb5_enctype_to_string(krb5_context context,
 				       krb5_enctype etype,
 				       char **string);
+#ifdef KERNEL
+/* Roken provides this in userspace, but we're on our own in the kernel. */
+int ct_memcmp(const void *p1, const void *p2, size_t len);
+#endif
 
 
 #include "crypto.h"
@@ -287,6 +292,25 @@ krb5_error_code _krb5_SP_HMAC_SHA1_checksum (krb5_context,
 
 void _krb5_xor(DES_cblock *key, const unsigned char *b);
 
+#ifdef KERNEL
+/*
+ * Ew, gross!
+ * crypto.c contains hard-coded references to these, so even though we don't
+ * implement these enctypes in the kernel, we need to have stubs present in
+ * order to link a kernel module.  In userspace, we do implement these enctypes,
+ * and the real functions are provided by the heimdal source files.
+ */
+static_inline krb5_error_code
+_krb5_usage2arcfour(krb5_context context, unsigned *usage) {
+    return -1;
+}
+
+static_inline void
+_krb5_DES3_random_to_key(krb5_context context, krb5_keyblock *key,
+			 const void *rand, size_t size) {
+    return;
+}
+#else	/* KERNEL */
 void
 _krb5_DES3_random_to_key (krb5_context context,
 			  krb5_keyblock *key,
@@ -294,6 +318,7 @@ _krb5_DES3_random_to_key (krb5_context context,
 			  size_t size);
 
 krb5_error_code _krb5_usage2arcfour(krb5_context context, unsigned *usage);
+#endif	/* KERNEL */
 
 #define _krb5_AES_salt NULL
 #define _krb5_arcfour_salt NULL

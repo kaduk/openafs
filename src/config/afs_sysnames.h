@@ -209,7 +209,9 @@
 #define SYS_NAME_ID_i386_fbsd_84        2123
 #define SYS_NAME_ID_i386_fbsd_90        2120
 #define SYS_NAME_ID_i386_fbsd_91        2122
+#define SYS_NAME_ID_i386_fbsd_92        2124
 #define SYS_NAME_ID_i386_fbsd_100      2130
+#define SYS_NAME_ID_i386_fbsd_110      2140
 
 #define SYS_NAME_ID_ia64_linux2		2200
 #define SYS_NAME_ID_ia64_linux22	2201
@@ -257,6 +259,8 @@
 #define SYS_NAME_ID_macppc_nbsd50       2541
 #define SYS_NAME_ID_amd64_nbsd60        2542
 #define SYS_NAME_ID_i386_nbsd60         2543
+#define SYS_NAME_ID_amd64_nbsd70        2544
+#define SYS_NAME_ID_i386_nbsd70         2545
 
 #define SYS_NAME_ID_i386_obsd31		2600
 #define SYS_NAME_ID_i386_obsd32		2601
@@ -310,7 +314,9 @@
 #define SYS_NAME_ID_amd64_fbsd_84       3015
 #define SYS_NAME_ID_amd64_fbsd_90       3020
 #define SYS_NAME_ID_amd64_fbsd_91       3022
+#define SYS_NAME_ID_amd64_fbsd_92       3023
 #define SYS_NAME_ID_amd64_fbsd_100     3030
+#define SYS_NAME_ID_amd64_fbsd_110     3040
 
 #define SYS_NAME_ID_amd64_w2k           3400
 

@@ -300,20 +300,17 @@ _afsconf_InitKeys(struct afsconf_dir *dir)
  * in the original KeyFile, so that we can continue to be compatible with
  * utilities that directly modify that file.
  *
- * All other keys are stored in the file KeyFileEx, which has the following
+ * All other keys are stored in the file KeyFileExt, which has the following
  * format:
  *    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2
- *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *   |                        version number                           |
  *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *   |                        number of keys                           |
  *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *   | Key data ...
  *   +-+-+-+-+-+-+-+
  *
- * The version number is 1 at present. Version numbers higher than 1
- * indicate a keyfile that is not backwards compatible with this
- * specification.
+ * If the format ever needs to chanage incompatibly, a new file name
+ * will be used.
  *
  * Key data is a sequence of the following records (note that these are
  * not word aligned - the next record begins where the previous one ends)

@@ -100,6 +100,28 @@ service.  In a typical configuration this will be F</usr/afs/etc> - this
 option allows the use of alternative configuration locations for testing
 purposes.
 
+=item B<-rxmaxmtu> <I<bytes>>
+
+Defines the maximum size of an MTU.  The value must be between the
+minimum and maximum packet data sizes for Rx.
+
+=item B<-rxbind>
+
+Bind the Rx socket to the primary interface only. (If not specified, the Rx
+socket will listen on all interfaces.)
+
+=item B<-syslog>[=<I<syslog facility>>]
+
+Specifies that logging output should go to syslog instead of the normal
+log file. B<-syslog>=I<FACILITY> can be used to specify to which facility
+the log message should be sent.
+
+=item B<-sleep> <I<sleep_time>/I<run_time>>
+
+This option is obsolete, and is now only accepted for compatibility with older
+releases. All it does now is log a warning message about how the option is
+obsolete.
+
 =item B<-help>
 
 Prints the online help for this command. All other valid options are

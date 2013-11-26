@@ -287,9 +287,9 @@ static int AskVolumeSummary(struct SalvInfo *salvinfo,
 static void MaybeAskOnline(struct SalvInfo *salvinfo, VolumeId volumeId);
 static void AskError(struct SalvInfo *salvinfo, VolumeId volumeId);
 
-#if defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL)
+#ifdef AFS_DEMAND_ATTACH_FS
 static int LockVolume(struct SalvInfo *salvinfo, VolumeId volumeId);
-#endif /* AFS_DEMAND_ATTACH_FS || AFS_DEMAND_ATTACH_UTIL */
+#endif /* AFS_DEMAND_ATTACH_FS */
 
 /* Uniquifier stored in the Inode */
 static Unique
@@ -716,13 +716,13 @@ SalvageFileSys1(struct DiskPartition64 *partP, VolumeId singleVolumeNumber)
 	Abort("Raced too many times with fileserver restarts while trying to "
 	      "checkout/lock volumes; Aborted\n");
     }
-#if defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL)
+#ifdef AFS_DEMAND_ATTACH_FS
     if (tries > 1) {
 	/* unlock all previous volume locks, since we're about to lock them
 	 * again */
 	VLockFileReinit(&partP->volLockFile);
     }
-#endif /* AFS_DEMAND_ATTACH_FS || AFS_DEMAND_ATTACH_UTIL */
+#endif /* AFS_DEMAND_ATTACH_FS */
 
     salvinfo->fileSysPartition = partP;
     salvinfo->fileSysDevice = salvinfo->fileSysPartition->device;
@@ -741,11 +741,11 @@ SalvageFileSys1(struct DiskPartition64 *partP, VolumeId singleVolumeNumber)
 #endif
 
     if (singleVolumeNumber) {
-#if !(defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL))
+#ifndef AFS_DEMAND_ATTACH_FS
 	/* only non-DAFS locks the partition when salvaging a single volume;
 	 * DAFS will lock the individual volumes in the VG */
 	VLockPartition(partP->name);
-#endif /* !(AFS_DEMAND_ATTACH_FS || AFS_DEMAND_ATTACH_UTIL) */
+#endif /* !AFS_DEMAND_ATTACH_FS */
 
 	ForceSalvage = 1;
 
@@ -756,11 +756,11 @@ SalvageFileSys1(struct DiskPartition64 *partP, VolumeId singleVolumeNumber)
 
 	salvinfo->useFSYNC = 1;
 	AskOffline(salvinfo, singleVolumeNumber);
-#if defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL)
+#ifdef AFS_DEMAND_ATTACH_FS
 	if (LockVolume(salvinfo, singleVolumeNumber)) {
 	    goto retry;
 	}
-#endif /* AFS_DEMAND_ATTACH_FS || AFS_DEMAND_ATTACH_UTIL */
+#endif /* AFS_DEMAND_ATTACH_FS */
 
     } else {
 	salvinfo->useFSYNC = 0;
@@ -922,10 +922,10 @@ SalvageFileSys1(struct DiskPartition64 *partP, VolumeId singleVolumeNumber)
 
     if (!Testing && singleVolumeNumber) {
 	int foundSVN = 0;
-#if defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL)
+#ifdef AFS_DEMAND_ATTACH_FS
 	/* unlock vol headers so the fs can attach them when we AskOnline */
 	VLockFileReinit(&salvinfo->fileSysPartition->volLockFile);
-#endif /* AFS_DEMAND_ATTACH_FS || AFS_DEMAND_ATTACH_UTIL */
+#endif /* AFS_DEMAND_ATTACH_FS */
 
 	/* Step through the volumeSummary list and set all volumes on-line.
 	 * Most volumes were taken off-line in GetVolumeSummary.
@@ -1635,7 +1635,7 @@ RecordHeader(struct DiskPartition64 *dp, const char *name,
 
 	        AskOffline(salvinfo, summary.header.id);
 
-#if defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL)
+#ifdef AFS_DEMAND_ATTACH_FS
 		if (!badname) {
 		    /* don't lock the volume if the header is bad, since we're
 		     * about to delete it anyway. */
@@ -1644,7 +1644,7 @@ RecordHeader(struct DiskPartition64 *dp, const char *name,
 			return -1;
 		    }
 		}
-#endif /* AFS_DEMAND_ATTACH_FS || AFS_DEMAND_ATTACH_UTIL */
+#endif /* AFS_DEMAND_ATTACH_FS */
 	    }
 	}
 	if (badname) {
@@ -1976,18 +1976,19 @@ DoSalvageVolumeGroup(struct SalvInfo *salvinfo, struct InodeSummary *isp, int nV
 	if (Testing) {
 	    IH_INIT(salvinfo->VGLinkH, salvinfo->fileSysDevice, -1, -1);
 	} else {
-            int i, j;
-            struct ViceInodeInfo *ip;
+	    int i, j;
+	    struct ViceInodeInfo *ip;
 	    CreateLinkTable(salvinfo, isp, ino);
 	    fdP = IH_OPEN(salvinfo->VGLinkH);
-            /* Sync fake 1 link counts to the link table, now that it exists */
-            if (fdP) {
-            	for (i = 0; i < nVols; i++) {
-            		ip = allInodes + isp[i].index;
-		         for (j = isp[i].nSpecialInodes; j < isp[i].nInodes; j++) {
-				 namei_SetLinkCount(fdP, ip[j].inodeNumber, 1, 1);
+	    /* Sync fake 1 link counts to the link table, now that it exists */
+	    if (fdP) {
+		for (i = 0; i < nVols; i++) {
+		    ip = allInodes + isp[i].index;
+		    for (j = isp[i].nSpecialInodes; j < isp[i].nInodes; j++) {
+			namei_SetLinkCount(fdP, ip[j].inodeNumber, 1, 1);
+			ip[j].linkCount = 1;
 		    }
-            	}
+		}
 	    }
 	}
     }
@@ -2005,15 +2006,33 @@ DoSalvageVolumeGroup(struct SalvInfo *salvinfo, struct InodeSummary *isp, int nV
 	int rw = (i == 0);
 	struct InodeSummary *lisp = &isp[i];
 #ifdef AFS_NAMEI_ENV
-	/* If only the RO is present on this partition, the link table
-	 * shows up as a RW volume special file. Need to make sure the
-	 * salvager doesn't try to salvage the non-existent RW.
-	 */
-	if (rw && nVols > 1 && isp[i].nSpecialInodes == 1) {
-	    /* If this only special inode is the link table, continue */
-	    if (inodes->u.special.type == VI_LINKTABLE) {
-		haveRWvolume = 0;
-		continue;
+	if (rw && (nVols > 1 || isp[i].nSpecialInodes == isp[i].nInodes)) {
+	    /* If nVols > 1, we have more than one vol in this volgroup, so
+	     * the RW inodes we detected may just be for the linktable, and
+	     * there is no actual RW volume.
+	     *
+	     * Additionally, if we only have linktable inodes (no other
+	     * special inodes, no data inodes), there is also no actual RW
+	     * volume to salvage; this is just cruft left behind by something
+	     * else. In that case nVols will only be 1, though, so also
+	     * perform this linktables-only check if we don't have any
+	     * non-special inodes. */
+	    int inode_i;
+	    int all_linktables = 1;
+	    for (inode_i = 0; inode_i < isp[i].nSpecialInodes; inode_i++) {
+		if (inodes[inode_i].u.special.type != VI_LINKTABLE) {
+		    all_linktables = 0;
+		    break;
+		}
+	    }
+	    if (all_linktables) {
+		/* All we have are linktable special inodes, so skip salvaging
+		 * the RW; there was never an RW volume here. If we don't do
+		 * this, we risk creating a new "phantom" RW that the VLDB
+		 * doesn't know about, which is confusing and can cause
+		 * problems. */
+		 haveRWvolume = 0;
+		 continue;
 	    }
 	}
 #endif
@@ -2061,8 +2080,20 @@ DoSalvageVolumeGroup(struct SalvInfo *salvinfo, struct InodeSummary *isp, int nV
 		TraceBadLinkCounts--;	/* Limit reports, per volume */
 		Log("#### DEBUG #### Link count incorrect by %d; inode %s, size %llu, p=(%u,%u,%u,%u)\n", ip->linkCount, PrintInode(stmp, ip->inodeNumber), (afs_uintmax_t) ip->byteCount, ip->u.param[0], ip->u.param[1], ip->u.param[2], ip->u.param[3]); /* VolumeId in param */
 	    }
+
+	    /* If ip->linkCount is non-zero at this point, then the linkcount
+	     * for the inode on disk is wrong. Initially linkCount is set to
+	     * the actual link count of the inode on disk, and then we (the
+	     * salvager) decrement it for every reference to that inode that we
+	     * find. So if linkCount is still positive by this point, it means
+	     * that the linkcount on disk is too high, so we should DEC the
+	     * inode. If linkCount is negative, it means the linkcount is too
+	     * low, so we should INC the inode.
+	     *
+	     * If we get an error while INC'ing or DEC'ing, that's a little
+	     * odd and indicates a bug, but try to continue anyway, so the
+	     * volume may still be made accessible. */
 	    while (ip->linkCount > 0) {
-		/* below used to assert, not break */
 		if (!Testing) {
 		    if (IH_DEC(salvinfo->VGLinkH, ip->inodeNumber, ip->u.param[0])) {
 			Log("idec failed. inode %s errno %d\n",
@@ -2073,7 +2104,6 @@ DoSalvageVolumeGroup(struct SalvInfo *salvinfo, struct InodeSummary *isp, int nV
 		ip->linkCount--;
 	    }
 	    while (ip->linkCount < 0) {
-		/* these used to be asserts */
 		if (!Testing) {
 		    if (IH_INC(salvinfo->VGLinkH, ip->inodeNumber, ip->u.param[0])) {
 			Log("iinc failed. inode %s errno %d\n",
@@ -4190,7 +4220,7 @@ SalvageVolume(struct SalvInfo *salvinfo, struct InodeSummary *rwIsp, IHandle_t *
 	}
 #endif /* FSSYNC_BUILD_CLIENT */
 
-#if defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL)
+#ifdef AFS_DEMAND_ATTACH_FS
 	if (!salvinfo->useFSYNC) {
 	    /* A volume's contents have changed, but the fileserver will not
 	     * break callbacks on the volume until it tries to load the vol
@@ -4307,7 +4337,7 @@ MaybeZapVolume(struct SalvInfo *salvinfo, struct InodeSummary *isp,
     }
 }
 
-#if defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL)
+#ifdef AFS_DEMAND_ATTACH_FS
 /**
  * Locks a volume on disk for salvaging.
  *
@@ -4394,7 +4424,7 @@ LockVolume(struct SalvInfo *salvinfo, VolumeId volumeId)
 
     return 0;
 }
-#endif /* AFS_DEMAND_ATTACH_FS || AFS_DEMAND_ATTACH_UTIL */
+#endif /* AFS_DEMAND_ATTACH_FS */
 
 static void
 AskError(struct SalvInfo *salvinfo, VolumeId volumeId)
@@ -4435,13 +4465,13 @@ AskOffline(struct SalvInfo *salvinfo, VolumeId volumeId)
 	    Log("AskOffline:  fssync protocol mismatch (bad command word '%d'); salvage aborting.\n",
 		FSYNC_VOL_OFF);
 	    if (AskDAFS()) {
-#if defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL)
+#ifdef AFS_DEMAND_ATTACH_FS
 		Log("AskOffline:  please make sure dafileserver, davolserver, salvageserver and dasalvager binaries are same version.\n");
 #else
 		Log("AskOffline:  fileserver is DAFS but we are not.\n");
 #endif
 	    } else {
-#if defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL)
+#ifdef AFS_DEMAND_ATTACH_FS
 		Log("AskOffline:  fileserver is not DAFS but we are.\n");
 #else
 		Log("AskOffline:  please make sure fileserver, volserver and salvager binaries are same version.\n");
@@ -4559,13 +4589,13 @@ AskDelete(struct SalvInfo *salvinfo, VolumeId volumeId)
 	    Log("AskOnline:  fssync protocol mismatch (bad command word '%d')\n",
 		FSYNC_VOL_DONE);
 	    if (AskDAFS()) {
-#if defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL)
+#ifdef AFS_DEMAND_ATTACH_FS
 		Log("AskOnline:  please make sure dafileserver, davolserver, salvageserver and dasalvager binaries are same version.\n");
 #else
 		Log("AskOnline:  fileserver is DAFS but we are not.\n");
 #endif
 	    } else {
-#if defined(AFS_DEMAND_ATTACH_FS) || defined(AFS_DEMAND_ATTACH_UTIL)
+#ifdef AFS_DEMAND_ATTACH_FS
 		Log("AskOnline:  fileserver is not DAFS but we are.\n");
 #else
 		Log("AskOnline:  please make sure fileserver, volserver and salvager binaries are same version.\n");

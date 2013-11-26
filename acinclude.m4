@@ -116,6 +116,12 @@ AC_ARG_ENABLE([pthreaded-ubik],
          disabled)])],
     ,
     [enable_pthreaded_ubik="no"])
+AC_ARG_ENABLE([pthreaded-bos],
+    [AS_HELP_STRING([--enable-pthreaded-bos],
+        [enable installation of pthreaded bos applications (defaults to
+         disabled)])],
+    ,
+    [enable_pthreaded_bos="no"])
 
 dnl Kernel module build options.
 AC_ARG_WITH([linux-kernel-headers],
@@ -762,6 +768,7 @@ case $AFS_SYSNAME in
     *_nbsd40)   AFS_PARAM_COMMON=param.nbsd40.h  ;;
     *_nbsd50)   AFS_PARAM_COMMON=param.nbsd50.h  ;;
     *_nbsd60)   AFS_PARAM_COMMON=param.nbsd60.h  ;;
+    *_nbsd70)   AFS_PARAM_COMMON=param.nbsd70.h  ;;
     *_obsd31)   AFS_PARAM_COMMON=param.obsd31.h  ;;
     *_obsd32)   AFS_PARAM_COMMON=param.obsd32.h  ;;
     *_obsd33)   AFS_PARAM_COMMON=param.obsd33.h  ;;
@@ -834,6 +841,7 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 
 		 dnl Type existence checks
 		 AC_CHECK_LINUX_TYPE([struct vfs_path], [dcache.h])
+		 AC_CHECK_LINUX_TYPE([kuid_t], [uidgid.h])
 
 		 dnl Check for structure elements
 		 AC_CHECK_LINUX_STRUCT([address_space_operations],
@@ -849,11 +857,13 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 AC_CHECK_LINUX_STRUCT([inode], [i_mutex], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([inode], [i_security], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_operations], [flock], [fs.h])
+		 AC_CHECK_LINUX_STRUCT([file_operations], [iterate], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_operations], [sendfile], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_system_type], [mount], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([filename], [name], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([inode_operations], [truncate], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([key_type], [preparse], [key-type.h])
+		 AC_CHECK_LINUX_STRUCT([key_type], [instantiate_prep], [key-type.h])
 		 AC_CHECK_LINUX_STRUCT([nameidata], [path], [namei.h])
 		 AC_CHECK_LINUX_STRUCT([proc_dir_entry], [owner], [proc_fs.h])
 		 AC_CHECK_LINUX_STRUCT([super_block], [s_bdi], [fs.h])
@@ -903,6 +913,9 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 AC_CHECK_LINUX_FUNC([d_alloc_anon],
 				     [#include <linux/fs.h>],
 				     [d_alloc_anon(NULL);])
+		 AC_CHECK_LINUX_FUNC([d_count],
+				     [#include <linux/dcache.h>],
+				     [d_count(NULL);])
 		 AC_CHECK_LINUX_FUNC([d_make_root],
 				     [#include <linux/fs.h>],
 				     [d_make_root(NULL);])
@@ -1012,6 +1025,7 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 LINUX_LINUX_KEYRING_SUPPORT
 		 LINUX_KEY_ALLOC_NEEDS_STRUCT_TASK
 		 LINUX_KEY_ALLOC_NEEDS_CRED
+		 LINUX_STRUCT_KEY_UID_IS_KUID_T
 		 LINUX_INIT_WORK_HAS_DATA
 		 LINUX_REGISTER_SYSCTL_TABLE_NOFLAG
 		 LINUX_HAVE_DCACHE_LOCK
@@ -1336,7 +1350,6 @@ AC_CHECK_HEADERS([ \
 		   arpa/nameser.h \
 		   curses.h\
 		   direct.h \
-		   et/com_err.h \
 		   errno.h \
 		   fcntl.h \
 		   grp.h \
@@ -1832,11 +1845,16 @@ if test "x$enable_pthreaded_ubik" = "xyes"; then
 ENABLE_PTHREADED_UBIK=yes
 fi
 
+if test "x$enable_pthreaded_bos" = "xyes"; then
+ENABLE_PTHREADED_BOS=yes
+fi
+
 AC_SUBST(VFSCK)
 AC_SUBST(AFS_SYSNAME)
 AC_SUBST(AFS_PARAM_COMMON)
 AC_SUBST(ENABLE_KERNEL_MODULE)
 AC_SUBST(ENABLE_PTHREADED_UBIK)
+AC_SUBST(ENABLE_PTHREADED_BOS)
 AC_SUBST(LIB_AFSDB)
 AC_SUBST(LINUX_KERNEL_PATH)
 AC_SUBST(LINUX_KERNEL_BUILD)
@@ -1956,16 +1974,3 @@ AC_CHECK_FUNCS([uuid_generate])
 ])
 
 
-AC_DEFUN([SUMMARY], [
-    # Print a configuration summary
-echo 
-echo "**************************************"
-echo configure summary
-echo
-AS_IF([test $LIB_curses],[
-echo "LIB_curses :                $LIB_curses" ],[
-echo "XXX LIB_curses  not found! not building scout and afsmonitor!"
-])
-echo 
-echo "**************************************"
-])

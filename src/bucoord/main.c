@@ -464,7 +464,17 @@ main(int argc, char **argv)
     /* setup the default backup dir */
     DefaultConfDir = AFSDIR_SERVER_BACKUP_DIRPATH;
     /* Get early warning if the command is interacive mode or not */
-    interact = (((argc < 2) || (argv[1][0] == '-')) ? 1 : 0);
+    if (argc < 2) {
+	interact = 1;
+    } else {
+	interact = 0;
+	if (argv[1][0] == '-') {
+	    interact = 1;
+	    if (strcmp(argv[1], "-help") == 0) {
+		interact = 0;
+	    }
+	}
+    }
 
     cmd_SetBeforeProc(MyBeforeProc, NULL);
 
@@ -704,7 +714,8 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-dumpid", CMD_LIST, CMD_OPTIONAL, "dump id");
     cmd_AddParm(ts, "-from", CMD_LIST, CMD_OPTIONAL, "date time");
     cmd_AddParm(ts, "-to", CMD_LIST, CMD_OPTIONAL, "date time");
-    cmd_AddParm(ts, "-port", CMD_SINGLE, CMD_OPTIONAL, "TC port offset");
+    cmd_AddParm(ts, "-portoffset", CMD_SINGLE, CMD_OPTIONAL, "TC port offset");
+    cmd_AddParmAlias(ts, 3, "-port");
     cmd_AddParm(ts, "-groupid", CMD_SINGLE, CMD_OPTIONAL, "group ID");
     cmd_AddParm(ts, "-dbonly", CMD_FLAG, CMD_OPTIONAL,
 		"delete the dump from the backup database only");

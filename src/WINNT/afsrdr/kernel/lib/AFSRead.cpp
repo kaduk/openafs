@@ -128,7 +128,7 @@ AFSCachedRead( IN PDEVICE_OBJECT DeviceObject,
                     try_return( ntStatus = Irp->IoStatus.Status);
                 }
             }
-            __except( EXCEPTION_EXECUTE_HANDLER)
+	    __except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
             {
                 ntStatus = GetExceptionCode();
 
@@ -1126,7 +1126,7 @@ AFSCommonRead( IN PDEVICE_OBJECT DeviceObject,
         if ( FlagOn(pIrpSp->MinorFunction, IRP_MN_COMPLETE) )
         {
 
-            AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+	    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                           AFS_TRACE_LEVEL_VERBOSE,
                           "AFSCommonRead Acquiring Fcb SectionObject lock %p SHARED %08lX\n",
                           &pFcb->NPFcb->SectionObjectResource,
@@ -1155,7 +1155,7 @@ AFSCommonRead( IN PDEVICE_OBJECT DeviceObject,
 
 		try_return( ntStatus = STATUS_SUCCESS );
 	    }
-	    __except( EXCEPTION_EXECUTE_HANDLER)
+	    __except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
 	    {
 
 		ntStatus = GetExceptionCode();
@@ -1202,7 +1202,7 @@ AFSCommonRead( IN PDEVICE_OBJECT DeviceObject,
 
             bReleasePaging = TRUE;
 
-            AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+	    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                           AFS_TRACE_LEVEL_VERBOSE,
                           "AFSCommonRead Acquiring Fcb SectionObject lock %p SHARED %08lX\n",
                           &pFcb->NPFcb->SectionObjectResource,
@@ -1217,7 +1217,7 @@ AFSCommonRead( IN PDEVICE_OBJECT DeviceObject,
         else
         {
 
-            AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+	    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                           AFS_TRACE_LEVEL_VERBOSE,
                           "AFSCommonRead Acquiring Fcb SectionObject lock %p SHARED %08lX\n",
                           &pFcb->NPFcb->SectionObjectResource,
@@ -1339,7 +1339,7 @@ AFSCommonRead( IN PDEVICE_OBJECT DeviceObject,
                     CcSetDirtyPageThreshold( pFileObject,
                                              AFS_DIRTY_CHUNK_THRESHOLD * pDeviceExt->Specific.RDR.MaximumRPCLength / 4096);
                 }
-                __except( EXCEPTION_EXECUTE_HANDLER)
+		__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                 {
 
                     ntStatus = GetExceptionCode();
@@ -1376,7 +1376,7 @@ AFSCommonRead( IN PDEVICE_OBJECT DeviceObject,
                                &Irp->IoStatus);
                     ntStatus = Irp->IoStatus.Status;
                 }
-                __except( EXCEPTION_EXECUTE_HANDLER)
+		__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                 {
                     ntStatus = GetExceptionCode();
 
@@ -1446,6 +1446,12 @@ AFSCommonRead( IN PDEVICE_OBJECT DeviceObject,
             if( bReleaseSectionObject)
             {
 
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSCommonRead Releasing Fcb SectionObject lock %p SHARED %08lX\n",
+			      &pFcb->NPFcb->SectionObjectResource,
+			      PsGetCurrentThread()));
+
                 AFSReleaseResource( &pFcb->NPFcb->SectionObjectResource);
 
                 bReleaseSectionObject = FALSE;
@@ -1493,6 +1499,12 @@ try_exit:
 
         if( bReleaseSectionObject)
         {
+
+	    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+			  AFS_TRACE_LEVEL_VERBOSE,
+			  "AFSCommonRead (exit) Releasing Fcb SectionObject lock %p SHARED %08lX\n",
+			  &pFcb->NPFcb->SectionObjectResource,
+			  PsGetCurrentThread()));
 
             AFSReleaseResource( &pFcb->NPFcb->SectionObjectResource);
         }

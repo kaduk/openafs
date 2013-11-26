@@ -81,10 +81,10 @@ store-int.lo: ${UPSTREAM}/krb5/store-int.c ${HEADERS}
 	$(LTLWP_CCRULE) ${UPSTREAM}/krb5/store-int.c
 
 liboafs_rfc3961.la: liboafs_rfc3961.la.sym $(LT_objs) $(LT_deps)
-	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
+	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs) $(MT_LIBS)
 
 libafsrpc_rfc3961.la: $(LT_objs)
-	$(LT_LDLIB_pic) $(LT_objs)
+	$(LT_LDLIB_pic) $(LT_objs) $(MT_LIBS)
 
 libafsrfc3961.a: $(LT_objs)
 	$(LT_LDLIB_lwp) $(LT_objs)

@@ -17,7 +17,6 @@
 #include <rx/rx.h>
 
 #include <afs/afsutil.h>
-#include <opr/queue.h>
 
 #include "bnode.h"
 #include "bnode_internal.h"
@@ -28,7 +27,7 @@ extern char *DoPidFiles;
 struct bnode *ez_create(char *, char *, char *, char *, char *, char *);
 static int ez_hascore(struct bnode *bnode);
 static int ez_restartp(struct bnode *bnode);
-static int ez_delete(struct bnode *bnode);
+static void ez_delete(struct bnode *bnode);
 static int ez_timeout(struct bnode *bnode);
 static int ez_getstat(struct bnode *bnode, afs_int32 *status);
 static int ez_setstat(struct bnode *bnode, afs_int32 status);
@@ -92,14 +91,14 @@ ez_restartp(struct bnode *bn)
     return code;
 }
 
-static int
+static void
 ez_delete(struct bnode *bn)
 {
     struct ezbnode *abnode = (struct ezbnode *)bn;
 
     free(abnode->command);
     free(abnode);
-    return 0;
+    return;
 }
 
 struct bnode *

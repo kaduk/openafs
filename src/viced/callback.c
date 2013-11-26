@@ -627,6 +627,7 @@ AddCallBack1_r(struct host *host, AFSFid * fid, afs_uint32 * thead, int type,
 	cb->cnext = 0;
 	cb->fhead = fetoi(fe);
 	cb->status = type;
+	cb->flags = 0;
 	HAdd(cb, host);
 	TAdd(cb, Thead);
     }
@@ -683,7 +684,20 @@ MultiBreakCallBack_r(struct cbstruct cba[], int ncbas,
 
     opr_Assert(ncbas <= MAX_CB_HOSTS);
 
-    /* sort cba list to avoid makecall issues */
+    /*
+     * When we issue a multi_Rx callback break, we must rx_NewCall a call for
+     * each host before we do anything. If there are no call channels
+     * available on the conn, we must wait for one of the existing calls to
+     * finish. If another thread is breaking callbacks at the same time, it is
+     * possible for us to be waiting on NewCall for one of their multi_Rx
+     * CallBack calls to finish, but they are waiting on NewCall for one of
+     * our calls to finish. So we deadlock.
+     *
+     * This can be thought of as similar to obtaining multiple locks at the
+     * same time. So if we establish an ordering, the possibility of deadlock
+     * goes away. Here we provide such an ordering, by sorting our CBAs
+     * according to CompareCBA.
+     */
     qsort(cba, ncbas, sizeof(struct cbstruct), CompareCBA);
 
     /* set up conns for multi-call */
@@ -792,8 +806,8 @@ BreakCallBack(struct host *xhost, AFSFid * fid, int flag)
 {
     struct FileEntry *fe;
     struct CallBack *cb, *nextcb;
-    struct cbstruct cbaDef[MAX_CB_HOSTS], *cba = cbaDef;
-    unsigned int ncbas, cbaAlloc = MAX_CB_HOSTS;
+    struct cbstruct cba[MAX_CB_HOSTS];
+    int ncbas;
     struct AFSCBFids tf;
     int hostindex;
     char hoststr[16];
@@ -823,12 +837,31 @@ BreakCallBack(struct host *xhost, AFSFid * fid, int flag)
     tf.AFSCBFids_len = 1;
     tf.AFSCBFids_val = fid;
 
-	for (ncbas = 0; cb ; cb = nextcb) {
+    /* Set CBFLAG_BREAKING flag on all CBs we're looking at. We do this so we
+     * can loop through all relevant CBs while dropping H_LOCK, and not lose
+     * track of which CBs we want to look at. If we look at all CBs over and
+     * over again, we can loop indefinitely as new CBs are added. */
+    for (; cb; cb = nextcb) {
+	nextcb = itocb(cb->cnext);
+
+	if ((cb->hhead != hostindex || flag)
+	    && (cb->status == CB_BULK || cb->status == CB_NORMAL
+	        || cb->status == CB_VOLUME)) {
+	    cb->flags |= CBFLAG_BREAKING;
+	}
+    }
+
+    cb = itocb(fe->firstcb);
+    opr_Assert(cb);
+
+    /* loop through all CBs, only looking at ones with the CBFLAG_BREAKING
+     * flag set */
+    for (; cb;) {
+	for (ncbas = 0; cb && ncbas < MAX_CB_HOSTS; cb = nextcb) {
 	    nextcb = itocb(cb->cnext);
-	    if ((cb->hhead != hostindex || flag)
-		&& (cb->status == CB_BULK || cb->status == CB_NORMAL
-		    || cb->status == CB_VOLUME)) {
+	    if ((cb->flags & CBFLAG_BREAKING)) {
 		struct host *thishost = h_itoh(cb->hhead);
+		cb->flags &= ~CBFLAG_BREAKING;
 		if (!thishost) {
 		    ViceLog(0, ("BCB: BOGUS! cb->hhead is NULL!\n"));
 		} else if (thishost->hostFlags & VENUSDOWN) {
@@ -840,21 +873,6 @@ BreakCallBack(struct host *xhost, AFSFid * fid, int flag)
 		} else {
 		    if (!(thishost->hostFlags & HOSTDELETED)) {
 			h_Hold_r(thishost);
-			if (ncbas == cbaAlloc) {	/* Need more space */
-			    int curLen = cbaAlloc*sizeof(cba[0]);
-			    struct cbstruct *cbaOld = (cba == cbaDef) ? NULL : cba;
-
-			    /* There are logical contraints elsewhere that the number of hosts
-			       (i.e. h_HTSPERBLOCK*h_MAXHOSTTABLES) remains in the realm of a signed "int".
-			       cbaAlloc is defined unsigned int hence doubling below cannot overflow
-			    */
-			    cbaAlloc = cbaAlloc<<1;	/* double */
-			    cba = realloc(cbaOld, cbaAlloc * sizeof(cba[0]));
-
-			    if (cbaOld == NULL)	{	/* realloc wouldn't have copied from cbaDef */
-				memcpy(cba, cbaDef, curLen);
-			    }
-			}
 			cba[ncbas].hp = thishost;
 			cba[ncbas].thead = cb->thead;
 			ncbas++;
@@ -868,16 +886,20 @@ BreakCallBack(struct host *xhost, AFSFid * fid, int flag)
 	}
 
 	if (ncbas) {
-	    struct cbstruct *cba2;
-	    int num;
+	    MultiBreakCallBack_r(cba, ncbas, &tf);
 
-	    for (cba2 = cba, num = ncbas; ncbas > 0; cba2 += num, ncbas -= num) {
-		num = (ncbas > MAX_CB_HOSTS) ? MAX_CB_HOSTS : ncbas;
-		MultiBreakCallBack_r(cba2, num, &tf);
+	    /* we need to to all these initializations again because MultiBreakCallBack may block */
+	    fe = FindFE(fid);
+	    if (!fe) {
+		goto done;
+	    }
+	    cb = itocb(fe->firstcb);
+	    if (!cb || ((fe->ncbs == 1) && (cb->hhead == hostindex) && !flag)) {
+		/* the most common case is what follows the || */
+		goto done;
 	    }
 	}
-
-	if (cba != cbaDef) free(cba);
+    }
 
   done:
     H_UNLOCK;
@@ -2702,6 +2724,22 @@ DumpCallBackState(void) {
 
 #ifdef INTERPRET_DUMP
 
+static void
+ReadBytes(int fd, void *buf, size_t req)
+{
+    ssize_t count;
+
+    count = read(fd, buf, req);
+    if (count < 0) {
+	perror("read");
+	exit(-1);
+    } else if (count != req) {
+	fprintf(stderr, "read: premature EOF (expected %lu, got %lu)\n",
+		(unsigned long)req, (unsigned long)count);
+	exit(-1);
+    }
+}
+
 /* This is only compiled in for the callback analyzer program */
 /* Returns the time of the dump */
 time_t
@@ -2721,7 +2759,7 @@ ReadDump(char *file, int timebits)
 	fprintf(stderr, "Couldn't read dump file %s\n", file);
 	exit(1);
     }
-    read(fd, &magic, sizeof(magic));
+    ReadBytes(fd, &magic, sizeof(magic));
     if (magic == MAGICV2) {
 	timebits = 32;
     } else {
@@ -2735,26 +2773,26 @@ ReadDump(char *file, int timebits)
 	}
     }
     if (timebits == 64) {
-	read(fd, &now64, sizeof(afs_int64));
+	ReadBytes(fd, &now64, sizeof(afs_int64));
 	now = (afs_int32) now64;
     } else
-	read(fd, &now, sizeof(afs_int32));
+	ReadBytes(fd, &now, sizeof(afs_int32));
 
-    read(fd, &cbstuff, sizeof(cbstuff));
-    read(fd, TimeOuts, sizeof(TimeOuts));
-    read(fd, timeout, sizeof(timeout));
-    read(fd, &tfirst, sizeof(tfirst));
-    read(fd, &freelisthead, sizeof(freelisthead));
+    ReadBytes(fd, &cbstuff, sizeof(cbstuff));
+    ReadBytes(fd, TimeOuts, sizeof(TimeOuts));
+    ReadBytes(fd, timeout, sizeof(timeout));
+    ReadBytes(fd, &tfirst, sizeof(tfirst));
+    ReadBytes(fd, &freelisthead, sizeof(freelisthead));
     CB = ((struct CallBack
 	   *)(calloc(cbstuff.nblks, sizeof(struct CallBack)))) - 1;
     FE = ((struct FileEntry
 	   *)(calloc(cbstuff.nblks, sizeof(struct FileEntry)))) - 1;
     CBfree = (struct CallBack *)itocb(freelisthead);
-    read(fd, &freelisthead, sizeof(freelisthead));
+    ReadBytes(fd, &freelisthead, sizeof(freelisthead));
     FEfree = (struct FileEntry *)itofe(freelisthead);
-    read(fd, HashTable, sizeof(HashTable));
-    read(fd, &CB[1], sizeof(CB[1]) * cbstuff.nblks);	/* CB stuff */
-    read(fd, &FE[1], sizeof(FE[1]) * cbstuff.nblks);	/* FE stuff */
+    ReadBytes(fd, HashTable, sizeof(HashTable));
+    ReadBytes(fd, &CB[1], sizeof(CB[1]) * cbstuff.nblks);	/* CB stuff */
+    ReadBytes(fd, &FE[1], sizeof(FE[1]) * cbstuff.nblks);	/* FE stuff */
     if (close(fd)) {
 	perror("Error reading dumpfile");
 	exit(1);

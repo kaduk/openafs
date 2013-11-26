@@ -271,7 +271,11 @@ extern int BlobScan(struct dcache * afile, afs_int32 ablob);
  * handling and use of bulkstats will need to be reflected here as well.
  */
 static int
+#if defined(STRUCT_FILE_OPERATIONS_HAS_ITERATE)
+afs_linux_readdir(struct file *fp, struct dir_context *ctx)
+#else
 afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
+#endif
 {
     struct vcache *avc = VTOAFS(FILE_INODE(fp));
     struct vrequest treq;
@@ -350,7 +354,11 @@ afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
      * takes an offset in units of blobs, rather than bytes.
      */
     code = 0;
+#if defined(STRUCT_FILE_OPERATIONS_HAS_ITERATE)
+    offset = ctx->pos;
+#else
     offset = (int) fp->f_pos;
+#endif
     while (1) {
 	dirpos = BlobScan(tdc, offset);
 	if (!dirpos)
@@ -358,12 +366,20 @@ afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
 
 	code = afs_dir_GetVerifiedBlob(tdc, dirpos, &entry);
 	if (code) {
-	    afs_warn("Corrupt directory (inode %lx, dirpos %d)",
-		     (unsigned long)&tdc->f.inode, dirpos);
-	    ReleaseSharedLock(&avc->lock);
-	    afs_PutDCache(tdc);
+	    if (!(avc->f.states & CCorrupt)) {
+		struct cell *tc = afs_GetCellStale(avc->f.fid.Cell, READ_LOCK);
+		afs_warn("Corrupt directory (%d.%d.%d.%d [%s] @%lx, pos %d)",
+			 avc->f.fid.Cell, avc->f.fid.Fid.Volume,
+			 avc->f.fid.Fid.Vnode, avc->f.fid.Fid.Unique,
+			 tc ? tc->cellName : "",
+			 (unsigned long)&tdc->f.inode, dirpos);
+		if (tc)
+		    afs_PutCell(tc, READ_LOCK);
+		UpgradeSToWLock(&avc->lock, 814);
+		avc->f.states |= CCorrupt;
+	    }
 	    code = -ENOENT;
-	    goto out;
+	    goto unlock_out;
         }
 
 	de = (struct DirEntry *)entry.data;
@@ -408,7 +424,13 @@ afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
 	     * holding the GLOCK.
 	     */
 	    AFS_GUNLOCK();
+#if defined(STRUCT_FILE_OPERATIONS_HAS_ITERATE)
+	    /* dir_emit returns a bool - true when it succeeds.
+	     * Inverse the result to fit with how we check "code" */
+	    code = !dir_emit(ctx, de->name, len, ino, type);
+#else
 	    code = (*filldir) (dirbuf, de->name, len, offset, ino, type);
+#endif
 	    AFS_GLOCK();
 	}
 	DRelease(&entry, 0);
@@ -419,8 +441,14 @@ afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
     /* If filldir didn't fill in the last one this is still pointing to that
      * last attempt.
      */
-    fp->f_pos = (loff_t) offset;
+    code = 0;
 
+unlock_out:
+#if defined(STRUCT_FILE_OPERATIONS_HAS_ITERATE)
+    ctx->pos = (loff_t) offset;
+#else
+    fp->f_pos = (loff_t) offset;
+#endif
     ReleaseReadLock(&tdc->lock);
     afs_PutDCache(tdc);
     UpgradeSToWLock(&avc->lock, 813);
@@ -428,7 +456,6 @@ afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
     avc->dcreaddir = 0;
     avc->readdir_pid = 0;
     ReleaseSharedLock(&avc->lock);
-    code = 0;
 
 out:
     afs_PutFakeStat(&fakestat);
@@ -748,7 +775,11 @@ out:
 
 struct file_operations afs_dir_fops = {
   .read =	generic_read_dir,
+#if defined(STRUCT_FILE_OPERATIONS_HAS_ITERATE)
+  .iterate =	afs_linux_readdir,
+#else
   .readdir =	afs_linux_readdir,
+#endif
 #ifdef HAVE_UNLOCKED_IOCTL
   .unlocked_ioctl = afs_unlocked_xioctl,
 #else
@@ -771,6 +802,8 @@ struct file_operations afs_file_fops = {
 #ifdef HAVE_LINUX_GENERIC_FILE_AIO_READ
   .aio_read =	afs_linux_aio_read,
   .aio_write =	afs_linux_aio_write,
+  .read =	do_sync_read,
+  .write =	do_sync_write,
 #else
   .read =	afs_linux_read,
   .write =	afs_linux_write,
@@ -976,9 +1009,9 @@ iattr2vattr(struct vattr *vattrp, struct iattr *iattrp)
     if (iattrp->ia_valid & ATTR_MODE)
 	vattrp->va_mode = iattrp->ia_mode;
     if (iattrp->ia_valid & ATTR_UID)
-	vattrp->va_uid = iattrp->ia_uid;
+	vattrp->va_uid = afs_from_kuid(iattrp->ia_uid);
     if (iattrp->ia_valid & ATTR_GID)
-	vattrp->va_gid = iattrp->ia_gid;
+	vattrp->va_gid = afs_from_kgid(iattrp->ia_gid);
     if (iattrp->ia_valid & ATTR_SIZE)
 	vattrp->va_size = iattrp->ia_size;
     if (iattrp->ia_valid & ATTR_ATIME) {
@@ -1016,8 +1049,8 @@ vattr2inode(struct inode *ip, struct vattr *vp)
 #endif
     ip->i_rdev = vp->va_rdev;
     ip->i_mode = vp->va_mode;
-    ip->i_uid = vp->va_uid;
-    ip->i_gid = vp->va_gid;
+    ip->i_uid = afs_make_kuid(vp->va_uid);
+    ip->i_gid = afs_make_kgid(vp->va_gid);
     i_size_write(ip, vp->va_size);
     ip->i_atime.tv_sec = vp->va_atime.tv_sec;
     ip->i_atime.tv_nsec = 0;
@@ -1653,17 +1686,7 @@ afs_linux_rename(struct inode *oldip, struct dentry *olddp,
 	rehash = newdp;
     }
 
-#if defined(D_COUNT_INT)
-    spin_lock(&olddp->d_lock);
-    if (olddp->d_count > 1) {
-	spin_unlock(&olddp->d_lock);
-	shrink_dcache_parent(olddp);
-    } else
-	spin_unlock(&olddp->d_lock);
-#else
-    if (atomic_read(&olddp->d_count) > 1)
-	shrink_dcache_parent(olddp);
-#endif
+    afs_maybe_shrink_dcache(olddp);
 
     AFS_GLOCK();
     code = afs_rename(VTOAFS(oldip), (char *)oldname, VTOAFS(newip), (char *)newname, credp);
@@ -2356,7 +2379,6 @@ afs_linux_readpages(struct file *fp, struct address_space *mapping,
 		ObtainReadLock(&tdc->lock);
 		if (!hsame(avc->f.m.DataVersion, tdc->f.versionNo) ||
 		    (tdc->dflags & DFFetching)) {
-		    goto out;
 		    ReleaseReadLock(&tdc->lock);
 		    afs_PutDCache(tdc);
 		    tdc = NULL;

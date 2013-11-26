@@ -305,14 +305,14 @@ main(int argc, char **argv)
 /* ptserver specific options */
     cmd_AddParmAtOffset(opts, OPT_database, "-database", CMD_SINGLE,
 		        CMD_OPTIONAL, "database file");
-    cmd_AddParmAlias(opts, OPT_database, "db");
+    cmd_AddParmAlias(opts, OPT_database, "-db");
 
     cmd_AddParmAtOffset(opts, OPT_access, "-default_access", CMD_SINGLE,
 		        CMD_OPTIONAL, "default access flags for new entries");
 #if defined(SUPERGROUPS)
     cmd_AddParmAtOffset(opts, OPT_groupdepth, "-groupdepth", CMD_SINGLE,
 		        CMD_OPTIONAL, "max search depth for supergroups");
-    cmd_AddParmAlias(opts, OPT_groupdepth, "depth");
+    cmd_AddParmAlias(opts, OPT_groupdepth, "-depth");
 #endif
     cmd_AddParmAtOffset(opts, OPT_restricted, "-restricted", CMD_FLAG,
 		        CMD_OPTIONAL, "enable restricted mode");
@@ -351,6 +351,9 @@ main(int argc, char **argv)
 		        "permit Kerberos 5 principals with dots");
 
     code = cmd_Parse(argc, argv, &opts);
+    if (code == CMD_HELP) {
+	PT_EXIT(0);
+    }
     if (code)
 	PT_EXIT(1);
 
@@ -390,10 +393,10 @@ main(int argc, char **argv)
     cmd_OptionAsString(opts, OPT_logfile, &logFile);
 
     if (cmd_OptionAsInt(opts, OPT_threads, &lwps) == 0) {
-	if (lwps > 16) {	/* maximum of 16 */
+	if (lwps > 64) {	/* maximum of 64 */
 	    printf("Warning: '-p %d' is too big; using %d instead\n",
-		   lwps, 16);
-	    lwps = 16;
+		   lwps, 64);
+	    lwps = 64;
 	} else if (lwps < 3) {	/* minimum of 3 */
 	    printf("Warning: '-p %d' is too small; using %d instead\n",
 		   lwps, 3);
@@ -568,6 +571,9 @@ main(int argc, char **argv)
 		   "1.0",
 #endif
 		   "Starting AFS", FSLog);
+    if (afsconf_GetLatestKey(prdir, NULL, NULL) == 0) {
+	LogDesWarning();
+    }
 
     rx_StartServer(1);
     osi_audit(PTS_FinishEvent, -1, AUD_END);

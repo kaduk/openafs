@@ -1146,10 +1146,18 @@ AFSInitDirEntry( IN AFSObjectInfoCB *ParentObjectInfo,
 
             pObjectInfoCB->Expiration = DirEnumEntry->Expiration;
 
-            pObjectInfoCB->DataVersion = DirEnumEntry->DataVersion;
+	    pObjectInfoCB->DataVersion = DirEnumEntry->DataVersion;
 
-            ClearFlag( pObjectInfoCB->Flags, AFS_OBJECT_FLAGS_VERIFY);
-        }
+	    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+			  AFS_TRACE_LEVEL_VERBOSE,
+			  "AFSInitDirEntry FID %08lX-%08lX-%08lX-%08lX Clearing Verify Flag\n",
+			  pObjectInfoCB->FileId.Cell,
+			  pObjectInfoCB->FileId.Volume,
+			  pObjectInfoCB->FileId.Vnode,
+			  pObjectInfoCB->FileId.Unique));
+
+	    ClearFlag( pObjectInfoCB->Flags, AFS_OBJECT_FLAGS_VERIFY);
+	}
 
         //
         // This reference count is either stored into the return DirectoryCB
@@ -1695,6 +1703,7 @@ AFSInvalidateObject( IN OUT AFSObjectInfoCB **ppObjectInfo,
 {
 
     NTSTATUS ntStatus = STATUS_SUCCESS;
+    AFSDeviceExt *pRDRDevExt = (AFSDeviceExt *) AFSRDRDeviceObject->DeviceExtension;
     IO_STATUS_BLOCK stIoStatus;
     ULONG ulFilter = 0;
     AFSObjectInfoCB * pParentObjectInfo = NULL;
@@ -1738,8 +1747,6 @@ AFSInvalidateObject( IN OUT AFSObjectInfoCB **ppObjectInfo,
             {
 
                 (*ppObjectInfo)->DataVersion.QuadPart = (ULONGLONG)-1;
-
-                SetFlag( (*ppObjectInfo)->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA);
             }
 
             (*ppObjectInfo)->Expiration.QuadPart = 0;
@@ -1870,6 +1877,21 @@ AFSInvalidateObject( IN OUT AFSObjectInfoCB **ppObjectInfo,
                               (*ppObjectInfo)->FileId.Vnode,
                               (*ppObjectInfo)->FileId.Unique));
 
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSInvalidateObject Flush/purge Acquiring Fcb lock %p EXCL %08lX\n",
+			      &(*ppObjectInfo)->Fcb->NPFcb->Resource,
+			      PsGetCurrentThread()));
+
+		AFSAcquireExcl( &(*ppObjectInfo)->Fcb->NPFcb->Resource,
+				TRUE);
+
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSInvalidateObject Flush/purge Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
+			      &(*ppObjectInfo)->Fcb->NPFcb->SectionObjectResource,
+			      PsGetCurrentThread()));
+
                 AFSAcquireExcl( &(*ppObjectInfo)->Fcb->NPFcb->SectionObjectResource,
                                 TRUE);
 
@@ -1919,7 +1941,7 @@ AFSInvalidateObject( IN OUT AFSObjectInfoCB **ppObjectInfo,
                         }
                     }
                 }
-                __except( EXCEPTION_EXECUTE_HANDLER)
+		__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                 {
 
                     ntStatus = GetExceptionCode();
@@ -1936,16 +1958,34 @@ AFSInvalidateObject( IN OUT AFSObjectInfoCB **ppObjectInfo,
                     SetFlag( (*ppObjectInfo)->Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
                 }
 
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSInvalidateObject Flush/purge Releasing Fcb SectionObject lock %p EXCL %08lX\n",
+			      &(*ppObjectInfo)->Fcb->NPFcb->SectionObjectResource,
+			      PsGetCurrentThread()));
+
                 AFSReleaseResource( &(*ppObjectInfo)->Fcb->NPFcb->SectionObjectResource);
 
-                //
-                // Clear out the extents
-                // Get rid of them (note this involves waiting
-                // for any writes or reads to the cache to complete)
-                //
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSInvalidateObject Flush/purge Releasing Fcb lock %p EXCL %08lX\n",
+			      &(*ppObjectInfo)->Fcb->NPFcb->Resource,
+			      PsGetCurrentThread()));
 
-                AFSTearDownFcbExtents( (*ppObjectInfo)->Fcb,
-                                       NULL);
+		AFSReleaseResource( &(*ppObjectInfo)->Fcb->NPFcb->Resource);
+
+		if( !BooleanFlagOn( pRDRDevExt->DeviceFlags, AFS_DEVICE_FLAG_DIRECT_SERVICE_IO))
+		{
+
+		    //
+		    // Clear out the extents
+		    // Get rid of them (note this involves waiting
+		    // for any writes or reads to the cache to complete)
+		    //
+
+		    AFSTearDownFcbExtents( (*ppObjectInfo)->Fcb,
+					   NULL);
+		}
             }
 
             (*ppObjectInfo)->DataVersion.QuadPart = (ULONGLONG)-1;
@@ -2883,10 +2923,12 @@ AFSInvalidateAllVolumes( VOID)
 
 NTSTATUS
 AFSVerifyEntry( IN GUID *AuthGroup,
-                IN AFSDirectoryCB *DirEntry)
+		IN AFSDirectoryCB *DirEntry,
+		IN BOOLEAN bFollowMountPoint)
 {
 
     NTSTATUS ntStatus = STATUS_SUCCESS;
+    AFSDeviceExt *pRDRDevExt = (AFSDeviceExt *) AFSRDRDeviceObject->DeviceExtension;
     AFSDirEnumEntry *pDirEnumEntry = NULL;
     AFSObjectInfoCB *pObjectInfo = DirEntry->ObjectInformation;
     IO_STATUS_BLOCK stIoStatus;
@@ -2905,7 +2947,7 @@ AFSVerifyEntry( IN GUID *AuthGroup,
 
         ntStatus = AFSEvaluateTargetByID( pObjectInfo,
                                           AuthGroup,
-                                          FALSE,
+					  bFollowMountPoint ? FALSE : TRUE,
                                           &pDirEnumEntry);
 
         if( !NT_SUCCESS( ntStatus))
@@ -2928,29 +2970,27 @@ AFSVerifyEntry( IN GUID *AuthGroup,
         // Check the data version of the file
         //
 
-        if( pObjectInfo->DataVersion.QuadPart == pDirEnumEntry->DataVersion.QuadPart)
-        {
-            if ( !BooleanFlagOn( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA))
-            {
+	if( pObjectInfo->DataVersion.QuadPart == pDirEnumEntry->DataVersion.QuadPart &&
+	    !BooleanFlagOn( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA))
+	{
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
-                              AFS_TRACE_LEVEL_VERBOSE,
-                              "AFSVerifyEntry No DV change %I64X for Fcb %wZ FID %08lX-%08lX-%08lX-%08lX\n",
-                              pObjectInfo->DataVersion.QuadPart,
-                              &DirEntry->NameInformation.FileName,
-                              pObjectInfo->FileId.Cell,
-                              pObjectInfo->FileId.Volume,
-                              pObjectInfo->FileId.Vnode,
-                              pObjectInfo->FileId.Unique));
+	    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+			  AFS_TRACE_LEVEL_VERBOSE,
+			  "AFSVerifyEntry No DV change %I64X for Fcb %wZ FID %08lX-%08lX-%08lX-%08lX Clearing Verify Flag\n",
+			  pObjectInfo->DataVersion.QuadPart,
+			  &DirEntry->NameInformation.FileName,
+			  pObjectInfo->FileId.Cell,
+			  pObjectInfo->FileId.Volume,
+			  pObjectInfo->FileId.Vnode,
+			  pObjectInfo->FileId.Unique));
 
-                //
-                // We are ok, just get out
-                //
+	    //
+	    // We are ok, just get out
+	    //
 
-                ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY);
+	    ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY);
 
-                try_return( ntStatus = STATUS_SUCCESS);
-            }
+	    try_return( ntStatus = STATUS_SUCCESS);
         }
 
         //
@@ -2983,6 +3023,14 @@ AFSVerifyEntry( IN GUID *AuthGroup,
                 if( NT_SUCCESS( ntStatus))
                 {
 
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSVerifyEntry MountPoint FID %08lX-%08lX-%08lX-%08lX Clearing Verify Flag\n",
+				  pObjectInfo->FileId.Cell,
+				  pObjectInfo->FileId.Volume,
+				  pObjectInfo->FileId.Vnode,
+				  pObjectInfo->FileId.Unique));
+
                     ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY);
                 }
 
@@ -3002,6 +3050,14 @@ AFSVerifyEntry( IN GUID *AuthGroup,
                 if( NT_SUCCESS( ntStatus))
                 {
 
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSVerifyEntry Symlink FID %08lX-%08lX-%08lX-%08lX Clearing Verify Flag\n",
+				  pObjectInfo->FileId.Cell,
+				  pObjectInfo->FileId.Volume,
+				  pObjectInfo->FileId.Vnode,
+				  pObjectInfo->FileId.Unique));
+
                     ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY);
                 }
 
@@ -3011,29 +3067,9 @@ AFSVerifyEntry( IN GUID *AuthGroup,
             case AFS_FILE_TYPE_FILE:
             {
                 FILE_OBJECT * pCCFileObject = NULL;
-                BOOLEAN bPurgeExtents = FALSE;
-
-                if ( pObjectInfo->DataVersion.QuadPart != pDirEnumEntry->DataVersion.QuadPart)
-                {
-
-                    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
-                                  AFS_TRACE_LEVEL_VERBOSE,
-                                  "AFSVerifyEntry DV Change %wZ FID %08lX-%08lX-%08lX-%08lX (%08lX != %08lX)\n",
-                                  &DirEntry->NameInformation.FileName,
-                                  pObjectInfo->FileId.Cell,
-                                  pObjectInfo->FileId.Volume,
-                                  pObjectInfo->FileId.Vnode,
-                                  pObjectInfo->FileId.Unique,
-                                  pObjectInfo->DataVersion.LowPart,
-                                  pDirEnumEntry->DataVersion.LowPart));
-
-                    bPurgeExtents = TRUE;
-                }
 
                 if ( BooleanFlagOn( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA))
                 {
-
-                    bPurgeExtents = TRUE;
 
                     AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
                                   AFS_TRACE_LEVEL_VERBOSE,
@@ -3058,6 +3094,21 @@ AFSVerifyEntry( IN GUID *AuthGroup,
                                   pObjectInfo->FileId.Volume,
                                   pObjectInfo->FileId.Vnode,
                                   pObjectInfo->FileId.Unique));
+
+		    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSVerifyEntry Acquiring Fcb lock %p EXCL %08lX\n",
+				  &pObjectInfo->Fcb->NPFcb->Resource,
+				  PsGetCurrentThread()));
+
+		    AFSAcquireExcl( &pObjectInfo->Fcb->NPFcb->Resource,
+				    TRUE);
+
+		    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSVerifyEntry Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
+				  &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
+				  PsGetCurrentThread()));
 
                     AFSAcquireExcl( &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
                                     TRUE);
@@ -3087,8 +3138,7 @@ AFSVerifyEntry( IN GUID *AuthGroup,
                             ntStatus = stIoStatus.Status;
                         }
 
-                        if ( bPurgeExtents &&
-                             pObjectInfo->Fcb->NPFcb->SectionObjectPointers.DataSectionObject != NULL)
+			if ( pObjectInfo->Fcb->NPFcb->SectionObjectPointers.DataSectionObject != NULL)
                         {
 
                             if ( !CcPurgeCacheSection( &pObjectInfo->Fcb->NPFcb->SectionObjectPointers,
@@ -3110,7 +3160,7 @@ AFSVerifyEntry( IN GUID *AuthGroup,
                             }
                         }
                     }
-                    __except( EXCEPTION_EXECUTE_HANDLER)
+		    __except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                     {
                         ntStatus = GetExceptionCode();
 
@@ -3127,26 +3177,41 @@ AFSVerifyEntry( IN GUID *AuthGroup,
                         SetFlag( pObjectInfo->Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
                     }
 
+		    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSVerifyEntry Releasing Fcb SectionObject lock %p EXCL %08lX\n",
+				  &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
+				  PsGetCurrentThread()));
+
                     AFSReleaseResource( &pObjectInfo->Fcb->NPFcb->SectionObjectResource);
 
-                    if ( bPurgeExtents)
-                    {
-                        AFSFlushExtents( pObjectInfo->Fcb,
-                                         AuthGroup);
-                    }
+		    if( !BooleanFlagOn( pRDRDevExt->DeviceFlags, AFS_DEVICE_FLAG_DIRECT_SERVICE_IO))
+		    {
 
-                    //
-                    // Reacquire the Fcb to purge the cache
-                    //
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+				      AFS_TRACE_LEVEL_VERBOSE,
+				      "AFSVerifyEntry Releasing Fcb lock %p EXCL %08lX\n",
+				      &pObjectInfo->Fcb->NPFcb->Resource,
+				      PsGetCurrentThread()));
 
-                    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
-                                  AFS_TRACE_LEVEL_VERBOSE,
-                                  "AFSVerifyEntry Acquiring Fcb lock %p EXCL %08lX\n",
-                                  &pObjectInfo->Fcb->NPFcb->Resource,
-                                  PsGetCurrentThread()));
+			AFSReleaseResource( &pObjectInfo->Fcb->NPFcb->Resource);
 
-                    AFSAcquireExcl( &pObjectInfo->Fcb->NPFcb->Resource,
-                                    TRUE);
+			AFSFlushExtents( pObjectInfo->Fcb,
+					 AuthGroup);
+
+			//
+			// Acquire the Fcb to purge the cache
+			//
+
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+				      AFS_TRACE_LEVEL_VERBOSE,
+				      "AFSVerifyEntry Acquiring Fcb lock %p EXCL %08lX\n",
+				      &pObjectInfo->Fcb->NPFcb->Resource,
+				      PsGetCurrentThread()));
+
+			AFSAcquireExcl( &pObjectInfo->Fcb->NPFcb->Resource,
+					TRUE);
+		    }
 
                     //
                     // Update the metadata for the entry
@@ -3167,60 +3232,67 @@ AFSVerifyEntry( IN GUID *AuthGroup,
                                       pObjectInfo->FileId.Vnode,
                                       pObjectInfo->FileId.Unique,
                                       ntStatus));
-
-                        break;
                     }
-
-                    //
-                    // Update file sizes
-                    //
-
-                    pObjectInfo->Fcb->Header.AllocationSize.QuadPart  = pObjectInfo->AllocationSize.QuadPart;
-                    pObjectInfo->Fcb->Header.FileSize.QuadPart        = pObjectInfo->EndOfFile.QuadPart;
-                    pObjectInfo->Fcb->Header.ValidDataLength.QuadPart = pObjectInfo->EndOfFile.QuadPart;
-
-                    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
-                                  AFS_TRACE_LEVEL_VERBOSE,
-                                  "AFSVerifyEntry Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
-                                  &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
-                                  PsGetCurrentThread()));
-
-                    AFSAcquireExcl( &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
-                                    TRUE);
-
-		    __try
+		    else
 		    {
 
-			pCCFileObject = CcGetFileObjectFromSectionPtrs( &pObjectInfo->Fcb->NPFcb->SectionObjectPointers);
+			//
+			// Update file sizes
+			//
 
-			if ( pCCFileObject != NULL)
+			pObjectInfo->Fcb->Header.AllocationSize.QuadPart  = pObjectInfo->AllocationSize.QuadPart;
+			pObjectInfo->Fcb->Header.FileSize.QuadPart        = pObjectInfo->EndOfFile.QuadPart;
+			pObjectInfo->Fcb->Header.ValidDataLength.QuadPart = pObjectInfo->EndOfFile.QuadPart;
+
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+				      AFS_TRACE_LEVEL_VERBOSE,
+				      "AFSVerifyEntry Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
+				      &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
+				      PsGetCurrentThread()));
+
+			AFSAcquireExcl( &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
+					TRUE);
+
+			__try
 			{
-			    CcSetFileSizes( pCCFileObject,
-					    (PCC_FILE_SIZES)&pObjectInfo->Fcb->Header.AllocationSize);
+
+			    pCCFileObject = CcGetFileObjectFromSectionPtrs( &pObjectInfo->Fcb->NPFcb->SectionObjectPointers);
+
+			    if ( pCCFileObject != NULL)
+			    {
+				CcSetFileSizes( pCCFileObject,
+						(PCC_FILE_SIZES)&pObjectInfo->Fcb->Header.AllocationSize);
+			    }
 			}
-		    }
-		    __except( EXCEPTION_EXECUTE_HANDLER)
-                    {
+			__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
+			{
 
-			ntStatus = GetExceptionCode();
+			    ntStatus = GetExceptionCode();
 
-			AFSDbgTrace(( 0,
-				      0,
-				      "EXCEPTION - AFSVerifyEntry CcSetFileSized failed FID %08lX-%08lX-%08lX-%08lX Status 0x%08lX\n",
-				      pObjectInfo->FileId.Cell,
-				      pObjectInfo->FileId.Volume,
-				      pObjectInfo->FileId.Vnode,
-				      pObjectInfo->FileId.Unique,
-				      ntStatus));
+			    AFSDbgTrace(( 0,
+					  0,
+					  "EXCEPTION - AFSVerifyEntry CcSetFileSized failed FID %08lX-%08lX-%08lX-%08lX Status 0x%08lX\n",
+					  pObjectInfo->FileId.Cell,
+					  pObjectInfo->FileId.Volume,
+					  pObjectInfo->FileId.Vnode,
+					  pObjectInfo->FileId.Unique,
+					  ntStatus));
+			}
+
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+				      AFS_TRACE_LEVEL_VERBOSE,
+				      "AFSVerifyEntry Releasing Fcb SectionObject lock %p EXCL %08lX\n",
+				      &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
+				      PsGetCurrentThread()));
+
+			AFSReleaseResource( &pObjectInfo->Fcb->NPFcb->SectionObjectResource);
                     }
 
                     AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
                                   AFS_TRACE_LEVEL_VERBOSE,
-                                  "AFSVerifyEntry Releasing Fcb SectionObject lock %p EXCL %08lX\n",
-                                  &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
+				  "AFSVerifyEntry Releasing Fcb lock %p EXCL %08lX\n",
+				  &pObjectInfo->Fcb->NPFcb->Resource,
                                   PsGetCurrentThread()));
-
-                    AFSReleaseResource( &pObjectInfo->Fcb->NPFcb->SectionObjectResource);
 
                     AFSReleaseResource( &pObjectInfo->Fcb->NPFcb->Resource);
                 }
@@ -3246,22 +3318,34 @@ AFSVerifyEntry( IN GUID *AuthGroup,
                                       pObjectInfo->FileId.Vnode,
                                       pObjectInfo->FileId.Unique,
                                       ntStatus));
-
-                        break;
                     }
+		    else
+		    {
 
-                    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
-                                  AFS_TRACE_LEVEL_WARNING,
-                                  "AFSVerifyEntry Fcb NULL %wZ FID %08lX-%08lX-%08lX-%08lX\n",
-                                  &DirEntry->NameInformation.FileName,
-                                  pObjectInfo->FileId.Cell,
-                                  pObjectInfo->FileId.Volume,
-                                  pObjectInfo->FileId.Vnode,
-                                  pObjectInfo->FileId.Unique));
+			AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				      AFS_TRACE_LEVEL_WARNING,
+				      "AFSVerifyEntry Fcb NULL %wZ FID %08lX-%08lX-%08lX-%08lX\n",
+				      &DirEntry->NameInformation.FileName,
+				      pObjectInfo->FileId.Cell,
+				      pObjectInfo->FileId.Volume,
+				      pObjectInfo->FileId.Vnode,
+				      pObjectInfo->FileId.Unique));
+		    }
                 }
 
-                ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY);
+		if ( NT_SUCCESS( ntStatus))
+		{
 
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSVerifyEntry File FID %08lX-%08lX-%08lX-%08lX Clearing Verify Flag\n",
+				  pObjectInfo->FileId.Cell,
+				  pObjectInfo->FileId.Volume,
+				  pObjectInfo->FileId.Vnode,
+				  pObjectInfo->FileId.Unique));
+
+		    ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY);
+		}
                 break;
             }
 
@@ -3309,6 +3393,14 @@ AFSVerifyEntry( IN GUID *AuthGroup,
 
                 if( NT_SUCCESS( ntStatus))
                 {
+
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSVerifyEntry Directory FID %08lX-%08lX-%08lX-%08lX Clearing Verify Flag\n",
+				  pObjectInfo->FileId.Cell,
+				  pObjectInfo->FileId.Volume,
+				  pObjectInfo->FileId.Vnode,
+				  pObjectInfo->FileId.Unique));
 
                     ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY);
                 }
@@ -3369,6 +3461,14 @@ AFSVerifyEntry( IN GUID *AuthGroup,
 
                 if( NT_SUCCESS( ntStatus))
                 {
+
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSVerifyEntry DFSLink FID %08lX-%08lX-%08lX-%08lX Clearing Verify Flag\n",
+				  pObjectInfo->FileId.Cell,
+				  pObjectInfo->FileId.Volume,
+				  pObjectInfo->FileId.Vnode,
+				  pObjectInfo->FileId.Unique));
 
                     ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY);
                 }
@@ -3966,6 +4066,7 @@ AFSValidateEntry( IN AFSDirectoryCB *DirEntry,
 {
 
     NTSTATUS ntStatus = STATUS_SUCCESS;
+    AFSDeviceExt *pRDRDevExt = (AFSDeviceExt *) AFSRDRDeviceObject->DeviceExtension;
     LARGE_INTEGER liSystemTime;
     AFSDirEnumEntry *pDirEnumEntry = NULL;
     AFSFcb *pCurrentFcb = NULL;
@@ -4091,6 +4192,14 @@ AFSValidateEntry( IN AFSDirectoryCB *DirEntry,
                 if( NT_SUCCESS( ntStatus))
                 {
 
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSValidateEntry MountPoint FID %08lX-%08lX-%08lX-%08lX Clearing Verify Flag\n",
+				  pObjectInfo->FileId.Cell,
+				  pObjectInfo->FileId.Volume,
+				  pObjectInfo->FileId.Vnode,
+				  pObjectInfo->FileId.Unique));
+
                     ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY | AFS_OBJECT_FLAGS_NOT_EVALUATED);
                 }
 
@@ -4110,6 +4219,14 @@ AFSValidateEntry( IN AFSDirectoryCB *DirEntry,
 
                 if( NT_SUCCESS( ntStatus))
                 {
+
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSValidateEntry Symlink FID %08lX-%08lX-%08lX-%08lX Clearing Verify Flag\n",
+				  pObjectInfo->FileId.Cell,
+				  pObjectInfo->FileId.Volume,
+				  pObjectInfo->FileId.Vnode,
+				  pObjectInfo->FileId.Unique));
 
                     ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY | AFS_OBJECT_FLAGS_NOT_EVALUATED);
                 }
@@ -4147,173 +4264,166 @@ AFSValidateEntry( IN AFSDirectoryCB *DirEntry,
                         AFSAcquireExcl( &pCurrentFcb->NPFcb->Resource,
                                         TRUE);
 
-                        bReleaseFcb = TRUE;
-                    }
+			bReleaseFcb = TRUE;
+		    }
 
-                    if( pCurrentFcb != NULL)
-                    {
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE_2,
+				  "AFSValidateEntry Flush/purge entry %wZ FID %08lX-%08lX-%08lX-%08lX\n",
+				  &DirEntry->NameInformation.FileName,
+				  pObjectInfo->FileId.Cell,
+				  pObjectInfo->FileId.Volume,
+				  pObjectInfo->FileId.Vnode,
+				  pObjectInfo->FileId.Unique));
 
-                        IO_STATUS_BLOCK stIoStatus;
+		    if ( pObjectInfo->DataVersion.QuadPart != pDirEnumEntry->DataVersion.QuadPart)
+		    {
 
-                        AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
-                                      AFS_TRACE_LEVEL_VERBOSE_2,
-                                      "AFSValidateEntry Flush/purge entry %wZ FID %08lX-%08lX-%08lX-%08lX\n",
-                                      &DirEntry->NameInformation.FileName,
-                                      pObjectInfo->FileId.Cell,
-                                      pObjectInfo->FileId.Volume,
-                                      pObjectInfo->FileId.Vnode,
-                                      pObjectInfo->FileId.Unique));
+			AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				      AFS_TRACE_LEVEL_VERBOSE,
+				      "AFSValidateEntry DV Change %wZ FID %08lX-%08lX-%08lX-%08lX (%08lX != %08lX)\n",
+				      &DirEntry->NameInformation.FileName,
+				      pObjectInfo->FileId.Cell,
+				      pObjectInfo->FileId.Volume,
+				      pObjectInfo->FileId.Vnode,
+				      pObjectInfo->FileId.Unique,
+				      pObjectInfo->DataVersion.LowPart,
+				      pDirEnumEntry->DataVersion.LowPart));
 
-                        if ( pObjectInfo->DataVersion.QuadPart != pDirEnumEntry->DataVersion.QuadPart)
-                        {
+			bPurgeExtents = TRUE;
+		    }
 
-                            AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
-                                          AFS_TRACE_LEVEL_VERBOSE,
-                                          "AFSValidateEntry DV Change %wZ FID %08lX-%08lX-%08lX-%08lX (%08lX != %08lX)\n",
-                                          &DirEntry->NameInformation.FileName,
-                                          pObjectInfo->FileId.Cell,
-                                          pObjectInfo->FileId.Volume,
-                                          pObjectInfo->FileId.Vnode,
-                                          pObjectInfo->FileId.Unique,
-                                          pObjectInfo->DataVersion.LowPart,
-                                          pDirEnumEntry->DataVersion.LowPart));
+		    if ( bSafeToPurge)
+		    {
 
-                            bPurgeExtents = TRUE;
-                        }
+			if ( BooleanFlagOn( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA))
+			{
+			    bPurgeExtents = TRUE;
 
-                        if ( bSafeToPurge)
-                        {
+			    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+					  AFS_TRACE_LEVEL_VERBOSE,
+					  "AFSVerifyEntry Clearing VERIFY_DATA flag %wZ FID %08lX-%08lX-%08lX-%08lX\n",
+					  &DirEntry->NameInformation.FileName,
+					  pObjectInfo->FileId.Cell,
+					  pObjectInfo->FileId.Volume,
+					  pObjectInfo->FileId.Vnode,
+					  pObjectInfo->FileId.Unique));
 
-                            if ( BooleanFlagOn( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA))
-                            {
-                                bPurgeExtents = TRUE;
+			    ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA);
+			}
 
-                                AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
-                                              AFS_TRACE_LEVEL_VERBOSE,
-                                              "AFSVerifyEntry Clearing VERIFY_DATA flag %wZ FID %08lX-%08lX-%08lX-%08lX\n",
-                                              &DirEntry->NameInformation.FileName,
-                                              pObjectInfo->FileId.Cell,
-                                              pObjectInfo->FileId.Volume,
-                                              pObjectInfo->FileId.Vnode,
-                                              pObjectInfo->FileId.Unique));
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+				      AFS_TRACE_LEVEL_VERBOSE,
+				      "AFSValidateEntry Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
+				      &pCurrentFcb->NPFcb->SectionObjectResource,
+				      PsGetCurrentThread()));
 
-                                ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA);
-                            }
+			AFSAcquireExcl( &pCurrentFcb->NPFcb->SectionObjectResource,
+					TRUE);
 
-                            AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
-                                          AFS_TRACE_LEVEL_VERBOSE,
-                                          "AFSValidateEntry Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
-                                          &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
-                                          PsGetCurrentThread()));
+			__try
+			{
 
-                            AFSAcquireExcl( &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
-                                            TRUE);
+			    IO_STATUS_BLOCK stIoStatus;
 
-                            //
-                            // Release Fcb->Resource to avoid Trend Micro deadlock
-                            //
+			    CcFlushCache( &pCurrentFcb->NPFcb->SectionObjectPointers,
+					  NULL,
+					  0,
+					  &stIoStatus);
 
-                            AFSReleaseResource( &pObjectInfo->Fcb->NPFcb->Resource);
+			    if( !NT_SUCCESS( stIoStatus.Status))
+			    {
 
-                            __try
-                            {
+				AFSDbgTrace(( AFS_SUBSYSTEM_IO_PROCESSING,
+					      AFS_TRACE_LEVEL_ERROR,
+					      "AFSValidateEntry CcFlushCache failure %wZ FID %08lX-%08lX-%08lX-%08lX Status 0x%08lX Bytes 0x%08lX\n",
+					      &DirEntry->NameInformation.FileName,
+					      pObjectInfo->FileId.Cell,
+					      pObjectInfo->FileId.Volume,
+					      pObjectInfo->FileId.Vnode,
+					      pObjectInfo->FileId.Unique,
+					      stIoStatus.Status,
+					      stIoStatus.Information));
 
-                                CcFlushCache( &pCurrentFcb->NPFcb->SectionObjectPointers,
-                                              NULL,
-                                              0,
-                                              &stIoStatus);
+				ntStatus = stIoStatus.Status;
+			    }
 
-                                if( !NT_SUCCESS( stIoStatus.Status))
-                                {
+			    if ( bPurgeExtents &&
+				 pCurrentFcb->NPFcb->SectionObjectPointers.DataSectionObject != NULL)
+			    {
 
-                                    AFSDbgTrace(( AFS_SUBSYSTEM_IO_PROCESSING,
-                                                  AFS_TRACE_LEVEL_ERROR,
-                                                  "AFSValidateEntry CcFlushCache failure %wZ FID %08lX-%08lX-%08lX-%08lX Status 0x%08lX Bytes 0x%08lX\n",
-                                                  &DirEntry->NameInformation.FileName,
-                                                  pObjectInfo->FileId.Cell,
-                                                  pObjectInfo->FileId.Volume,
-                                                  pObjectInfo->FileId.Vnode,
-                                                  pObjectInfo->FileId.Unique,
-                                                  stIoStatus.Status,
-                                                  stIoStatus.Information));
+				if ( !CcPurgeCacheSection( &pCurrentFcb->NPFcb->SectionObjectPointers,
+							   NULL,
+							   0,
+							   FALSE))
+				{
 
-                                    ntStatus = stIoStatus.Status;
-                                }
+				    AFSDbgTrace(( AFS_SUBSYSTEM_IO_PROCESSING,
+						  AFS_TRACE_LEVEL_WARNING,
+						  "AFSValidateEntry CcPurgeCacheSection failure %wZ FID %08lX-%08lX-%08lX-%08lX\n",
+						  &DirEntry->NameInformation.FileName,
+						  pObjectInfo->FileId.Cell,
+						  pObjectInfo->FileId.Volume,
+						  pObjectInfo->FileId.Vnode,
+						  pObjectInfo->FileId.Unique));
 
-                                if ( bPurgeExtents &&
-                                     pObjectInfo->Fcb->NPFcb->SectionObjectPointers.DataSectionObject != NULL)
-                                {
+				    SetFlag( pObjectInfo->Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
+				}
+			    }
+			}
+			__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
+			{
+			    ntStatus = GetExceptionCode();
 
-                                    if ( !CcPurgeCacheSection( &pObjectInfo->Fcb->NPFcb->SectionObjectPointers,
-                                                               NULL,
-                                                               0,
-                                                               FALSE))
-                                    {
+			    AFSDbgTrace(( 0,
+					  0,
+					  "EXCEPTION - AFSValidateEntry CcFlushCache or CcPurgeCacheSection %wZ FID %08lX-%08lX-%08lX-%08lX Status 0x%08lX\n",
+					  &DirEntry->NameInformation.FileName,
+					  pObjectInfo->FileId.Cell,
+					  pObjectInfo->FileId.Volume,
+					  pObjectInfo->FileId.Vnode,
+					  pObjectInfo->FileId.Unique,
+					  ntStatus));
 
-                                        AFSDbgTrace(( AFS_SUBSYSTEM_IO_PROCESSING,
-                                                      AFS_TRACE_LEVEL_WARNING,
-                                                      "AFSValidateEntry CcPurgeCacheSection failure %wZ FID %08lX-%08lX-%08lX-%08lX\n",
-                                                      &DirEntry->NameInformation.FileName,
-                                                      pObjectInfo->FileId.Cell,
-                                                      pObjectInfo->FileId.Volume,
-                                                      pObjectInfo->FileId.Vnode,
-                                                      pObjectInfo->FileId.Unique));
+			    SetFlag( pCurrentFcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
+			}
 
-                                        SetFlag( pObjectInfo->Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
-                                    }
-                                }
-                            }
-                            __except( EXCEPTION_EXECUTE_HANDLER)
-                            {
-                                ntStatus = GetExceptionCode();
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+				      AFS_TRACE_LEVEL_VERBOSE,
+				      "AFSValidateEntry Releasing Fcb SectionObject lock %p EXCL %08lX\n",
+				      &pCurrentFcb->NPFcb->SectionObjectResource,
+				      PsGetCurrentThread()));
 
-                                AFSDbgTrace(( 0,
-                                              0,
-                                              "EXCEPTION - AFSValidateEntry CcFlushCache or CcPurgeCacheSection %wZ FID %08lX-%08lX-%08lX-%08lX Status 0x%08lX\n",
-                                              &DirEntry->NameInformation.FileName,
-                                              pObjectInfo->FileId.Cell,
-                                              pObjectInfo->FileId.Volume,
-                                              pObjectInfo->FileId.Vnode,
-                                              pObjectInfo->FileId.Unique,
-                                              ntStatus));
+			AFSReleaseResource( &pCurrentFcb->NPFcb->SectionObjectResource);
+		    }
+		    else
+		    {
 
-                                SetFlag( pObjectInfo->Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
-                            }
+			if ( bPurgeExtents)
+			{
 
-                            AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
-                                          AFS_TRACE_LEVEL_VERBOSE,
-                                          "AFSValidateEntry Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
-                                          &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
-                                          PsGetCurrentThread()));
+			    SetFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA);
+			}
+		    }
 
-                            AFSReleaseResource( &pObjectInfo->Fcb->NPFcb->SectionObjectResource);
+		    if (bReleaseFcb)
+		    {
+			AFSReleaseResource( &pCurrentFcb->NPFcb->Resource);
 
-                            AFSAcquireExcl( &pObjectInfo->Fcb->NPFcb->Resource,
-                                            TRUE);
-                        }
-                        else
-                        {
+			bReleaseFcb = FALSE;
+		    }
 
-                            if ( bPurgeExtents)
-                            {
+		    if ( bPurgeExtents &&
+			 bSafeToPurge)
+		    {
 
-                                SetFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA);
-                            }
-                        }
-
-
-                        AFSReleaseResource( &pCurrentFcb->NPFcb->Resource);
-
-                        bReleaseFcb = FALSE;
-
-                        if ( bPurgeExtents &&
-                             bSafeToPurge)
-                        {
-                            AFSFlushExtents( pCurrentFcb,
-                                             AuthGroup);
-                        }
-                    }
-                }
+			if( !BooleanFlagOn( pRDRDevExt->DeviceFlags, AFS_DEVICE_FLAG_DIRECT_SERVICE_IO))
+			{
+			    AFSFlushExtents( pCurrentFcb,
+					     AuthGroup);
+			}
+		    }
+		}
 
                 //
                 // Update the metadata for the entry but only if it is safe to do so.
@@ -4346,6 +4456,14 @@ AFSValidateEntry( IN AFSDirectoryCB *DirEntry,
                         break;
                     }
 
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSValidateEntry File FID %08lX-%08lX-%08lX-%08lX No Purge Clearing Verify Flag\n",
+				  pObjectInfo->FileId.Cell,
+				  pObjectInfo->FileId.Volume,
+				  pObjectInfo->FileId.Vnode,
+				  pObjectInfo->FileId.Unique));
+
                     ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY | AFS_OBJECT_FLAGS_NOT_EVALUATED);
 
                     //
@@ -4356,7 +4474,7 @@ AFSValidateEntry( IN AFSDirectoryCB *DirEntry,
                     {
                         FILE_OBJECT *pCCFileObject;
 
-                        AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                       AFS_TRACE_LEVEL_VERBOSE,
                                       "AFSValidateEntry Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                                       &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
@@ -4380,7 +4498,7 @@ AFSValidateEntry( IN AFSDirectoryCB *DirEntry,
 						(PCC_FILE_SIZES)&pObjectInfo->Fcb->Header.AllocationSize);
 			    }
 			}
-			__except( EXCEPTION_EXECUTE_HANDLER)
+			__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                         {
 
 			    ntStatus = GetExceptionCode();
@@ -4395,7 +4513,7 @@ AFSValidateEntry( IN AFSDirectoryCB *DirEntry,
 					  ntStatus));
                         }
 
-                        AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                       AFS_TRACE_LEVEL_VERBOSE,
                                       "AFSValidateEntry Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                                       &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
@@ -4471,6 +4589,14 @@ AFSValidateEntry( IN AFSDirectoryCB *DirEntry,
 
                 if( NT_SUCCESS( ntStatus))
                 {
+
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSValidateEntry Directory FID %08lX-%08lX-%08lX-%08lX Clearing Verify Flag\n",
+				  pObjectInfo->FileId.Cell,
+				  pObjectInfo->FileId.Volume,
+				  pObjectInfo->FileId.Vnode,
+				  pObjectInfo->FileId.Unique));
 
                     ClearFlag( pObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY | AFS_OBJECT_FLAGS_NOT_EVALUATED);
                 }
@@ -6861,17 +6987,17 @@ AFSCleanupFcb( IN AFSFcb *Fcb,
 
                 AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
                               AFS_TRACE_LEVEL_VERBOSE,
-                              "AFSCleanupEntry Acquiring Fcb lock %p SHARED %08lX\n",
+			      "AFSCleanupEntry Acquiring Fcb lock %p EXCL %08lX\n",
                               &Fcb->NPFcb->Resource,
                               PsGetCurrentThread()));
 
-                AFSAcquireShared( &Fcb->NPFcb->Resource,
+		AFSAcquireExcl( &Fcb->NPFcb->Resource,
                                   TRUE);
 
                 if( Fcb->OpenReferenceCount > 0)
                 {
 
-                    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                   AFS_TRACE_LEVEL_VERBOSE,
                                   "AFSCleanupEntry Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                                   &Fcb->NPFcb->SectionObjectResource,
@@ -6925,7 +7051,7 @@ AFSCleanupFcb( IN AFSFcb *Fcb,
                             }
                         }
                     }
-                    __except( EXCEPTION_EXECUTE_HANDLER)
+		    __except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                     {
 
                         ntStatus = GetExceptionCode();
@@ -6942,7 +7068,7 @@ AFSCleanupFcb( IN AFSFcb *Fcb,
                         SetFlag( Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
                     }
 
-                    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                   AFS_TRACE_LEVEL_VERBOSE,
                                   "AFSCleanupFcb Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                                   &Fcb->NPFcb->SectionObjectResource,
@@ -6953,76 +7079,87 @@ AFSCleanupFcb( IN AFSFcb *Fcb,
 
                 AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
                               AFS_TRACE_LEVEL_VERBOSE,
-                              "AFSCleanupEntry Releasing Fcb lock %p SHARED %08lX\n",
+			      "AFSCleanupEntry Releasing Fcb lock %p EXCL %08lX\n",
                               &Fcb->NPFcb->Resource,
                               PsGetCurrentThread()));
 
                 AFSReleaseResource( &Fcb->NPFcb->Resource);
 
-                //
-                // Wait for any currently running flush or release requests to complete
-                //
+		if( !BooleanFlagOn( pRDRDeviceExt->DeviceFlags, AFS_DEVICE_FLAG_DIRECT_SERVICE_IO))
+		{
+		    //
+		    // Wait for any currently running flush or release requests to complete
+		    //
 
-                AFSWaitOnQueuedFlushes( Fcb);
+		    AFSWaitOnQueuedFlushes( Fcb);
 
-                //
-                // Now perform another flush on the file
-                //
+		    //
+		    // Now perform another flush on the file
+		    //
 
-                if( !NT_SUCCESS( AFSFlushExtents( Fcb,
-                                                  NULL)))
-                {
+		    if( !NT_SUCCESS( AFSFlushExtents( Fcb,
+						      NULL)))
+		    {
 
-                    AFSReleaseExtentsWithFlush( Fcb,
-                                                NULL,
-                                                TRUE);
-                }
-            }
+			AFSReleaseExtentsWithFlush( Fcb,
+						    NULL,
+						    TRUE);
+		    }
+		}
+	    }
 
-            if( Fcb->OpenReferenceCount == 0 ||
-                BooleanFlagOn( Fcb->ObjectInformation->Flags, AFS_OBJECT_FLAGS_OBJECT_INVALID) ||
-                BooleanFlagOn( Fcb->ObjectInformation->Flags, AFS_OBJECT_FLAGS_DELETED))
-            {
+	    if( !BooleanFlagOn( pRDRDeviceExt->DeviceFlags, AFS_DEVICE_FLAG_DIRECT_SERVICE_IO))
+	    {
 
-                AFSTearDownFcbExtents( Fcb,
-                                       NULL);
-            }
+		if( Fcb->OpenReferenceCount == 0 ||
+		    BooleanFlagOn( Fcb->ObjectInformation->Flags, AFS_OBJECT_FLAGS_OBJECT_INVALID) ||
+		    BooleanFlagOn( Fcb->ObjectInformation->Flags, AFS_OBJECT_FLAGS_DELETED))
+		{
+
+		    AFSTearDownFcbExtents( Fcb,
+					   NULL);
+		}
+	    }
 
             try_return( ntStatus);
         }
 
         KeQueryTickCount( &liTime);
 
-        //
-        // First up are there dirty extents in the cache to flush?
-        //
+	if( !BooleanFlagOn( pRDRDeviceExt->DeviceFlags, AFS_DEVICE_FLAG_DIRECT_SERVICE_IO))
+	{
+	    //
+	    // First up are there dirty extents in the cache to flush?
+	    //
 
-        if( BooleanFlagOn( Fcb->ObjectInformation->Flags, AFS_OBJECT_FLAGS_OBJECT_INVALID) ||
-            BooleanFlagOn( Fcb->ObjectInformation->Flags, AFS_OBJECT_FLAGS_DELETED))
-        {
+	    if( BooleanFlagOn( Fcb->ObjectInformation->Flags, AFS_OBJECT_FLAGS_OBJECT_INVALID) ||
+		BooleanFlagOn( Fcb->ObjectInformation->Flags, AFS_OBJECT_FLAGS_DELETED))
+	    {
 
-            //
-            // The file has been marked as invalid.  Dump it
-            //
+		//
+		// The file has been marked as invalid.  Dump it
+		//
 
-            AFSTearDownFcbExtents( Fcb,
-                                   NULL);
-        }
-        else if( ForceFlush ||
-            ( ( Fcb->Specific.File.ExtentsDirtyCount ||
-                Fcb->Specific.File.ExtentCount) &&
-              (liTime.QuadPart - Fcb->Specific.File.LastServerFlush.QuadPart)
-                                                    >= pControlDeviceExt->Specific.Control.FcbFlushTimeCount.QuadPart))
-        {
-            if( !NT_SUCCESS( AFSFlushExtents( Fcb,
-                                              NULL)) &&
-                Fcb->OpenReferenceCount == 0)
-            {
+		AFSTearDownFcbExtents( Fcb,
+				       NULL);
+	    }
+	    else if( ForceFlush ||
+		     ( ( Fcb->Specific.File.ExtentsDirtyCount ||
+			 Fcb->Specific.File.ExtentCount) &&
+		       (liTime.QuadPart - Fcb->Specific.File.LastServerFlush.QuadPart)
+		       >= pControlDeviceExt->Specific.Control.FcbFlushTimeCount.QuadPart))
+	    {
 
-                AFSReleaseExtentsWithFlush( Fcb,
-                                            NULL,
-                                            TRUE);
-            }
+		if( !NT_SUCCESS( AFSFlushExtents( Fcb,
+						  NULL)) &&
+		    Fcb->OpenReferenceCount == 0)
+		{
+
+		    AFSReleaseExtentsWithFlush( Fcb,
+						NULL,
+						TRUE);
+		}
+	    }
         }
 
         //
@@ -7037,7 +7174,25 @@ AFSCleanupFcb( IN AFSFcb *Fcb,
                                         (AFS_SERVER_PURGE_SLEEP * pControlDeviceExt->Specific.Control.FcbPurgeTimeCount.QuadPart))))
         {
 
-            AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+	    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			  AFS_TRACE_LEVEL_VERBOSE,
+			  "AFSCleanupFcb Acquiring Fcb lock %p EXCL %08lX\n",
+			  &Fcb->NPFcb->Resource,
+			  PsGetCurrentThread()));
+
+	    if ( AFSAcquireExcl( &Fcb->NPFcb->Resource, ForceFlush) == FALSE)
+	    {
+
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSCleanupFcb Failed to Acquire Fcb lock %p EXCL %08lX\n",
+			      &Fcb->NPFcb->Resource,
+			      PsGetCurrentThread()));
+
+		try_return( ntStatus = STATUS_RETRY);
+	    }
+
+	    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                           AFS_TRACE_LEVEL_VERBOSE,
                           "AFSCleanupFcb Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                           &Fcb->NPFcb->SectionObjectResource,
@@ -7092,7 +7247,7 @@ AFSCleanupFcb( IN AFSFcb *Fcb,
                         }
                     }
                 }
-                __except( EXCEPTION_EXECUTE_HANDLER)
+		__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                 {
 
                     ntStatus = GetExceptionCode();
@@ -7107,7 +7262,7 @@ AFSCleanupFcb( IN AFSFcb *Fcb,
                                   ntStatus));
                 }
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSCleanupFcb Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                               &Fcb->NPFcb->SectionObjectResource,
@@ -7115,19 +7270,45 @@ AFSCleanupFcb( IN AFSFcb *Fcb,
 
                 AFSReleaseResource( &Fcb->NPFcb->SectionObjectResource);
 
-                if( Fcb->OpenReferenceCount <= 0)
-                {
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSCleanupFcb Releasing Fcb lock %p EXCL %08lX\n",
+			      &Fcb->NPFcb->Resource,
+			      PsGetCurrentThread()));
 
-                    //
-                    // Tear em down we'll not be needing them again
-                    //
+		AFSReleaseResource( &Fcb->NPFcb->Resource);
 
-                    AFSTearDownFcbExtents( Fcb,
-                                           NULL);
-                }
+		if( !BooleanFlagOn( pRDRDeviceExt->DeviceFlags, AFS_DEVICE_FLAG_DIRECT_SERVICE_IO))
+		{
+
+		    if( Fcb->OpenReferenceCount <= 0)
+		    {
+
+			//
+			// Tear em down we'll not be needing them again
+			//
+
+			AFSTearDownFcbExtents( Fcb,
+					       NULL);
+		    }
+		}
             }
             else
             {
+
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSCleanupFcb Failed to Acquire Fcb SectionObject lock %p EXCL %08lX\n",
+			      &Fcb->NPFcb->SectionObjectResource,
+			      PsGetCurrentThread()));
+
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSCleanupFcb Releasing Fcb lock %p EXCL %08lX\n",
+			      &Fcb->NPFcb->Resource,
+			      PsGetCurrentThread()));
+
+		AFSReleaseResource( &Fcb->NPFcb->Resource);
 
                 ntStatus = STATUS_RETRY;
             }
@@ -9039,47 +9220,56 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
 
     AFSDeviceExt       *pRDRDevExt = (AFSDeviceExt *)AFSRDRDeviceObject->DeviceExtension;
     NTSTATUS            ntStatus = STATUS_SUCCESS;
-    LIST_ENTRY         *le;
-    AFSExtent          *pEntry;
-    ULONG               ulProcessCount = 0;
-    ULONG               ulCount = 0;
     LONG                lCount;
 
     __Enter
     {
 
-        switch( InvalidateReason)
+	switch( InvalidateReason)
         {
 
             case AFS_INVALIDATE_DELETED:
             {
 
-                if( ObjectInfo->FileType == AFS_FILE_TYPE_FILE &&
+		AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+			      AFS_TRACE_LEVEL_VERBOSE,
+			      "AFSPerformObjectInvalidation on node type %d for FID %08lX-%08lX-%08lX-%08lX Reason DELETED\n",
+			      ObjectInfo->FileType,
+			      ObjectInfo->FileId.Cell,
+			      ObjectInfo->FileId.Volume,
+			      ObjectInfo->FileId.Vnode,
+			      ObjectInfo->FileId.Unique));
+
+		if( ObjectInfo->FileType == AFS_FILE_TYPE_FILE &&
                     ObjectInfo->Fcb != NULL)
                 {
 
-                    AFSAcquireExcl( &ObjectInfo->Fcb->NPFcb->Specific.File.ExtentsResource,
-                                    TRUE);
+		    if( !BooleanFlagOn( pRDRDevExt->DeviceFlags, AFS_DEVICE_FLAG_DIRECT_SERVICE_IO))
+		    {
 
-                    ObjectInfo->Links = 0;
+			AFSAcquireExcl( &ObjectInfo->Fcb->NPFcb->Specific.File.ExtentsResource,
+					TRUE);
 
-                    ObjectInfo->Fcb->NPFcb->Specific.File.ExtentsRequestStatus = STATUS_FILE_DELETED;
+			ObjectInfo->Fcb->NPFcb->Specific.File.ExtentsRequestStatus = STATUS_FILE_DELETED;
 
-                    KeSetEvent( &ObjectInfo->Fcb->NPFcb->Specific.File.ExtentsRequestComplete,
-                                0,
-                                FALSE);
+			KeSetEvent( &ObjectInfo->Fcb->NPFcb->Specific.File.ExtentsRequestComplete,
+				    0,
+				    FALSE);
 
-                    //
-                    // Clear out the extents
-                    // And get rid of them (note this involves waiting
-                    // for any writes or reads to the cache to complete)
-                    //
+			//
+			// Clear out the extents
+			// And get rid of them (note this involves waiting
+			// for any writes or reads to the cache to complete)
+			//
 
-                    AFSTearDownFcbExtents( ObjectInfo->Fcb,
-                                           NULL);
+			AFSTearDownFcbExtents( ObjectInfo->Fcb,
+					       NULL);
 
-                    AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->Specific.File.ExtentsResource);
-                }
+			AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->Specific.File.ExtentsResource);
+		    }
+		}
+
+		ObjectInfo->Links = 0;
 
                 break;
             }
@@ -9087,26 +9277,33 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
             case AFS_INVALIDATE_DATA_VERSION:
             {
 
-                LARGE_INTEGER liCurrentOffset = {0,0};
-                LARGE_INTEGER liFlushLength = {0,0};
-                ULONG ulFlushLength = 0;
-                BOOLEAN bLocked = FALSE;
-                BOOLEAN bExtentsLocked = FALSE;
-                BOOLEAN bCleanExtents = FALSE;
-
                 if( ObjectInfo->FileType == AFS_FILE_TYPE_FILE &&
                     ObjectInfo->Fcb != NULL)
                 {
 
-                    AFSAcquireExcl( &ObjectInfo->Fcb->NPFcb->Resource,
-                                    TRUE);
-
-                    bLocked = TRUE;
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSPerformObjectInvalidation on node type %d for FID %08lX-%08lX-%08lX-%08lX Reason DATA_VERSION FCB %0p\n",
+				  ObjectInfo->FileType,
+				  ObjectInfo->FileId.Cell,
+				  ObjectInfo->FileId.Volume,
+				  ObjectInfo->FileId.Vnode,
+				  ObjectInfo->FileId.Unique,
+				  ObjectInfo->Fcb));
 
                     if( BooleanFlagOn( pRDRDevExt->DeviceFlags, AFS_DEVICE_FLAG_DIRECT_SERVICE_IO))
                     {
 
-                        AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+				      AFS_TRACE_LEVEL_VERBOSE,
+				      "AFSPerformObjectInvalidate Acquiring Fcb lock %p EXCL %08lX\n",
+				      &ObjectInfo->Fcb->NPFcb->Resource,
+				      PsGetCurrentThread()));
+
+			AFSAcquireExcl( &ObjectInfo->Fcb->NPFcb->Resource,
+					TRUE);
+
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                       AFS_TRACE_LEVEL_VERBOSE,
                                       "AFSPerformObjectInvalidation DirectIO Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                                       &ObjectInfo->Fcb->NPFcb->SectionObjectResource,
@@ -9115,11 +9312,7 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
                         AFSAcquireExcl( &ObjectInfo->Fcb->NPFcb->SectionObjectResource,
                                         TRUE);
 
-                        AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->Resource);
-
-                        bLocked = FALSE;
-
-                        __try
+			__try
                         {
 
                             if( ObjectInfo->Fcb->NPFcb->SectionObjectPointers.DataSectionObject != NULL &&
@@ -9138,14 +9331,11 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
                                               ObjectInfo->FileId.Unique));
 
                                 SetFlag( ObjectInfo->Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
-                            }
-                            else
-                            {
 
-                                bCleanExtents = TRUE;
+				SetFlag( ObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA);
                             }
                         }
-                        __except( EXCEPTION_EXECUTE_HANDLER)
+			__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                         {
 
                             ntStatus = GetExceptionCode();
@@ -9160,18 +9350,49 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
                                           ntStatus));
 
                             SetFlag( ObjectInfo->Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
-                        }
 
-                        AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+			    SetFlag( ObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA);
+			}
+
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                       AFS_TRACE_LEVEL_VERBOSE,
                                       "AFSPerformObjectInvalidation DirectIO Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                                       &ObjectInfo->Fcb->NPFcb->SectionObjectResource,
                                       PsGetCurrentThread()));
 
                         AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->SectionObjectResource);
-                    }
+
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+				      AFS_TRACE_LEVEL_VERBOSE,
+				      "AFSPerformObjectInvalidation DirectIO Releasing Fcb lock %p EXCL %08lX\n",
+				      &ObjectInfo->Fcb->NPFcb->Resource,
+				      PsGetCurrentThread()));
+
+			AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->Resource);
+		    }
                     else
                     {
+			LIST_ENTRY         *le;
+			AFSExtent          *pEntry;
+			ULONG               ulProcessCount = 0;
+			ULONG               ulCount = 0;
+			LARGE_INTEGER liCurrentOffset = {0,0};
+			LARGE_INTEGER liFlushLength = {0,0};
+			ULONG ulFlushLength = 0;
+			BOOLEAN bLocked = FALSE;
+			BOOLEAN bExtentsLocked = FALSE;
+			BOOLEAN bCleanExtents = FALSE;
+
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+				      AFS_TRACE_LEVEL_VERBOSE,
+				      "AFSPerformObjectInvalidate Acquiring Fcb lock %p EXCL %08lX\n",
+				      &ObjectInfo->Fcb->NPFcb->Resource,
+				      PsGetCurrentThread()));
+
+			AFSAcquireExcl( &ObjectInfo->Fcb->NPFcb->Resource,
+					TRUE);
+
+			bLocked = TRUE;
 
                         AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
                                       AFS_TRACE_LEVEL_VERBOSE,
@@ -9225,7 +9446,7 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
                                 else
                                 {
 
-                                    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+				    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                                   AFS_TRACE_LEVEL_VERBOSE,
                                                   "AFSPerformObjectInvalidation Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                                                   &ObjectInfo->Fcb->NPFcb->SectionObjectResource,
@@ -9233,10 +9454,6 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
 
                                     AFSAcquireExcl( &ObjectInfo->Fcb->NPFcb->SectionObjectResource,
                                                     TRUE);
-
-                                    AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->Resource);
-
-                                    bLocked = FALSE;
 
                                     __try
                                     {
@@ -9256,15 +9473,17 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
                                                           ObjectInfo->FileId.Vnode,
                                                           ObjectInfo->FileId.Unique));
 
-                                            SetFlag( ObjectInfo->Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
-                                        }
+					    SetFlag( ObjectInfo->Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
+
+					    SetFlag( ObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA);
+					}
                                         else
                                         {
 
                                             bCleanExtents = TRUE;
                                         }
                                     }
-                                    __except( EXCEPTION_EXECUTE_HANDLER)
+				    __except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                                     {
 
                                         ntStatus = GetExceptionCode();
@@ -9279,15 +9498,21 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
                                                       ntStatus));
 
                                         SetFlag( ObjectInfo->Fcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
+
+					SetFlag( ObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA);
                                     }
 
-                                    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+				    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                                   AFS_TRACE_LEVEL_VERBOSE,
                                                   "AFSPerformObjectInvalidation Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                                                   &ObjectInfo->Fcb->NPFcb->SectionObjectResource,
                                                   PsGetCurrentThread()));
 
                                     AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->SectionObjectResource);
+
+				    AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->Resource);
+
+				    bLocked = FALSE;
                                 }
                             }
                             else
@@ -9297,7 +9522,7 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
 
                                 bExtentsLocked = FALSE;
 
-                                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+				AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                               AFS_TRACE_LEVEL_VERBOSE,
                                               "AFSPerformObjectInvalidation Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                                               &ObjectInfo->Fcb->NPFcb->SectionObjectResource,
@@ -9305,10 +9530,6 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
 
                                 AFSAcquireExcl( &ObjectInfo->Fcb->NPFcb->SectionObjectResource,
                                                 TRUE);
-
-                                AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->Resource);
-
-                                bLocked = FALSE;
 
                                 //
                                 // Must build a list of non-dirty ranges from the beginning of the file
@@ -9506,7 +9727,7 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
                                         }
                                     }
                                 }
-                                __except( EXCEPTION_EXECUTE_HANDLER)
+				__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                                 {
 
                                     ntStatus = GetExceptionCode();
@@ -9521,13 +9742,17 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
                                                   ntStatus));
                                 }
 
-                                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+				AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                               AFS_TRACE_LEVEL_VERBOSE,
                                               "AFSPerformObjectInvalidation Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                                               &ObjectInfo->Fcb->NPFcb->SectionObjectResource,
                                               PsGetCurrentThread()));
 
                                 AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->SectionObjectResource);
+
+				AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->Resource);
+
+				bLocked = FALSE;
                             }
                         }
 
@@ -9536,25 +9761,39 @@ AFSPerformObjectInvalidate( IN AFSObjectInfoCB *ObjectInfo,
 
                             AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->Specific.File.ExtentsResource );
                         }
-                    }
 
-                    if ( bLocked)
-                    {
+			if ( bLocked)
+			{
 
-                        AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->Resource);
-                    }
+			    AFSReleaseResource( &ObjectInfo->Fcb->NPFcb->Resource);
+			}
 
-                    if ( bCleanExtents)
-                    {
+			if ( bCleanExtents)
+			{
 
-                        AFSReleaseCleanExtents( ObjectInfo->Fcb,
-                                                NULL);
-                    }
+			    AFSReleaseCleanExtents( ObjectInfo->Fcb,
+						    NULL);
+			}
+		    }
                 }
+		else if ( ObjectInfo->FileType == AFS_FILE_TYPE_FILE)
+		{
+
+		    AFSDbgTrace(( AFS_SUBSYSTEM_FILE_PROCESSING,
+				  AFS_TRACE_LEVEL_VERBOSE,
+				  "AFSPerformObjectInvalidation on node type %d for FID %08lX-%08lX-%08lX-%08lX Reason DATA_VERSION FCB NULL\n",
+				  ObjectInfo->FileType,
+				  ObjectInfo->FileId.Cell,
+				  ObjectInfo->FileId.Volume,
+				  ObjectInfo->FileId.Vnode,
+				  ObjectInfo->FileId.Unique));
+
+		    SetFlag( ObjectInfo->Flags, AFS_OBJECT_FLAGS_VERIFY_DATA);
+		}
 
                 break;
             }
-        }
+	}
 
         //
         // Destroy the reference passed in by the caller to AFSInvalidateObject

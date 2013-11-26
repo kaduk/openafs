@@ -74,7 +74,7 @@ struct tqHead {
 
 #define COMMONPARMS     cmd_Seek(ts, 12);\
 cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cell name");\
-cmd_AddParmAlias(ts, 1, "-c");   /* original -cell option */ \
+cmd_AddParmAlias(ts, 12, "-c");   /* original -cell option */ \
 cmd_AddParm(ts, "-noauth", CMD_FLAG, CMD_OPTIONAL, "don't authenticate");\
 cmd_AddParm(ts, "-localauth",CMD_FLAG,CMD_OPTIONAL,"use server tickets");\
 cmd_AddParm(ts, "-verbose", CMD_FLAG, CMD_OPTIONAL, "verbose");\
@@ -290,16 +290,15 @@ SendFile(usd_handle_t ufd, struct rx_call *call, long blksize)
     }
 
     while (!error) {
-#ifndef AFS_NT40_ENV		/* NT csn't select on non-socket fd's */
+#if !defined(AFS_NT40_ENV) && !defined(AFS_PTHREAD_ENV)
+	/* Only for this for non-NT, non-pthread. For NT, we can't select on
+	 * non-socket FDs. For pthread environments, we don't need to select at
+	 * all, since the following read() will block. */
 	fd_set in;
 	FD_ZERO(&in);
 	FD_SET((intptr_t)(ufd->handle), &in);
 	/* don't timeout if read blocks */
-#if defined(AFS_PTHREAD_ENV)
-	select(((intptr_t)(ufd->handle)) + 1, &in, 0, 0, 0);
-#else
 	IOMGR_Select(((intptr_t)(ufd->handle)) + 1, &in, 0, 0, 0);
-#endif
 #endif
 	error = USD_READ(ufd, buffer, blksize, &nbytes);
 	if (error) {
@@ -401,16 +400,15 @@ ReceiveFile(usd_handle_t ufd, struct rx_call *call, long blksize)
 
     while ((bytesread = rx_Read(call, buffer, blksize)) > 0) {
 	for (bytesleft = bytesread; bytesleft; bytesleft -= w) {
-#ifndef AFS_NT40_ENV		/* NT csn't select on non-socket fd's */
+#if !defined(AFS_NT40_ENV) && !defined(AFS_PTHREAD_ENV)
+	    /* Only for this for non-NT, non-pthread. For NT, we can't select
+	     * on non-socket FDs. For pthread environments, we don't need to
+	     * select at all, since the following write() will block. */
 	    fd_set out;
 	    FD_ZERO(&out);
 	    FD_SET((intptr_t)(ufd->handle), &out);
 	    /* don't timeout if write blocks */
-#if defined(AFS_PTHREAD_ENV)
-	    select(((intptr_t)(ufd->handle)) + 1, &out, 0, 0, 0);
-#else
 	    IOMGR_Select(((intptr_t)(ufd->handle)) + 1, 0, &out, 0, 0);
-#endif
 #endif
 	    error =
 		USD_WRITE(ufd, &buffer[bytesread - bytesleft], bytesleft, &w);
@@ -1714,6 +1712,7 @@ SetFields(struct cmd_syndesc *as, void *arock)
     afs_uint32 aserver;
     afs_int32 apart;
     int previdx = -1;
+    int have_field = 0;
 
     volid = vsu_GetVolumeID(as->parms[0].items->data, cstruct, &err);	/* -id */
     if (volid == 0) {
@@ -1747,6 +1746,7 @@ SetFields(struct cmd_syndesc *as, void *arock)
 
     if (as->parms[1].items) {
 	/* -max <quota> */
+	have_field = 1;
 	code = util_GetHumanInt32(as->parms[1].items->data, &info.maxquota);
 	if (code) {
 	    fprintf(STDERR, "invalid quota value\n");
@@ -1755,11 +1755,17 @@ SetFields(struct cmd_syndesc *as, void *arock)
     }
     if (as->parms[2].items) {
 	/* -clearuse */
+	have_field = 1;
 	info.dayUse = 0;
     }
     if (as->parms[3].items) {
 	/* -clearVolUpCounter */
+	have_field = 1;
 	info.spare2 = 0;
+    }
+    if (!have_field) {
+	fprintf(STDERR,"Nothing to set.\n");
+	return (1);
     }
     code = UV_SetVolumeInfo(aserver, apart, volid, &info);
     if (code)
@@ -6169,6 +6175,7 @@ main(int argc, char **argv)
 		"machine readable format");
     COMMONPARMS;
     cmd_CreateAlias(ts, "volinfo");
+    cmd_CreateAlias(ts, "e");
 
     ts = cmd_CreateSyntax("setfields", SetFields, NULL,
 			  "change volume info fields");

@@ -35,6 +35,7 @@ LIBS=\
 	${TOP_LIBDIR}/libaudit.a \
 	${TOP_LIBDIR}/libafsutil.a \
 	$(TOP_LIBDIR)/libopr.a \
+	${TOP_LIBDIR}/libafsrfc3961.a \
 	${TOP_LIBDIR}/libafshcrypto_lwp.a
 
 LT_objs = vldbint.xdr.lo vldbint.cs.lo vl_errors.lo
@@ -142,8 +143,11 @@ vlclient: vlclient.o libvldb.a $(LIBS)
 vlclient.o: vlclient.c ${INCLS} AFS_component_version_number.o
 
 vl_errors.o: vl_errors.c
-vlserver.h vl_errors.c: vl_errors.et vlserver.p.h
-	$(RM) -f vlserver.h vl_errors.c; ${COMPILE_ET} -p ${srcdir} vl_errors -h vlserver
+
+vl_errors.c vlserver.h : vl_errors.et vlserver.p.h
+	$(RM) -f vlserver.h vl_errors.c
+	${COMPILE_ET} -p ${srcdir} vl_errors -h vlserver
+vlserver.h: vl_errors.c
 
 vlserver.o: vlserver.c
 

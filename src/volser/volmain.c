@@ -154,46 +154,6 @@ BKGLoop(void *unused)
     return NULL;
 }
 
-/* Background daemon for sleeping so the volserver does not become I/O bound */
-afs_int32 TTsleep, TTrun;
-#ifndef AFS_PTHREAD_ENV
-static void *
-BKGSleep(void *unused)
-{
-    struct volser_trans *tt;
-
-    if (TTsleep) {
-	while (1) {
-#ifdef AFS_PTHREAD_ENV
-	    sleep(TTrun);
-#else /* AFS_PTHREAD_ENV */
-	    IOMGR_Sleep(TTrun);
-#endif
-	    VTRANS_LOCK;
-	    for (tt = TransList(); tt; tt = tt->next) {
-                VTRANS_OBJ_LOCK(tt);
-		if ((strcmp(tt->lastProcName, "DeleteVolume") == 0)
-		    || (strcmp(tt->lastProcName, "Clone") == 0)
-		    || (strcmp(tt->lastProcName, "ReClone") == 0)
-		    || (strcmp(tt->lastProcName, "Forward") == 0)
-		    || (strcmp(tt->lastProcName, "Restore") == 0)
-		    || (strcmp(tt->lastProcName, "ForwardMulti") == 0)) {
-                    VTRANS_OBJ_UNLOCK(tt);
-		    break;
-                }
-                VTRANS_OBJ_UNLOCK(tt);
-	    }
-	    if (tt) {
-	        VTRANS_UNLOCK;
-		sleep(TTsleep);
-	    } else
-	        VTRANS_UNLOCK;
-	}
-    }
-    return NULL;
-}
-#endif
-
 #ifdef AFS_NT40_ENV
 /* no volser_syscall */
 #elif defined(AFS_SUN511_ENV)
@@ -292,7 +252,7 @@ ParseArgs(int argc, char **argv) {
 	   "log vos users");
     cmd_AddParmAtOffset(opts, OPT_rxbind, "-rxbind", CMD_FLAG, CMD_OPTIONAL,
 	   "bind only to the primary interface");
-    cmd_AddParmAtOffset(opts, OPT_dotted, "-dotted", CMD_FLAG, CMD_OPTIONAL,
+    cmd_AddParmAtOffset(opts, OPT_dotted, "-allow-dotted-principals", CMD_FLAG, CMD_OPTIONAL,
 	   "permit Kerberos 5 principals with dots");
     cmd_AddParmAtOffset(opts, OPT_debug, "-d", CMD_SINGLE, CMD_OPTIONAL,
 	   "debug level");
@@ -310,7 +270,7 @@ ParseArgs(int argc, char **argv) {
 	    CMD_OPTIONAL, "maximum MTU for RX");
     cmd_AddParmAtOffset(opts, OPT_udpsize, "-udpsize", CMD_SINGLE,
 	    CMD_OPTIONAL, "size of socket buffer in bytes");
-    cmd_AddParmAtOffset(opts, OPT_udpsize, "-sleep", CMD_SINGLE,
+    cmd_AddParmAtOffset(opts, OPT_sleep, "-sleep", CMD_SINGLE,
 	    CMD_OPTIONAL, "make background daemon sleep (LWP only)");
     cmd_AddParmAtOffset(opts, OPT_peer, "-enable_peer_stats", CMD_FLAG,
 	    CMD_OPTIONAL, "enable RX transport statistics");
@@ -330,7 +290,9 @@ ParseArgs(int argc, char **argv) {
 	   CMD_OPTIONAL, "configuration location");
 
     code = cmd_Parse(argc, argv, &opts);
-
+    if (code == CMD_HELP) {
+	exit(0);
+    }
     if (code)
 	return 1;
 
@@ -378,13 +340,7 @@ ParseArgs(int argc, char **argv) {
 	}
     }
     if (cmd_OptionAsString(opts, OPT_sleep, &sleepSpec) == 0) {
-	sscanf(sleepSpec, "%d/%d", &TTsleep, &TTrun);
-	if ((TTsleep < 0) || (TTrun <= 0)) {
-	    printf("Warning: '-sleep %d/%d' is incorrect; ignoring\n",
-		    TTsleep, TTrun);
-	    TTsleep = TTrun = 0;
-	}
-
+	printf("Warning: -sleep option ignored; this option is obsolete\n");
     }
     if (cmd_OptionAsString(opts, OPT_sync, &sync_behavior) == 0) {
 	if (ih_SetSyncBehavior(sync_behavior)) {
@@ -438,12 +394,12 @@ main(int argc, char **argv)
 	exit(2);
     }
 
-    TTsleep = TTrun = 0;
-
     configDir = strdup(AFSDIR_SERVER_ETC_DIRPATH);
     logFile = strdup(AFSDIR_SERVER_VOLSERLOG_FILEPATH);
 
-    ParseArgs(argc, argv);
+    if (ParseArgs(argc, argv)) {
+	exit(1);
+    }
 
     if (auditFileName) {
 	osi_audit_file(auditFileName);
@@ -540,7 +496,6 @@ main(int argc, char **argv)
 #else
 	PROCESS pid;
 	LWP_CreateProcess(BKGLoop, 16*1024, 3, 0, "vol bkg daemon", &pid);
-	LWP_CreateProcess(BKGSleep,16*1024, 3, 0, "vol slp daemon", &pid);
 #endif
     }
 
@@ -593,10 +548,8 @@ main(int argc, char **argv)
 
     LogCommandLine(argc, argv, "Volserver", VolserVersion, "Starting AFS",
 		   Log);
-    if (TTsleep) {
-	Log("Will sleep %d second%s every %d second%s\n", TTsleep,
-	    (TTsleep > 1) ? "s" : "", TTrun + TTsleep,
-	    (TTrun + TTsleep > 1) ? "s" : "");
+    if (afsconf_GetLatestKey(tdir, NULL, NULL) == 0) {
+	LogDesWarning();
     }
 
     /* allow super users to manage RX statistics */

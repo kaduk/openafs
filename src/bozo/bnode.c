@@ -7,6 +7,8 @@
  * directory or online at http://www.openafs.org/dl/license10.html
  */
 
+#include <stdarg.h>
+
 #include <afsconfig.h>
 #include <afs/param.h>
 
@@ -20,7 +22,10 @@
 #include <afs/audit.h>
 #include <afs/afsutil.h>
 #include <afs/fileutil.h>
+#include <afs/opr.h>
+#include <opr/lock.h>
 #include <opr/queue.h>
+#include <lock.h>
 
 #include "bnode.h"
 #include "bnode_internal.h"
@@ -32,12 +37,22 @@
 
 #define BNODE_LWP_STACKSIZE	(16 * 1024)
 #define BNODE_ERROR_COUNT_MAX   16   /* maximum number of retries */
+#define BNODE_ERROR_DELAY_MAX   60   /* maximum retry delay (seconds) */
 
-int bnode_waiting = 0;
-static PROCESS bproc_pid;	/* pid of waker-upper */
-static struct opr_queue allBnodes;	/**< List of all bnodes */
+#ifdef AFS_PTHREAD_ENV
+static pthread_t bproc_pid;
+static pthread_t sighand_pid;
+static opr_cv_t bproc_cv;
+static opr_mutex_t bproc_mutex;	/**< Protect calculation of nextTimeout */
+#else
+static PROCESS bproc_pid;	/**< pid of waker-upper */
+#endif
+static struct opr_queue allBnodes;		/**< List of all bnodes */
+static struct Lock allBnodes_lock;
 static struct opr_queue allProcs;	/**< List of all processes for which we're waiting */
+struct Lock allProcs_lock;
 static struct opr_queue allTypes;	/**< List of all registered type handlers */
+extern struct Lock configUpdate_lock;	/**< Serialize configuration updates */
 
 static struct bnode_stats {
     int weirdPids;
@@ -50,6 +65,8 @@ extern char **environ;		/* env structure */
 #endif
 
 int hdl_notifier(struct bnode_proc *tp);
+static int bnode_DeleteNoLock(struct bnode *abnode);
+extern void bozo_insecureme(int sig);
 
 /* Remember the name of the process, if any, that failed last */
 static void
@@ -181,13 +198,39 @@ bnode_RestartP(struct bnode *abnode)
     return BOP_RESTARTP(abnode);
 }
 
+static void
+bnode_Lock(struct bnode *abnode)
+{
+#ifdef AFS_PTHREAD_ENV
+    opr_mutex_enter(&abnode->mutex);
+#endif
+    return;
+}
+
+static void
+bnode_Unlock(struct bnode *abnode)
+{
+#ifdef AFS_PTHREAD_ENV
+    opr_mutex_exit(&abnode->mutex);
+#endif
+    return;
+}
+
 static int
 bnode_Check(struct bnode *abnode)
 {
+    opr_Assert(abnode->refCount > 0);
+
+    bnode_Lock(abnode);
     if (abnode->flags & BNODE_WAIT) {
 	abnode->flags &= ~BNODE_WAIT;
+#ifdef AFS_PTHREAD_ENV
+	opr_cv_signal(&abnode->cv);
+#else
 	LWP_NoYieldSignal(abnode);
+#endif
     }
+    bnode_Unlock(abnode);
     return 0;
 }
 
@@ -198,33 +241,20 @@ bnode_HasCore(struct bnode *abnode)
     return BOP_HASCORE(abnode);
 }
 
-/* wait for all bnodes to stabilize */
-int
-bnode_WaitAll(void)
+static void
+bnode_Wait(struct bnode *abnode)
 {
-    struct opr_queue *cursor;
-    afs_int32 code;
-    afs_int32 stat;
+    opr_Assert(abnode->refCount > 0);
+    /* bnode must be locked to protect flags */
 
-  retry:
-    for (opr_queue_Scan(&allBnodes, cursor)) {
-	struct bnode *tb = opr_queue_Entry(cursor, struct bnode, q);
-
-	bnode_Hold(tb);
-	code = BOP_GETSTAT(tb, &stat);
-	if (code) {
-	    bnode_Release(tb);
-	    return code;
-	}
-	if (stat != tb->goal) {
-	    tb->flags |= BNODE_WAIT;
-	    LWP_WaitProcess(tb);
-	    bnode_Release(tb);
-	    goto retry;
-	}
-	bnode_Release(tb);
-    }
-    return 0;
+    abnode->flags |= BNODE_WAIT;
+#ifdef AFS_PTHREAD_ENV
+    do {
+	opr_cv_wait(&abnode->cv, &abnode->mutex);
+    } while (abnode->flags & BNODE_WAIT);
+#else
+    LWP_WaitProcess(abnode);
+#endif
 }
 
 /* wait until bnode status is correct */
@@ -234,7 +264,8 @@ bnode_WaitStatus(struct bnode *abnode, int astatus)
     afs_int32 code;
     afs_int32 stat;
 
-    bnode_Hold(abnode);
+    opr_Assert(abnode->refCount > 0);
+
     while (1) {
 	/* get the status */
 	code = BOP_GETSTAT(abnode, &stat);
@@ -242,23 +273,24 @@ bnode_WaitStatus(struct bnode *abnode, int astatus)
 	    return code;
 
 	/* otherwise, check if we're done */
-	if (stat == astatus) {
-	    bnode_Release(abnode);
+	if (stat == astatus)
 	    return 0;		/* done */
-	}
+	bnode_Lock(abnode);
 	if (astatus != abnode->goal) {
-	    bnode_Release(abnode);
+	    bnode_Unlock(abnode);
 	    return -1;		/* no longer our goal, don't keep waiting */
 	}
 	/* otherwise, block */
-	abnode->flags |= BNODE_WAIT;
-	LWP_WaitProcess(abnode);
+	bnode_Wait(abnode);
+	bnode_Unlock(abnode);
     }
 }
 
 int
 bnode_ResetErrorCount(struct bnode *abnode)
 {
+    opr_Assert(abnode->refCount > 0);
+
     abnode->errorStopCount = 0;
     abnode->errorStopDelay = 0;
     return 0;
@@ -267,9 +299,24 @@ bnode_ResetErrorCount(struct bnode *abnode)
 int
 bnode_SetStat(struct bnode *abnode, int agoal)
 {
+    opr_Assert(abnode->refCount > 0);
+
+    /* before changing the goal, make sure this bnode is still active */
+    bnode_Lock(abnode);
+    if (!(abnode->flags & BNODE_ACTIVE)) {
+        bnode_Unlock(abnode);
+	return BZNOTACTIVE;
+    }
     abnode->goal = agoal;
+    bnode_Unlock(abnode);
+
     bnode_Check(abnode);
+
+    /* BOP_SETSTAT might callback via bnode_NewProc() to */
+    /* start a process so we must take allProcs_lock here */
+    ObtainWriteLock(&allProcs_lock);
     BOP_SETSTAT(abnode, agoal);
+    ReleaseWriteLock(&allProcs_lock);
     abnode->flags &= ~BNODE_ERRORSTOP;
     return 0;
 }
@@ -277,7 +324,16 @@ bnode_SetStat(struct bnode *abnode, int agoal)
 int
 bnode_SetGoal(struct bnode *abnode, int agoal)
 {
+    opr_Assert(abnode->refCount > 0);
+
+    bnode_Lock(abnode);
+    if (!(abnode->flags & BNODE_ACTIVE)) {
+        bnode_Unlock(abnode);
+	return BZNOTACTIVE;
+    }
     abnode->goal = agoal;
+    bnode_Unlock(abnode);
+
     bnode_Check(abnode);
     return 0;
 }
@@ -285,31 +341,87 @@ bnode_SetGoal(struct bnode *abnode, int agoal)
 int
 bnode_SetFileGoal(struct bnode *abnode, int agoal)
 {
+    opr_Assert(abnode->refCount > 0);
+
     if (abnode->fileGoal == agoal)
 	return 0;		/* already done */
+    ObtainWriteLock(&configUpdate_lock);
     abnode->fileGoal = agoal;
     WriteBozoFile(0);
+    ReleaseWriteLock(&configUpdate_lock);
     return 0;
 }
+
+struct bnode_list {
+    struct opr_queue q;
+    struct bnode *abnode;
+};
+
+/* Need a typedef for some implementations of va_arg().
+ * 'int (*)(struct bnode *, void *)*' is not a valid type. */
+typedef int (*bzproc_ptr)(struct bnode *, void *);
 
 /* apply a function to all bnodes in the system */
 int
-bnode_ApplyInstance(int (*aproc) (struct bnode *tb, void *), void *arock)
+bnode_ApplyInstance(int (*aproc)(struct bnode *tb, void *),
+		    void *arock, ...)
 {
+    va_list ap;
     struct opr_queue *cursor, *store;
-    afs_int32 code;
+    struct opr_queue bnodeList;
+    afs_int32 code = 0;
 
-    for (opr_queue_ScanSafe(&allBnodes, cursor, store)) {
+    va_start(ap, arock);
+    opr_queue_Init(&bnodeList);
+
+    ObtainWriteLock(&allBnodes_lock);
+    for (opr_queue_Scan(&allBnodes, cursor)) {
 	struct bnode *tb = opr_queue_Entry(cursor, struct bnode, q);
-	code = (*aproc) (tb, arock);
-	if (code)
-	    return code;
+	struct bnode_list *lp;
+
+	lp = calloc(1, sizeof(struct bnode_list));
+	if (!lp) {
+		ReleaseWriteLock(&allBnodes_lock);
+		code = ENOMEM;
+		goto out;
+	}
+
+	bnode_Hold(tb);
+
+	opr_queue_Init(&lp->q);
+	lp->abnode = tb;
+	opr_queue_Append(&bnodeList, &lp->q);
     }
-    return 0;
+    ReleaseWriteLock(&allBnodes_lock);
+
+    while (aproc) {
+	for (opr_queue_Scan(&bnodeList, cursor)) {
+	    struct bnode_list *lp = opr_queue_Entry(cursor, struct bnode_list, q);
+
+	    code = (*aproc)(lp->abnode, arock);
+	    if (code)
+		goto out;
+	}
+
+	aproc = va_arg(ap, bzproc_ptr);
+	if (aproc)
+	    arock = va_arg(ap, void *);
+    }
+
+  out:
+    for (opr_queue_ScanSafe(&bnodeList, cursor, store)) {
+	struct bnode_list *lp = opr_queue_Entry(cursor, struct bnode_list, q);
+
+	bnode_Release(lp->abnode);
+	opr_queue_Remove(&lp->q);
+	free(lp);
+    }
+    va_end(ap);
+    return code;
 }
 
 struct bnode *
-bnode_FindInstance(char *aname)
+bnode_FindInstanceNoLock(char *aname)
 {
     struct opr_queue *cursor;
 
@@ -320,6 +432,19 @@ bnode_FindInstance(char *aname)
 	    return tb;
     }
     return NULL;
+}
+
+struct bnode *
+bnode_FindInstance(char *aname)
+{
+    struct bnode *tb;
+
+    ObtainWriteLock(&allBnodes_lock);
+    tb = bnode_FindInstanceNoLock(aname);
+    if (tb)
+	bnode_Hold(tb);
+    ReleaseWriteLock(&allBnodes_lock);
+    return tb;
 }
 
 static struct bnode_type *
@@ -366,32 +491,41 @@ bnode_Create(char *atype, char *ainstance, struct bnode ** abp, char *ap1,
     struct bnode *tb;
     char *notifierpath = NULL;
     struct stat tstat;
+    afs_int32 code = 0;
 
-    if (bnode_FindInstance(ainstance))
-	return BZEXISTS;
+    ObtainWriteLock(&allBnodes_lock);
+    if (bnode_FindInstanceNoLock(ainstance)) {
+	code = BZEXISTS;
+	goto out_err;
+    }
     type = FindType(atype);
-    if (!type)
-	return BZBADTYPE;
+    if (!type) {
+	code = BZBADTYPE;
+	goto out_err;
+    }
 
     if (notifier && strcmp(notifier, NONOTIFIER)) {
 	/* construct local path from canonical (wire-format) path */
 	if (ConstructLocalBinPath(notifier, &notifierpath)) {
 	    bozo_Log("BNODE-Create: Notifier program path invalid '%s'\n",
 		     notifier);
-	    return BZNOCREATE;
+	    code = BZNOCREATE;
+	    goto out_err;
 	}
 
 	if (stat(notifierpath, &tstat)) {
 	    bozo_Log("BNODE-Create: Notifier program '%s' not found\n",
 		     notifierpath);
 	    free(notifierpath);
-	    return BZNOCREATE;
+	    code = BZNOCREATE;
+	    goto out_err;
 	}
     }
     tb = (*type->ops->create) (ainstance, ap1, ap2, ap3, ap4, ap5);
     if (!tb) {
 	free(notifierpath);
-	return BZNOCREATE;
+	code = BZNOCREATE;
+	goto out_err;
     }
     tb->notifier = notifierpath;
     *abp = tb;
@@ -402,69 +536,130 @@ bnode_Create(char *atype, char *ainstance, struct bnode ** abp, char *ap1,
      ** this function as a parameter... */
     tb->fileGoal = fileGoal;
 
-    bnode_SetStat(tb, tb->goal);	/* nudge it once */
+    /* Leave a ref on the bnode after creation, the caller will release it. */
+    bnode_Hold(tb);
 
-    if (rewritefile != 0)
+    ReleaseWriteLock(&allBnodes_lock);
+
+    if (rewritefile != 0) {
+	ObtainWriteLock(&configUpdate_lock);
 	WriteBozoFile(0);
+	ReleaseWriteLock(&configUpdate_lock);
+    }
 
-    return 0;
+    bnode_SetStat(tb, tb->goal);	/* nudge it once */
+    goto out;
+
+  out_err:
+    ReleaseWriteLock(&allBnodes_lock);
+  out:
+    return code;
 }
 
 int
 bnode_DeleteName(char *ainstance)
 {
-    struct bnode *tb;
+    struct bnode *abnode;
+    int code;
 
-    tb = bnode_FindInstance(ainstance);
-    if (!tb)
-	return BZNOENT;
+    ObtainWriteLock(&allBnodes_lock);
+    abnode = bnode_FindInstanceNoLock(ainstance);
+    if (!abnode) {
+	code = BZNOENT;
+	goto out;
+    }
 
-    return bnode_Delete(tb);
+    code = bnode_DeleteNoLock(abnode);
+
+  out:
+    ReleaseWriteLock(&allBnodes_lock);
+    return code;
 }
 
 int
 bnode_Hold(struct bnode *abnode)
 {
+    opr_Assert(allBnodes_lock.excl_locked == WRITE_LOCK);
+    bnode_Lock(abnode);
     abnode->refCount++;
+    bnode_Unlock(abnode);
     return 0;
 }
 
-int
+void
 bnode_Release(struct bnode *abnode)
 {
+    opr_Assert(abnode->refCount > 0);
+    bnode_Lock(abnode);
     abnode->refCount--;
-    if (abnode->refCount == 0 && abnode->flags & BNODE_DELETE) {
-	abnode->flags &= ~BNODE_DELETE;	/* we're going for it */
-	bnode_Delete(abnode);
+    if (abnode->refCount == 0) {
+        bnode_Unlock(abnode);
+#ifdef AFS_PTHREAD_ENV
+	opr_cv_destroy(&abnode->cv);
+	opr_mutex_destroy(&abnode->mutex);
+#endif
+	free(abnode->name);
+	BOP_DELETE(abnode);
+	return;
     }
-    return 0;
+    bnode_Unlock(abnode);
+    return;
+}
+
+static int
+bnode_DeleteNoLock(struct bnode *abnode)
+{
+    afs_int32 code = 0, bstat;
+
+    opr_Assert(allBnodes_lock.excl_locked == WRITE_LOCK);
+
+    /* make sure the bnode is idle before zapping */
+
+    bnode_Lock(abnode);
+    if (abnode->goal != BSTAT_SHUTDOWN) {	/* trying to start? */
+	code = BZBUSY;
+        goto out_unlock;
+    }
+    code = BOP_GETSTAT(abnode, &bstat);
+    if (code)
+        goto out_unlock;
+    if (bstat != BSTAT_SHUTDOWN) {		/* still stopping? */
+	code = BZBUSY;
+	goto out_unlock;
+    }
+
+    abnode->flags &= ~BNODE_ACTIVE;	/* block any future goal changes */
+    bnode_Unlock(abnode);
+
+    /* all clear to zap */
+
+    opr_queue_Remove(&abnode->q);
+    ReleaseWriteLock(&allBnodes_lock);
+
+    bnode_Release(abnode);		/* drop the allBnodes list reference */
+
+    ObtainWriteLock(&configUpdate_lock);
+    WriteBozoFile(0);
+    ReleaseWriteLock(&configUpdate_lock);
+
+    ObtainWriteLock(&allBnodes_lock);
+  out:
+    return code;
+
+  out_unlock:
+    bnode_Unlock(abnode);
+    goto out;
 }
 
 int
 bnode_Delete(struct bnode *abnode)
 {
     afs_int32 code;
-    afs_int32 temp;
 
-    if (abnode->refCount != 0) {
-	abnode->flags |= BNODE_DELETE;
-	return 0;
-    }
+    ObtainWriteLock(&allBnodes_lock);
+    code = bnode_DeleteNoLock(abnode);
+    ReleaseWriteLock(&allBnodes_lock);
 
-    /* make sure the bnode is idle before zapping */
-    bnode_Hold(abnode);
-    code = BOP_GETSTAT(abnode, &temp);
-    bnode_Release(abnode);
-    if (code)
-	return code;
-    if (temp != BSTAT_SHUTDOWN)
-	return BZBUSY;
-
-    /* all clear to zap */
-    opr_queue_Remove(&abnode->q);
-    free(abnode->name);		/* do this first, since bnode fields may be bad after BOP_DELETE */
-    code = BOP_DELETE(abnode);	/* don't play games like holding over this one */
-    WriteBozoFile(0);
     return code;
 }
 
@@ -480,10 +675,18 @@ int
 bnode_SetTimeout(struct bnode *abnode, afs_int32 atimeout)
 {
     if (atimeout != 0) {
+#ifdef AFS_PTHREAD_ENV
+	opr_mutex_enter(&bproc_mutex);
+#endif
 	abnode->nextTimeout = FT_ApproxTime() + atimeout;
 	abnode->flags |= BNODE_NEEDTIMEOUT;
 	abnode->period = atimeout;
+#ifdef AFS_PTHREAD_ENV
+	opr_cv_signal(&bproc_cv);
+	opr_mutex_exit(&bproc_mutex);
+#else
 	IOMGR_Cancel(bproc_pid);
+#endif
     } else {
 	abnode->flags &= ~BNODE_NEEDTIMEOUT;
     }
@@ -495,9 +698,15 @@ int
 bnode_InitBnode(struct bnode *abnode, struct bnode_ops *abnodeops,
 		char *aname)
 {
+    opr_Assert(allBnodes_lock.excl_locked == WRITE_LOCK);
+
     /* format the bnode properly */
     memset(abnode, 0, sizeof(struct bnode));
     opr_queue_Init(&abnode->q);
+#ifdef AFS_PTHREAD_ENV
+    opr_cv_init(&abnode->cv);
+    opr_mutex_init(&abnode->mutex);
+#endif
     abnode->ops = abnodeops;
     abnode->name = strdup(aname);
     if (!abnode->name)
@@ -508,28 +717,143 @@ bnode_InitBnode(struct bnode *abnode, struct bnode_ops *abnodeops,
 
     /* put the bnode at the end of the list so we write bnode file in same order */
     opr_queue_Append(&allBnodes, &abnode->q);
+    abnode->refCount = 1;
 
     return 0;
 }
 
-/* bnode lwp executes this code repeatedly */
+static void
+bnode_DeleteProc(struct bnode_proc *aproc, int awhen, int astatus)
+{
+    struct bnode *abnode = aproc->bnode;
+
+    opr_Assert(allProcs_lock.excl_locked == WRITE_LOCK);
+
+    /* count restarts in last 30 seconds */
+    if (awhen > abnode->rsTime + 30) {
+	/* it's been 30 seconds we've been counting */
+	abnode->rsTime = awhen;
+	abnode->rsCount = 0;
+    }
+
+    if (WIFSIGNALED(astatus) == 0) {
+	/* exited, not signalled */
+	aproc->lastExit = WEXITSTATUS(astatus);
+	aproc->lastSignal = 0;
+	if (aproc->lastExit) {
+	    abnode->errorCode = aproc->lastExit;
+	    abnode->lastErrorExit = FT_ApproxTime();
+	    RememberProcName(aproc);
+	    abnode->errorSignal = 0;
+	}
+	if (aproc->coreName)
+	    bozo_Log("%s:%s exited with code %d\n", abnode->name,
+		     aproc->coreName, aproc->lastExit);
+	else
+	    bozo_Log("%s exited with code %d\n", abnode->name,
+		     aproc->lastExit);
+    } else {
+	/* Signal occurred, perhaps spurious due to shutdown request.
+	 * If due to a shutdown request, don't overwrite last error
+	 * information.
+	 */
+	aproc->lastSignal = WTERMSIG(astatus);
+	aproc->lastExit = 0;
+	if (aproc->lastSignal != SIGQUIT
+	    && aproc->lastSignal != SIGTERM
+	    && aproc->lastSignal != SIGKILL) {
+	    abnode->errorSignal = aproc->lastSignal;
+	    abnode->lastErrorExit = FT_ApproxTime();
+	    RememberProcName(aproc);
+	}
+	if (aproc->coreName)
+	    bozo_Log("%s:%s exited on signal %d%s\n",
+		     abnode->name, aproc->coreName, aproc->lastSignal,
+		     WCOREDUMP(astatus) ? " (core dumped)" :
+		     "");
+	else
+	    bozo_Log("%s exited on signal %d%s\n", abnode->name,
+		     aproc->lastSignal,
+		     WCOREDUMP(astatus) ? " (core dumped)" :
+		     "");
+	SaveCore(abnode, aproc);
+    }
+    abnode->lastAnyExit = FT_ApproxTime();
+
+    if (abnode->notifier) {
+	bozo_Log("BNODE: Notifier %s will be called\n",
+		 abnode->notifier);
+	hdl_notifier(aproc);
+    }
+
+    if (abnode->goal && abnode->rsCount++ > 10) {
+	/* 10 in 30 seconds */
+	if (abnode->errorStopCount >= BNODE_ERROR_COUNT_MAX) {
+	    abnode->errorStopDelay = 0;	/* max reached, give up. */
+	} else {
+	    abnode->errorStopCount++;
+	    if (!abnode->errorStopDelay) {
+		abnode->errorStopDelay = 1;	/*wait a second, then retry */
+	    } else {
+		abnode->errorStopDelay *= 2;	/* ramp up the retry delays */
+	    }
+	}
+	if (abnode->errorStopDelay > BNODE_ERROR_DELAY_MAX) {
+	    abnode->errorStopDelay = BNODE_ERROR_DELAY_MAX; /* cap the delay */
+	}
+	abnode->flags |= BNODE_ERRORSTOP;
+	bnode_SetGoal(abnode, BSTAT_SHUTDOWN);
+	bozo_Log
+	    ("BNODE '%s' repeatedly failed to start, perhaps missing executable.\n",
+	     abnode->name);
+    }
+    BOP_PROCEXIT(abnode, aproc);
+    bnode_Check(abnode);
+    /* We had a ref on the bnode for the process.  Remove it now. */
+    bnode_Release(abnode);
+    opr_queue_Remove(&aproc->q);
+    bnode_FreeTokens(aproc->tlist);
+#ifdef AFS_PTHREAD_ENV
+    opr_mutex_destroy(&aproc->mutex);
+    opr_cv_destroy(&aproc->started);
+#endif
+    free(aproc);
+}
+
+/**
+ * Handles background processing for bosserver
+ *
+ * Sleeps until the next timeout or interrupt as required by the current
+ * bnodes.  Also, in the case of LWP, SIGCHLD's via bnode_SoftInt() wake
+ * up this routine in order to manage the child processes.  For pthreads,
+ * bnode_proc's are individually managed in proc_hander().
+ *
+ * @param[in] unused unused
+ * @return unused
+ *   @retval NULL ignored
+ */
 static void *
 bproc(void *unused)
 {
+#ifndef AFS_PTHREAD_ENV
     afs_int32 code;
+#endif
     struct bnode *tb;
     afs_int32 temp;
-    struct opr_queue *cursor, *store;
-    struct bnode_proc *tp;
-    int options;		/* must not be register */
+    struct opr_queue *cursor;
     struct timeval tv;
     int setAny;
-    int status;
 
     while (1) {
 	/* first figure out how long to sleep for */
 	temp = 0x7fffffff;	/* afs_int32 time; maxint doesn't work in select */
 	setAny = 0;
+
+        ObtainWriteLock(&allBnodes_lock);
+#ifdef AFS_PTHREAD_ENV
+	opr_mutex_enter(&bproc_mutex);
+#endif
+
 	for (opr_queue_Scan(&allBnodes, cursor)) {
 	    tb = opr_queue_Entry(cursor, struct bnode, q);
 	    if (tb->flags & BNODE_NEEDTIMEOUT) {
@@ -539,6 +863,7 @@ bproc(void *unused)
 		}
 	    }
 	}
+	ReleaseWriteLock(&allBnodes_lock);
 	/* now temp has the time at which we should wakeup next */
 
 	/* sleep */
@@ -547,136 +872,81 @@ bproc(void *unused)
 	else
 	    temp = 999999;
 	if (temp > 0) {
+#ifdef AFS_PTHREAD_ENV
+	    struct timespec ts;
+
+	    ts.tv_sec = time(NULL) + temp;
+	    ts.tv_nsec = 0;
+	    /* We check for timeouts below; we don't need this retval */
+	    (void)opr_cv_timedwait(&bproc_cv, &bproc_mutex, &ts);
+#else
 	    tv.tv_sec = temp;
 	    tv.tv_usec = 0;
 	    code = IOMGR_Select(0, 0, 0, 0, &tv);
-	} else
+#endif
+	} else {
+#ifndef AFS_PTHREAD_ENV
 	    code = 0;		/* fake timeout code */
+#endif
+	}
+#ifdef AFS_PTHREAD_ENV
+        opr_mutex_exit(&bproc_mutex);
+#endif
 
 	/* figure out why we woke up; child exit or timeouts */
 	FT_GetTimeOfDay(&tv, 0);	/* must do the real gettimeofday once and a while */
 	temp = tv.tv_sec;
 
 	/* check all bnodes to see which ones need timeout events */
-	for (opr_queue_ScanSafe(&allBnodes, cursor, store)) {
+  retry:
+	ObtainWriteLock(&allBnodes_lock);
+	for (opr_queue_Scan(&allBnodes, cursor)) {
 	    tb = opr_queue_Entry(cursor, struct bnode, q);
 	    if ((tb->flags & BNODE_NEEDTIMEOUT) && temp > tb->nextTimeout) {
 		bnode_Hold(tb);
+		ReleaseWriteLock(&allBnodes_lock);
+
 		BOP_TIMEOUT(tb);
 		bnode_Check(tb);
 		if (tb->flags & BNODE_NEEDTIMEOUT) {	/* check again, BOP_TIMEOUT could change */
 		    tb->nextTimeout = FT_ApproxTime() + tb->period;
 		}
-		bnode_Release(tb);	/* delete may occur here */
+		bnode_Release(tb);
+		goto retry;
 	    }
 	}
+	ReleaseWriteLock(&allBnodes_lock);
 
+#ifndef AFS_PTHREAD_ENV
 	if (code < 0) {
 	    /* signalled, probably by incoming signal */
 	    while (1) {
+		struct bnode_proc *tp;
+		int options;
+		int status;
+
 		options = WNOHANG;
-		bnode_waiting = options | 0x800000;
 		code = waitpid((pid_t) - 1, &status, options);
-		bnode_waiting = 0;
 		if (code == 0 || code == -1)
 		    break;	/* all done */
 		/* otherwise code has a process id, which we now search for */
+		ObtainWriteLock(&allProcs_lock);
 		for (tp = NULL, opr_queue_Scan(&allProcs, cursor), tp = NULL) {
 		    tp = opr_queue_Entry(cursor, struct bnode_proc, q);
 
-		    if (tp->pid == code)
+		    if (tp->pid == code) {
+			/* found the pid */
 			break;
+		    }
 		}
-		if (tp) {
-		    /* found the pid */
-		    tb = tp->bnode;
-		    bnode_Hold(tb);
-
-		    /* count restarts in last 30 seconds */
-		    if (temp > tb->rsTime + 30) {
-			/* it's been 30 seconds we've been counting */
-			tb->rsTime = temp;
-			tb->rsCount = 0;
-		    }
-
-
-		    if (WIFSIGNALED(status) == 0) {
-			/* exited, not signalled */
-			tp->lastExit = WEXITSTATUS(status);
-			tp->lastSignal = 0;
-			if (tp->lastExit) {
-			    tb->errorCode = tp->lastExit;
-			    tb->lastErrorExit = FT_ApproxTime();
-			    RememberProcName(tp);
-			    tb->errorSignal = 0;
-			}
-			if (tp->coreName)
-			    bozo_Log("%s:%s exited with code %d\n", tb->name,
-				     tp->coreName, tp->lastExit);
-			else
-			    bozo_Log("%s exited with code %d\n", tb->name,
-				     tp->lastExit);
-		    } else {
-			/* Signal occurred, perhaps spurious due to shutdown request.
-			 * If due to a shutdown request, don't overwrite last error
-			 * information.
-			 */
-			tp->lastSignal = WTERMSIG(status);
-			tp->lastExit = 0;
-			if (tp->lastSignal != SIGQUIT
-			    && tp->lastSignal != SIGTERM
-			    && tp->lastSignal != SIGKILL) {
-			    tb->errorSignal = tp->lastSignal;
-			    tb->lastErrorExit = FT_ApproxTime();
-			    RememberProcName(tp);
-			}
-			if (tp->coreName)
-			    bozo_Log("%s:%s exited on signal %d%s\n",
-				     tb->name, tp->coreName, tp->lastSignal,
-				     WCOREDUMP(status) ? " (core dumped)" :
-				     "");
-			else
-			    bozo_Log("%s exited on signal %d%s\n", tb->name,
-				     tp->lastSignal,
-				     WCOREDUMP(status) ? " (core dumped)" :
-				     "");
-			SaveCore(tb, tp);
-		    }
-		    tb->lastAnyExit = FT_ApproxTime();
-
-		    if (tb->notifier) {
-			bozo_Log("BNODE: Notifier %s will be called\n",
-				 tb->notifier);
-			hdl_notifier(tp);
-		    }
-
-		    if (tb->goal && tb->rsCount++ > 10) {
-			/* 10 in 30 seconds */
-			if (tb->errorStopCount >= BNODE_ERROR_COUNT_MAX) {
-			    tb->errorStopDelay = 0;	/* max reached, give up. */
-			} else {
-			    tb->errorStopCount++;
-			    if (!tb->errorStopDelay) {
-				tb->errorStopDelay = 1;
-			    } else {
-			        tb->errorStopDelay *= 2;
-			    }
-			}
-			tb->flags |= BNODE_ERRORSTOP;
-			bnode_SetGoal(tb, BSTAT_SHUTDOWN);
-			bozo_Log
-			    ("BNODE '%s' repeatedly failed to start, perhaps missing executable.\n",
-			     tb->name);
-		    }
-		    BOP_PROCEXIT(tb, tp);
-		    bnode_Check(tb);
-		    bnode_Release(tb);	/* bnode delete can happen here */
-		    opr_queue_Remove(&tp->q);
-		    free(tp);
-		} else
+		if (tp)
+		    bnode_DeleteProc(tp, temp, status);
+		else
 		    bnode_stats.weirdPids++;
+		ReleaseWriteLock(&allProcs_lock);
 	    }
 	}
+#endif
     }
     return NULL;
 }
@@ -799,19 +1069,79 @@ hdl_notifier(struct bnode_proc *tp)
     return (0);
 }
 
-/* Called by IOMGR at low priority on IOMGR's stack shortly after a SIGCHLD
- * occurs.  Wakes up bproc do redo things */
+#ifdef AFS_PTHREAD_ENV
+static void *
+signal_handler(void *unused)
+{
+    pthread_t shutdown_pid;
+    pthread_attr_t tattr;
+    sigset_t mask;
+    int sig;
+
+    /* block all signals */
+    sigfillset(&mask);
+    opr_Verify(pthread_sigmask(SIG_BLOCK, &mask, NULL) == 0);
+
+    /* what we want to handle */
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGQUIT);
+    sigaddset(&mask, SIGFPE);
+
+    while (1) {
+	opr_Verify(sigwait(&mask, &sig) == 0);
+
+	switch (sig) {
+	    case SIGFPE:
+		bozo_insecureme(SIGFPE);
+		break;
+	    case SIGQUIT:
+	    case SIGTERM:
+		opr_Verify(pthread_attr_init(&tattr) == 0);
+		opr_Verify(pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED) == 0);
+		opr_Verify(pthread_create(&shutdown_pid, &tattr, bozo_ShutdownAndExit,
+					  ((void *)(intptr_t) sig)) == 0);
+		break;
+	default:
+		bozo_Log("Unhandled signal signo %d\n", sig);
+		break;
+	}
+    }
+
+    return NULL;
+}
+#else
+/**
+ * Cause bproc() to process state changes
+ *
+ * Called by IOMGR at low priority on IOMGR's stack shortly after a
+ * SIGCHLD occurs.  Wakes up bproc() to handle child processes.
+ *
+ * @note LWP only
+ *
+ * @param[in] param unused
+ * @return unused
+ *   @retval 0 ignored
+ */
 void *
 bnode_SoftInt(void *param)
 {
     /* int asignal = (int) param; */
 
     IOMGR_Cancel(bproc_pid);
-    return 0;
+    return NULL;
 }
 
-/* Called at signal interrupt level; queues function to be called
+/**
+ * Signal handler for SIGQUIT, SIGTERM, and SIGCHILD
+ *
+ * Called at signal interrupt level; queues function to be called
  * when IOMGR runs again.
+ *
+ * @note LWP only
+ *
+ * @param[in] asignal signal number
+ * @return none
  */
 void
 bnode_Int(int asignal)
@@ -822,15 +1152,18 @@ bnode_Int(int asignal)
 	IOMGR_SoftSig(bnode_SoftInt, (void *)(intptr_t)asignal);
     }
 }
+#endif
 
-
-/* intialize the whole system */
+/* intialize the locks and queues */
 int
 bnode_Init(void)
 {
-    PROCESS junk;
-    afs_int32 code;
+#ifdef AFS_PTHREAD_ENV
+    sigset_t mask;
+#else
     struct sigaction newaction;
+#endif
+    afs_int32 code;
     static int initDone = 0;
 
     if (initDone)
@@ -838,16 +1171,27 @@ bnode_Init(void)
     initDone = 1;
     opr_queue_Init(&allTypes);
     opr_queue_Init(&allProcs);
+    Lock_Init(&allProcs_lock);
     opr_queue_Init(&allBnodes);
+    Lock_Init(&allBnodes_lock);
     memset(&bnode_stats, 0, sizeof(bnode_stats));
-    LWP_InitializeProcessSupport(1, &junk);	/* just in case */
-    IOMGR_Initialize();
-    code = LWP_CreateProcess(bproc, BNODE_LWP_STACKSIZE,
-			     /* priority */ 1, (void *) /* parm */ 0,
-			     "bnode-manager", &bproc_pid);
-    if (code)
-	return code;
+
+#ifdef AFS_PTHREAD_ENV
+    opr_cv_init(&bproc_cv);
+    opr_mutex_init(&bproc_mutex);
+
+    /* sigwait() for these in signal_handler() thread */
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGQUIT);
+    sigaddset(&mask, SIGFPE);
+    opr_Verify(pthread_sigmask(SIG_BLOCK, &mask, NULL) == 0);
+#else
     memset(&newaction, 0, sizeof(newaction));
+    newaction.sa_handler = bozo_insecureme;
+    code = sigaction(SIGFPE, &newaction, NULL);
+    if (code)
+	return errno;
     newaction.sa_handler = bnode_Int;
     code = sigaction(SIGCHLD, &newaction, NULL);
     if (code)
@@ -858,7 +1202,41 @@ bnode_Init(void)
     code = sigaction(SIGTERM, &newaction, NULL);
     if (code)
 	return errno;
+#endif
+
     return code;
+}
+
+/* Fire up helper processes (bproc, signal handler) */
+int
+bnode_InitProcs(void)
+{
+#ifdef AFS_PTHREAD_ENV
+    pthread_attr_t tattr;
+#else
+    PROCESS junk;
+#endif
+    afs_int32 code;
+
+#ifdef AFS_PTHREAD_ENV
+    opr_Verify(pthread_attr_init(&tattr) == 0);
+    opr_Verify(pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED) == 0);
+    code = pthread_create(&bproc_pid, &tattr, bproc, NULL);
+    if (code)
+	return code;
+
+    code = pthread_create(&sighand_pid, &tattr, signal_handler, NULL);
+#else
+    LWP_InitializeProcessSupport(1, &junk);	/* just in case */
+    IOMGR_Initialize();
+    code = LWP_CreateProcess(bproc, BNODE_LWP_STACKSIZE,
+			     /* priority */ 1, (void *) /* parm */ 0,
+			     "bnode-manager", &bproc_pid);
+    if (code)
+	return code;
+#endif
+
+    return 0;
 }
 
 /* free token list returned by parseLine */
@@ -933,28 +1311,23 @@ bnode_ParseLine(char *aline, struct bnode_token **alist)
     }
 }
 
-#define	MAXVARGS	    128
-int
-bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName,
-	      struct bnode_proc **aproc)
+/**
+ * Creates child process assocated with a bnode process
+ *
+ * @param[in] param pointer to struct bnode_proc
+ * @return result of the operation
+ *   @retval >0 success; pid of the child process
+ *   @retval <0 failure; negated errno
+ */
+#define	MAXVARGS	128
+static pid_t
+bnode_SpawnProc(struct bnode_proc *aproc)
 {
-    struct bnode_token *tlist, *tt;
-    afs_int32 code;
-    struct bnode_proc *tp;
-    pid_t cpid;
+    struct bnode_token *tlist = aproc->tlist, *tt;
     char *argv[MAXVARGS];
+    sigset_t set;
+    afs_int32 pid;
     int i;
-
-    code = bnode_ParseLine(aexecString, &tlist);	/* try parsing first */
-    if (code)
-	return code;
-    tp = calloc(1, sizeof(struct bnode_proc));
-    opr_queue_Init(&tp->q);
-    tp->bnode = abnode;
-    tp->comLine = aexecString;
-    tp->coreName = coreName;	/* may be null */
-    abnode->procStartTime = FT_ApproxTime();
-    abnode->procStarts++;
 
     /* convert linked list of tokens into argv structure */
     for (tt = tlist, i = 0; i < (MAXVARGS - 1) && tt; tt = tt->next, i++) {
@@ -962,25 +1335,124 @@ bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName,
     }
     argv[i] = NULL;		/* null-terminated */
 
-    cpid = spawnprocve(argv[0], argv, environ, -1);
-    osi_audit(BOSSpawnProcEvent, 0, AUD_STR, aexecString, AUD_END);
+    sigemptyset(&set);
+    pid = spawnprocve_sig(argv[0], argv, environ, -1, &set);
+    osi_audit(BOSSpawnProcEvent, 0, AUD_STR, aproc->comLine, AUD_END);
 
-    if (cpid == (pid_t) - 1) {
-	bozo_Log("Failed to spawn process for bnode '%s'\n", abnode->name);
-	bnode_FreeTokens(tlist);
-	free(tp);
-	return errno;
+    if (pid == -1) {
+        pid = -errno;
+	bozo_Log("Failed to spawn process for bnode '%s'\n", aproc->bnode->name);
+    } else {
+	bozo_Log("%s started pid %ld: %s\n", aproc->bnode->name, pid, aproc->comLine);
     }
-    bozo_Log("%s started pid %ld: %s\n", abnode->name, cpid, aexecString);
 
-    bnode_FreeTokens(tlist);
+    return pid;
+}
+
+/**
+ * Manages child process assocated with a bnode process
+ *
+ * @note pthreads only
+ *
+ * @param[in] param pointer to struct bnode_proc
+ * @return unused
+ *   @retval NULL ignored
+ */
+#ifdef AFS_PTHREAD_ENV
+static void *
+proc_handler(void *param)
+{
+    struct bnode_proc *tp = (struct bnode_proc *) param;
+    struct timeval tv;
+    int status;
+
+    /* bnode_NewProc() is waiting to be signalled that */
+    /* we have filled in tp->pid */
+    opr_mutex_enter(&tp->mutex);
+    tp->pid = bnode_SpawnProc(tp);
+    opr_cv_signal(&tp->started);	/* signal bnode_NewProc() */
+    opr_mutex_exit(&tp->mutex);
+
+    if (tp->pid < 0)
+	goto out;
+
+    opr_Verify(waitpid(tp->pid, &status, 0) != -1);
+
+    FT_GetTimeOfDay(&tv, 0);
+    ObtainWriteLock(&allProcs_lock);
+    bnode_DeleteProc(tp, tv.tv_sec, status);
+    ReleaseWriteLock(&allProcs_lock);
+
+  out:
+    return NULL;
+}
+#endif
+
+int
+bnode_NewProc(struct bnode *abnode, char *aexecString, char *coreName,
+	      struct bnode_proc **aproc)
+{
+#ifdef AFS_PTHREAD_ENV
+    pthread_attr_t tattr;
+    pthread_t tid;
+#endif
+    afs_int32 code;
+    struct bnode_proc *tp;
+
+    opr_Assert(allProcs_lock.excl_locked == WRITE_LOCK);
+    opr_Assert(abnode->refCount > 0);
+
+    tp = calloc(1, sizeof(struct bnode_proc));
+    code = bnode_ParseLine(aexecString, &tp->tlist);	/* try parsing first */
+    if (code)
+	return code;
+    opr_queue_Init(&tp->q);
+    opr_Assert(abnode->refCount > 0);
+    ObtainWriteLock(&allBnodes_lock);
+    bnode_Hold(abnode);		/* hold a ref for duration of proc */
+    ReleaseWriteLock(&allBnodes_lock);
+    tp->bnode = abnode;
+    tp->comLine = aexecString;
+    tp->coreName = coreName;	/* may be null */
+    abnode->procStartTime = FT_ApproxTime();
+    abnode->procStarts++;
+
+#ifdef AFS_PTHREAD_ENV
+    opr_mutex_init(&tp->mutex);
+    opr_cv_init(&tp->started);
+
+    opr_Verify(pthread_attr_init(&tattr) == 0);
+    opr_Verify(pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED) == 0);
+    opr_mutex_enter(&tp->mutex);
+    code = pthread_create(&tid, &tattr, proc_handler, tp);
+    if (code) {
+	bozo_Log("Failed to create thread for bnode '%s'\n", abnode->name);
+    } else {
+	opr_cv_wait(&tp->started, &tp->mutex);
+	code = (tp->pid > 0) ? 0 : -(tp->pid);  /* get errno from tp->pid */
+    }
+    opr_mutex_exit(&tp->mutex);
+#else
+    tp->pid = bnode_SpawnProc(tp);
+    code = (tp->pid > 0) ? 0 : -(tp->pid);
+#endif
+    if (code) {
+	bnode_FreeTokens(tp->tlist);
+#ifdef AFS_PTHREAD_ENV
+	opr_mutex_destroy(&tp->mutex);
+	opr_cv_destroy(&tp->started);
+#endif
+	free(tp);
+	return code;
+    }
+
     opr_queue_Prepend(&allProcs, &tp->q);
     *aproc = tp;
-    tp->pid = cpid;
     tp->flags = BPROC_STARTED;
     tp->flags &= ~BPROC_EXITED;
     BOP_PROCSTARTED(abnode, tp);
     bnode_Check(abnode);
+
     return 0;
 }
 
@@ -998,19 +1470,3 @@ bnode_StopProc(struct bnode_proc *aproc, int asignal)
     bnode_Check(aproc->bnode);
     return code;
 }
-
-#if 0
-int
-bnode_Deactivate(struct bnode *abnode)
-{
-    struct opr_queue *cursor;
-    if (!(abnode->flags & BNODE_ACTIVE))
-	return BZNOTACTIVE;
-
-    if (opr_queue_IsOnQueue(&abnode->q)) {
-	tb->flags &= ~BNODE_ACTIVE;
-	return 0;
-    }
-    return BZNOENT;
-}
-#endif

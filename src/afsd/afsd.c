@@ -2443,6 +2443,9 @@ afsd_run(void)
 	if (afsd_verbose)
 	    printf("%s: Forking 'rmtsys' daemon.\n", rn);
 	afsd_fork(0, rmtsysd_thread, NULL);
+	code = afsd_syscall(AFSOP_SET_RMTSYS_FLAG, 1);
+	if (code)
+	    printf("%s: Error enabling rmtsys support.\n", rn);
     }
 #endif /* !UKERNEL */
     /*
@@ -2504,11 +2507,9 @@ afsd_init(void)
     cmd_AddParmAtOffset(ts, OPT_shutdown, "-shutdown", CMD_FLAG,
 		        CMD_OPTIONAL, "Shutdown all afs state");
     cmd_AddParmAtOffset(ts, OPT_peerstats, "-enable_peer_stats", CMD_FLAG,
-			CMD_OPTIONAL | CMD_HIDE,
-			"Collect rpc statistics by peer");
+			CMD_OPTIONAL, "Collect rpc statistics by peer");
     cmd_AddParmAtOffset(ts, OPT_processstats, "-enable_process_stats",
-		        CMD_FLAG, CMD_OPTIONAL | CMD_HIDE,
-			"Collect rpc statistics for this process");
+		        CMD_FLAG, CMD_OPTIONAL, "Collect rpc statistics for this process");
     cmd_AddParmAtOffset(ts, OPT_memallocsleep, "-mem_alloc_sleep",
 			CMD_FLAG, CMD_OPTIONAL | CMD_HIDE,
 			"Allow sleeps when allocating memory cache");
@@ -2618,6 +2619,7 @@ afsd_syscall_populate(struct afsd_syscall_args *args, int syscall, va_list ap)
     case AFSOP_SET_BACKUPTREE:
     case AFSOP_BUCKETPCT:
     case AFSOP_GO:
+    case AFSOP_SET_RMTSYS_FLAG:
 	params[0] = CAST_SYSCALL_PARAM((va_arg(ap, int)));
 	break;
     case AFSOP_SET_THISCELL:

@@ -29,6 +29,7 @@
 #include "rx/rx_globals.h"
 #include "token.h"
 
+extern int afs_rmtsys_enable;
 struct VenusFid afs_rootFid;
 afs_int32 afs_waitForever = 0;
 short afs_waitForeverCount = 0;
@@ -819,6 +820,10 @@ afs_xioctl(afs_proc_t *p, const struct ioctl_args *uap, register_t *retval)
 #if defined(AFS_NBSD50_ENV)
     if ((fd = fd_getfile(SCARG(uap, fd))) == NULL)
 	return (EBADF);
+#elif defined(AFS_FBSD100_ENV)
+    if ((uap->fd >= fdp->fd_nfiles)
+	|| ((fd = fdp->fd_ofiles[uap->fd].fde_file) == NULL))
+	return EBADF;
 #else
     if ((uap->fd >= fdp->fd_nfiles)
 	|| ((fd = fdp->fd_ofiles[uap->fd]) == NULL))
@@ -1139,10 +1144,6 @@ afs_syscall_pioctl(char *path, unsigned int com, caddr_t cmarg, int follow)
 	    vp = (struct vnode *)dp->d_inode;
 #else
 	code = gop_lookupname_user(path, AFS_UIOUSER, follow, &vp);
-#if defined(AFS_FBSD80_ENV) /* XXX check on 7x */
-	if (vp != NULL)
-		VN_HOLD(vp);
-#endif /* AFS_FBSD80_ENV */
 #endif /* AFS_LINUX22_ENV */
 #endif /* AFS_AIX41_ENV */
 	AFS_GLOCK();
@@ -3809,8 +3810,8 @@ DECL_PIOCTL(PSetSysName)
 	    return EINVAL;
 	num = count;
     }
-    if (afs_cr_gid(*acred) == RMTUSER_REQ ||
-	afs_cr_gid(*acred) == RMTUSER_REQ_PRIV) {   /* Handles all exporters */
+    if (afs_rmtsys_enable && (afs_cr_gid(*acred) == RMTUSER_REQ ||
+	afs_cr_gid(*acred) == RMTUSER_REQ_PRIV)) {   /* Handles all exporters */
 	if (allpags && afs_cr_gid(*acred) != RMTUSER_REQ_PRIV) {
 	    return EPERM;
 	}

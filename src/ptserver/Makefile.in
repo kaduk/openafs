@@ -41,6 +41,7 @@ LIBS=   ${TOP_LIBDIR}/libubik.a \
 	${TOP_LIBDIR}/libaudit.a \
 	${TOP_LIBDIR}/libafsutil.a \
 	${TOP_LIBDIR}/libopr.a \
+	${TOP_LIBDIR}/libafsrfc3961.a \
 	${TOP_LIBDIR}/libafshcrypto_lwp.a
 
 LT_objs = ptuser.lo pterror.lo ptint.cs.lo ptint.xdr.lo display.lo
@@ -159,9 +160,10 @@ ptclient: ptclient.o libprot.a $(LIBS)
 
 ptclient.o: ptclient.c ${INCLS} AFS_component_version_number.c
 
-pterror.h pterror.c: pterror.et
+pterror.c pterror.h: pterror.et
 	$(RM) -f pterror.h pterror.c
 	${COMPILE_ET} -p ${srcdir} pterror
+pterror.h: pterror.c
 
 display.lo: $(INCLS)
 ptuser.lo: $(LINCLS)

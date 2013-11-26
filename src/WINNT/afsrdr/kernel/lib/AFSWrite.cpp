@@ -354,7 +354,7 @@ AFSCommonWrite( IN PDEVICE_OBJECT DeviceObject,
             if( pFileObject->PrivateCacheMap == NULL)
             {
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSCommonWrite Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                               &pNPFcb->SectionObjectResource,
@@ -386,7 +386,7 @@ AFSCommonWrite( IN PDEVICE_OBJECT DeviceObject,
                     CcSetDirtyPageThreshold( pFileObject,
                                              AFS_DIRTY_CHUNK_THRESHOLD * pDeviceExt->Specific.RDR.MaximumRPCLength / 4096);
                 }
-                __except( EXCEPTION_EXECUTE_HANDLER)
+		__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                 {
 
                     ntStatus = GetExceptionCode();
@@ -398,7 +398,7 @@ AFSCommonWrite( IN PDEVICE_OBJECT DeviceObject,
                                   ntStatus));
                 }
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSCommonWrite Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                               &pNPFcb->SectionObjectResource,
@@ -415,39 +415,73 @@ AFSCommonWrite( IN PDEVICE_OBJECT DeviceObject,
                 }
             }
 
-            if (!CcCanIWrite( pFileObject,
-                              ulByteCount,
-                              FALSE,
-                              bRetry))
-            {
+	    //
+	    // On versions of Microsoft Windows older than Vista the IO Manager
+	    // will issue multiple outstanding writes on a synchronous file object
+	    // if one of the cached writes completes with STATUS_PENDING.  This can
+	    // result in the writes being completed out of order which can corrupt
+	    // the end of file marker.  On OS versions older than Vista use a spin
+	    // loop instead of deferring the write.
+	    //
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_IO_PROCESSING,
-                              AFS_TRACE_LEVEL_WARNING,
-                              "AFSCommonWrite (FO: %p) CcCanIWrite says No room for Offset %0I64X Length %08lX bytes! Deferring%s\n",
-                              pFileObject,
-                              liStartingByte.QuadPart,
-                              ulByteCount,
-                              bRetry ? " RETRY" : ""));
+	    if ( bSynchronousFo &&
+		 AFSRtlSysVersion.dwMajorVersion < 6)
+	    {
 
-                ntStatus = AFSDeferWrite( DeviceObject, pFileObject, hCallingUser, Irp, ulByteCount, bRetry);
+		while (!CcCanIWrite( pFileObject,
+				     ulByteCount,
+				     FALSE,
+				     bRetry))
+		{
+		    static const LONGLONG llWriteDelay = (LONGLONG)-100000;
+		    bRetry = TRUE;
 
-                if ( STATUS_PENDING == ntStatus)
-                {
+		    AFSDbgLogMsg( AFS_SUBSYSTEM_IO_PROCESSING,
+				  AFS_TRACE_LEVEL_WARNING,
+				  "AFSCommonWrite (FO: %p) CcCanIWrite says No room for %u bytes! Retry in 10ms\n",
+				  pFileObject,
+				  ulByteCount);
 
-                    bCompleteIrp = FALSE;
-                }
-                else
-                {
+		    KeDelayExecutionThread(KernelMode, FALSE, (PLARGE_INTEGER)&llWriteDelay);
+		}
+	    }
+	    else
+	    {
 
-                    AFSDbgTrace(( AFS_SUBSYSTEM_IO_PROCESSING,
-                                  AFS_TRACE_LEVEL_ERROR,
-                                  "AFSCommonWrite (FO: %p) AFSDeferWrite failure Status %08lX\n",
-                                  pFileObject,
-                                  ntStatus));
-                }
+		if (!CcCanIWrite( pFileObject,
+				  ulByteCount,
+				  FALSE,
+				  bRetry))
+		{
 
-                try_return( ntStatus);
-            }
+		    AFSDbgTrace(( AFS_SUBSYSTEM_IO_PROCESSING,
+				  AFS_TRACE_LEVEL_WARNING,
+				  "AFSCommonWrite (FO: %p) CcCanIWrite says No room for Offset %0I64X Length %08lX bytes! Deferring%s\n",
+				  pFileObject,
+				  liStartingByte.QuadPart,
+				  ulByteCount,
+				  bRetry ? " RETRY" : ""));
+
+		    ntStatus = AFSDeferWrite( DeviceObject, pFileObject, hCallingUser, Irp, ulByteCount, bRetry);
+
+		    if ( STATUS_PENDING == ntStatus)
+		    {
+
+			bCompleteIrp = FALSE;
+		    }
+		    else
+		    {
+
+			AFSDbgTrace(( AFS_SUBSYSTEM_IO_PROCESSING,
+				      AFS_TRACE_LEVEL_ERROR,
+				      "AFSCommonWrite (FO: %p) AFSDeferWrite failure Status %08lX\n",
+				      pFileObject,
+				      ntStatus));
+		    }
+
+		    try_return( ntStatus);
+		}
+	    }
         }
 
         //
@@ -522,6 +556,11 @@ AFSCommonWrite( IN PDEVICE_OBJECT DeviceObject,
                     // Check for lock inversion
                     //
 
+		    //
+		    // For bExtendingWrite the PagingResource is needed to protect
+		    // the CcSetFileSizes call in AFSExtendingWrite
+		    //
+
                     ASSERT( !ExIsResourceAcquiredLite( &pNPFcb->PagingResource ));
 
                     AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
@@ -535,7 +574,7 @@ AFSCommonWrite( IN PDEVICE_OBJECT DeviceObject,
 
                     bReleaseMain = TRUE;
 
-                    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                   AFS_TRACE_LEVEL_VERBOSE,
                                   "AFSCommonWrite Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                                   &pNPFcb->SectionObjectResource,
@@ -579,7 +618,7 @@ AFSCommonWrite( IN PDEVICE_OBJECT DeviceObject,
 
                     bReleaseMain = TRUE;
 
-                    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                                   AFS_TRACE_LEVEL_VERBOSE,
                                   "AFSCommonWrite Acquiring Fcb SectionObject lock %p SHARED %08lX\n",
                                   &pNPFcb->SectionObjectResource,
@@ -597,6 +636,12 @@ AFSCommonWrite( IN PDEVICE_OBJECT DeviceObject,
 
                     if (!bLockOK)
                     {
+
+			AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+				      AFS_TRACE_LEVEL_VERBOSE,
+				      "AFSCommonWrite Releasing Fcb SectionObject lock %p SHARED %08lX\n",
+				      &pNPFcb->SectionObjectResource,
+				      PsGetCurrentThread()));
 
 			AFSReleaseResource( &pNPFcb->SectionObjectResource);
 
@@ -635,6 +680,10 @@ AFSCommonWrite( IN PDEVICE_OBJECT DeviceObject,
 
                 ntStatus = AFSExtendingWrite( pFcb, pFileObject, (liStartingByte.QuadPart + ulByteCount));
 
+		//
+		// Fcb->NPFcb->Resource is now held SHARED
+		//
+
                 if( !NT_SUCCESS(ntStatus))
                 {
 
@@ -659,7 +708,8 @@ AFSCommonWrite( IN PDEVICE_OBJECT DeviceObject,
         {
 
             //
-            // Main and SectionObject resources held Shared
+	    // Main resource held Shared
+	    // SectionObject resource held exclusive if extending write
             //
 
             AFSDbgTrace(( AFS_SUBSYSTEM_IO_PROCESSING,
@@ -707,7 +757,7 @@ try_exit:
             if ( !bPagingIo)
             {
 
-                if( bSynchronousFo)
+		if( bSynchronousFo)
                 {
 
                     pFileObject->CurrentByteOffset.QuadPart = liStartingByte.QuadPart + ulByteCount;
@@ -779,14 +829,14 @@ try_exit:
 		    SetFlag( pFcb->Flags, AFS_FCB_FLAG_PURGE_ON_CLOSE);
 		}
 	    }
-	    __except( EXCEPTION_EXECUTE_HANDLER)
+	    __except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
 	    {
 
 		DWORD ntStatus2 = GetExceptionCode();
 
 		AFSDbgTrace(( 0,
 			      0,
-			      "EXCEPTION - AFSProcessOverwriteSupercede MmCanFileBeTruncated failed FID %08lX-%08lX-%08lX-%08lX Status 0x%08lX\n",
+			      "EXCEPTION - AFSCommonWrite CcPurgeCacheSection failed FID %08lX-%08lX-%08lX-%08lX Status 0x%08lX\n",
                               pFcb->ObjectInformation->FileId.Cell,
                               pFcb->ObjectInformation->FileId.Volume,
                               pFcb->ObjectInformation->FileId.Vnode,
@@ -801,6 +851,12 @@ try_exit:
 
         if( bReleaseSectionObject)
         {
+
+	    AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
+			  AFS_TRACE_LEVEL_VERBOSE,
+			  "AFSCommonWrite Releasing Fcb SectionObject lock %p EXCL/SHARED %08lX\n",
+			  &pNPFcb->SectionObjectResource,
+			  PsGetCurrentThread()));
 
             AFSReleaseResource( &pNPFcb->SectionObjectResource);
         }
@@ -1792,7 +1848,7 @@ AFSCachedWrite( IN PDEVICE_OBJECT DeviceObject,
 
                 ntStatus = Irp->IoStatus.Status;
             }
-            __except( EXCEPTION_EXECUTE_HANDLER)
+	    __except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
             {
                 ntStatus = GetExceptionCode();
 
@@ -1890,7 +1946,7 @@ AFSCachedWrite( IN PDEVICE_OBJECT DeviceObject,
                     try_return( ntStatus = STATUS_UNSUCCESSFUL);
                 }
             }
-            __except( EXCEPTION_EXECUTE_HANDLER)
+	    __except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
             {
 
                 ntStatus = GetExceptionCode();
@@ -1913,31 +1969,49 @@ AFSCachedWrite( IN PDEVICE_OBJECT DeviceObject,
                 BooleanFlagOn(pFileObject->Flags, (FO_NO_INTERMEDIATE_BUFFERING + FO_WRITE_THROUGH)))
             {
 
-                //
-                // We have detected a file we do a write through with.
-                //
+		__try
+		{
+		    //
+		    // We have detected a file we do a write through with.
+		    //
 
-                CcFlushCache(&pFcb->NPFcb->SectionObjectPointers,
-                             &liCurrentOffset,
-                             ulCurrentIO,
-                             &iosbFlush);
+		    CcFlushCache(&pFcb->NPFcb->SectionObjectPointers,
+				  &liCurrentOffset,
+				  ulCurrentIO,
+				  &iosbFlush);
 
-                if( !NT_SUCCESS( iosbFlush.Status))
+		    if( !NT_SUCCESS( iosbFlush.Status))
+		    {
+
+			AFSDbgTrace(( AFS_SUBSYSTEM_IO_PROCESSING,
+				      AFS_TRACE_LEVEL_ERROR,
+				      "AFSCachedWrite (%p) CcFlushCache failure %wZ FID %08lX-%08lX-%08lX-%08lX Status 0x%08lX Bytes 0x%08lX\n",
+				      Irp,
+				      &pFileObject->FileName,
+				      pFcb->ObjectInformation->FileId.Cell,
+				      pFcb->ObjectInformation->FileId.Volume,
+				      pFcb->ObjectInformation->FileId.Vnode,
+				      pFcb->ObjectInformation->FileId.Unique,
+				      iosbFlush.Status,
+				      iosbFlush.Information));
+
+			try_return( ntStatus = iosbFlush.Status);
+		    }
+		}
+		__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
                 {
+
+		    ntStatus = GetExceptionCode();
 
                     AFSDbgTrace(( AFS_SUBSYSTEM_IO_PROCESSING,
                                   AFS_TRACE_LEVEL_ERROR,
-                                  "AFSCachedWrite (%p) CcFlushCache failure %wZ FID %08lX-%08lX-%08lX-%08lX Status 0x%08lX Bytes 0x%08lX\n",
+				  "AFSCachedWrite (%p) CcFlushCache Threw exception %wZ @ %0I64X Status %08lX\n",
                                   Irp,
                                   &pFileObject->FileName,
-                                  pFcb->ObjectInformation->FileId.Cell,
-                                  pFcb->ObjectInformation->FileId.Volume,
-                                  pFcb->ObjectInformation->FileId.Vnode,
-                                  pFcb->ObjectInformation->FileId.Unique,
-                                  iosbFlush.Status,
-                                  iosbFlush.Information));
+				  liCurrentOffset.QuadPart,
+				  ntStatus));
 
-                    try_return( ntStatus = iosbFlush.Status);
+		    try_return( ntStatus);
                 }
             }
 
@@ -1977,6 +2051,10 @@ try_exit:
 
     return ntStatus;
 }
+
+//
+// Called with Fcb->NPFcb->SectionObjectResource and Fcb->NPFcb->Resource held
+//
 
 static
 NTSTATUS
@@ -2023,6 +2101,9 @@ AFSExtendingWrite( IN AFSFcb *Fcb,
         //
         // If the file is currently cached, then let the MM know about the extension
         //
+	// The CcSetFileSizes call should be made with only the PagingResource held
+	// which we are currently not holding.
+	//
 
         if( CcIsFileCached( FileObject))
         {

@@ -42,6 +42,7 @@ LIBS=${TOP_LIBDIR}/libbubasics.a \
 	${TOP_LIBDIR}/libafscom_err.a \
 	${TOP_LIBDIR}/util.a \
 	${TOP_LIBDIR}/libopr.a \
+	${TOP_LIBDIR}/libafsrfc3961.a \
 	${TOP_LIBDIR}/libafshcrypto_lwp.a
 
 COMMON_OBJS = database.o db_alloc.o db_dump.o db_hash.o struct_ops.o ol_verify.o
@@ -70,11 +71,10 @@ ${TOP_INCDIR}/afs/budb_client.h: budb_client.h
 ${TOP_INCDIR}/afs/budb_prototypes.h: budb_prototypes.h
 	${INSTALL_DATA} $? $@
 
-budb_errs.h: budb_errs.c
-
-budb_errs.c: budb_errs.et
+budb_errs.c bubd_errs.h: budb_errs.et
 	$(RM) -f budb_errs.c
 	${COMPILE_ET} -p ${srcdir} budb_errs
+budb_errs.h: budb_errs.c
 
 database.o: database.c budb_errs.h globals.h ${INCLS}
 db_alloc.o: db_alloc.c budb_errs.h ${INCLS}

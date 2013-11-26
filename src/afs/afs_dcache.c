@@ -396,6 +396,26 @@ static struct CTD_stats {
 u_int afs_min_cache = 0;
 
 /*!
+ * If there are waiters for the cache to drain, wake them if
+ * the number of free cache blocks reaches the CM_CACHESIZEDDRAINEDPCT.
+ *
+ * \note Environment:
+ *	This routine must be called with the afs_xdcache lock held
+ *	(in write mode).
+ */
+static void
+afs_WakeCacheWaitersIfDrained(void)
+{
+    if (afs_WaitForCacheDrain) {
+	if ((afs_blocksUsed - afs_blocksDiscarded) <=
+	    PERCENT(CM_CACHESIZEDRAINEDPCT, afs_cacheBlocks)) {
+	    afs_WaitForCacheDrain = 0;
+	    afs_osi_Wakeup(&afs_WaitForCacheDrain);
+	}
+    }
+}
+
+/*!
  * Keeps the cache clean and free by truncating uneeded files, when used.
  * \param
  * \return
@@ -416,7 +436,7 @@ afs_CacheTruncateDaemon(void)
     while (1) {
 	cb_lowat = PERCENT((CM_DCACHESPACEFREEPCT - CM_DCACHEEXTRAPCT), afs_cacheBlocks);
 	ObtainWriteLock(&afs_xdcache, 266);
-	if (afs_CacheTooFull) {
+	if (afs_CacheTooFull || afs_WaitForCacheDrain) {
 	    int space_needed, slots_needed;
 	    /* if we get woken up, we should try to clean something out */
 	    for (counter = 0; counter < 10; counter++) {
@@ -437,8 +457,10 @@ afs_CacheTruncateDaemon(void)
 		if (afs_termState == AFSOP_STOP_TRUNCDAEMON)
 		    break;
 	    }
-	    if (!afs_CacheIsTooFull())
+	    if (!afs_CacheIsTooFull()) {
 		afs_CacheTooFull = 0;
+		afs_WakeCacheWaitersIfDrained();
+	    }
 	}	/* end of cache cleanup */
 	ReleaseWriteLock(&afs_xdcache);
 
@@ -987,14 +1009,6 @@ afs_FlushDCache(struct dcache *adc)
     } else {
 	afs_FreeDCache(adc);
     }
-
-    if (afs_WaitForCacheDrain) {
-	if (afs_blocksUsed <=
-	    PERCENT(CM_CACHESIZEDRAINEDPCT, afs_cacheBlocks)) {
-	    afs_WaitForCacheDrain = 0;
-	    afs_osi_Wakeup(&afs_WaitForCacheDrain);
-	}
-    }
 }				/*afs_FlushDCache */
 
 
@@ -1019,13 +1033,7 @@ afs_FreeDCache(struct dcache *adc)
     afs_indexFlags[adc->index] |= IFFree;
     adc->dflags |= DFEntryMod;
 
-    if (afs_WaitForCacheDrain) {
-	if ((afs_blocksUsed - afs_blocksDiscarded) <=
-	    PERCENT(CM_CACHESIZEDRAINEDPCT, afs_cacheBlocks)) {
-	    afs_WaitForCacheDrain = 0;
-	    afs_osi_Wakeup(&afs_WaitForCacheDrain);
-	}
-    }
+    afs_WakeCacheWaitersIfDrained();
 }				/* afs_FreeDCache */
 
 /*!
@@ -1065,14 +1073,7 @@ afs_DiscardDCache(struct dcache *adc)
     adc->dflags |= DFEntryMod;
     afs_indexFlags[adc->index] |= IFDiscarded;
 
-    if (afs_WaitForCacheDrain) {
-	if ((afs_blocksUsed - afs_blocksDiscarded) <=
-	    PERCENT(CM_CACHESIZEDRAINEDPCT, afs_cacheBlocks)) {
-	    afs_WaitForCacheDrain = 0;
-	    afs_osi_Wakeup(&afs_WaitForCacheDrain);
-	}
-    }
-
+    afs_WakeCacheWaitersIfDrained();
 }				/*afs_DiscardDCache */
 
 /**

@@ -21,6 +21,7 @@ LIBS=${TOP_LIBDIR}/libbudb.a ${TOP_LIBDIR}/libbubasics.a \
         ${TOP_LIBDIR}/libafscom_err.a \
 	${TOP_LIBDIR}/util.a \
 	$(TOP_LIBDIR)/libopr.a \
+	${TOP_LIBDIR}/libafsrfc3961.a \
 	${TOP_LIBDIR}/libafshcrypto_lwp.a
 
 all: ${TOP_LIBDIR}/libbxdb.a ${TOP_INCDIR}/afs/bucoord_prototypes.h ${TOP_INCDIR}/afs/bc.h backup
@@ -69,11 +70,10 @@ $(BACKOBJS): bc.h ${TOP_INCDIR}/afs/butc.h
 backup:  $(BACKOBJS) ${LIBS}
 	$(AFS_LDRULE) $(BACKOBJS) ${LIBS} $(LIB_roken) ${XLIBS}
 
-bc.h: bucoord_errs.c
-
-bucoord_errs.c:	bucoord_errs.et bc.p.h
+bucoord_errs.c bc.h: bucoord_errs.et bc.p.h
 	$(RM) -f bc.h bucoord_errs.c
 	${COMPILE_ET} -p ${srcdir} bucoord_errs -h bc
+bc.h: bucoord_errs.c
 
 #
 # Errors

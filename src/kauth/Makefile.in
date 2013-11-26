@@ -51,6 +51,7 @@ LIBS=${TOP_LIBDIR}/libubik.a \
 	${TOP_LIBDIR}/libafsutil.a \
 	${TOP_LIBDIR}/libopr.a \
 	$(DBM) \
+	${TOP_LIBDIR}/libafsrfc3961.a \
 	${TOP_LIBDIR}/libafshcrypto_lwp.a
 
 KLIBS=${TOP_LIBDIR}/libubik.a \
@@ -65,6 +66,7 @@ KLIBS=${TOP_LIBDIR}/libubik.a \
 	${TOP_LIBDIR}/libafscom_err.a \
 	${TOP_LIBDIR}/libafsutil.a \
 	${TOP_LIBDIR}/libopr.a \
+	${TOP_LIBDIR}/libafsrfc3961.a \
 	${TOP_LIBDIR}/libafshcrypto_lwp.a
 
 all: liboafs_kauth.la libauthent_kauth.la \
@@ -122,11 +124,10 @@ kadatabase.o: kadatabase.c ${INCLS}
 
 kaprocs.o: kaprocs.c ${INCLS} kaport.h
 
-kautils.h: kaerrors.c
-
-kaerrors.c: kaerrors.et kautils.p.h
+kaerrors.c kautils.h: kaerrors.et kautils.p.h
 	$(RM) -f kautils.h kaerrors.c
 	${COMPILE_ET} -p ${srcdir} kaerrors -h kautils
+kautils.h: kaerrors.c
 
 kauth.xdr.lo: kauth.xdr.c kauth.h
 
@@ -315,6 +316,7 @@ dest: kaserver kas kpwvalid kas klog klog.krb knfs kpasswd libkauth.a \
 # Misc. targets
 #
 clean:
+	$(LT_CLEAN)
 	$(RM) -f *.o *.a *.xdr.c *.cs.c *.ss.c core \
 		kaserver kas klog multiklog kpasswd klogin rebuild \
 		ka-forwarder \

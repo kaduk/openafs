@@ -220,7 +220,7 @@ sys: cmd comerr afs hcrypto rx rxstat fsint sys_depinstall
 rxgk: cmd comerr hcrypto rx rxgk_depinstall libafsauthent rfc3961
 	+${COMPILE_PART1} rxgk ${COMPILE_PART2}
 
-rxkad: cmd comerr hcrypto rx rxkad_depinstall
+rxkad: cmd comerr hcrypto rfc3961 rx rxkad_depinstall
 	+${COMPILE_PART1} rxkad ${COMPILE_PART2}
 
 auth: cmd comerr hcrypto lwp rx rxkad audit sys auth_depinstall
@@ -362,6 +362,14 @@ uss: hcrypto kauth cmd comerr rx vlserver vol volser
 
 bozo: cmd comerr audit auth kauth volser
 	+${COMPILE_PART1} bozo ${COMPILE_PART2}
+
+tbozo: cmd comerr audit auth kauth volser bozo
+	+case ${SYS_NAME} in \
+	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*|*_darwin_*) \
+		${COMPILE_PART1} tbozo ${COMPILE_PART2} ;; \
+	*) \
+		echo Not building MT bozo for ${SYS_NAME} ;; \
+	esac
 
 vfsck:	vol
 	+set -x; \
@@ -645,7 +653,7 @@ build_tools: config comerr rxgen
 	+${COMPILE_PART1} util ${COMPILE_PART2A} buildtools_clean
 
 finale: project cmd comerr afsd butc tbutc tbudb @ENABLE_KERNEL_MODULE@ libuafs audit kauth log \
-	ptserver tptserver scout bu_utils ubik uss bozo @VFSCK@ volser tvolser tsalvaged \
+	ptserver tptserver scout bu_utils ubik uss bozo tbozo @VFSCK@ volser tvolser tsalvaged \
 	dviced dvolser libafscp\
 	venus update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
 	libafsauthent libadmin man-pages \
@@ -732,6 +740,7 @@ clean2:
 	-${COMPILE_PART1} scout ${COMPILE_CLEAN}
 	-${COMPILE_PART1} uss ${COMPILE_CLEAN}
 	-${COMPILE_PART1} bozo ${COMPILE_CLEAN}
+	-${COMPILE_PART1} tbozo ${COMPILE_CLEAN}
 	-${COMPILE_PART1} vfsck ${COMPILE_CLEAN}
 	-${COMPILE_PART1} sgistuff ${COMPILE_CLEAN}
 	-${COMPILE_PART1} tsm41 ${COMPILE_CLEAN}

@@ -1347,6 +1347,7 @@ AFSCommonCreate( IN PDEVICE_OBJECT DeviceObject,
                                    pVolumeCB,
                                    pParentDirectoryCB,
                                    pDirectoryCB,
+				   bOpenedReparsePoint,
                                    &pFcb,
                                    &pCcb);
 
@@ -2824,6 +2825,7 @@ AFSProcessOpen( IN PIRP Irp,
                 IN AFSVolumeCB *VolumeCB,
                 IN AFSDirectoryCB *ParentDirCB,
                 IN AFSDirectoryCB *DirectoryCB,
+		IN BOOLEAN bOpenedReparsePoint,
                 OUT AFSFcb **Fcb,
                 OUT AFSCcb **Ccb)
 {
@@ -2890,7 +2892,7 @@ AFSProcessOpen( IN PIRP Irp,
 
         ntStatus = AFSValidateEntry( DirectoryCB,
                                      AuthGroup,
-                                     FALSE,
+				     bOpenedReparsePoint,
                                      TRUE);
 
         if( !NT_SUCCESS( ntStatus))
@@ -3016,7 +3018,7 @@ AFSProcessOpen( IN PIRP Irp,
 
                 BOOLEAN bMmFlushed;
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSProcessOpen Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                               &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
@@ -3031,7 +3033,7 @@ AFSProcessOpen( IN PIRP Irp,
 		    bMmFlushed = MmFlushImageSection( &pObjectInfo->Fcb->NPFcb->SectionObjectPointers,
 						      MmFlushForWrite);
 		}
-		__except( EXCEPTION_EXECUTE_HANDLER)
+		__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
 		{
 
 		    bMmFlushed = FALSE;
@@ -3048,7 +3050,7 @@ AFSProcessOpen( IN PIRP Irp,
 				  ntStatus));
 		}
 
-                AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+		AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                               AFS_TRACE_LEVEL_VERBOSE,
                               "AFSProcessOpen Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                               &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
@@ -3515,7 +3517,7 @@ AFSProcessOverwriteSupersede( IN PDEVICE_OBJECT DeviceObject,
             }
         }
 
-        AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+	AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                       AFS_TRACE_LEVEL_VERBOSE,
                       "AFSProcessOverwriteSupercede Acquiring Fcb SectionObject lock %p EXCL %08lX\n",
                       &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
@@ -3535,7 +3537,7 @@ AFSProcessOverwriteSupersede( IN PDEVICE_OBJECT DeviceObject,
 	    bUserMapped = !MmCanFileBeTruncated( &pObjectInfo->Fcb->NPFcb->SectionObjectPointers,
 						 &liZero);
 	}
-	__except( EXCEPTION_EXECUTE_HANDLER)
+	__except( AFSExceptionFilter( __FUNCTION__, GetExceptionCode(), GetExceptionInformation()))
 	{
 
 	    bUserMapped = FALSE;
@@ -3552,7 +3554,7 @@ AFSProcessOverwriteSupersede( IN PDEVICE_OBJECT DeviceObject,
 			  ntStatus));
 	}
 
-        AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING,
+	AFSDbgTrace(( AFS_SUBSYSTEM_LOCK_PROCESSING|AFS_SUBSYSTEM_SECTION_OBJECT,
                       AFS_TRACE_LEVEL_VERBOSE,
                       "AFSProcessOverwriteSupercede Releasing Fcb SectionObject lock %p EXCL %08lX\n",
                       &pObjectInfo->Fcb->NPFcb->SectionObjectResource,
@@ -4126,13 +4128,15 @@ AFSOpenSpecialShareFcb( IN PIRP Irp,
 
             pParentObjectInfo = AFSFindObjectInfo( pObjectInfo->VolumeCB,
                                                    &pObjectInfo->ParentFileId,
-                                                   TRUE);
-        }
+						   TRUE);
+	}
 
-        if( DirectoryCB->ObjectInformation->Fcb == NULL)
-        {
+	*Fcb = pObjectInfo->Fcb;
 
-            //
+	if( *Fcb == NULL)
+	{
+
+	    //
             // Allocate and initialize the Fcb for the file.
             //
 
@@ -4162,8 +4166,6 @@ AFSOpenSpecialShareFcb( IN PIRP Irp,
         }
         else
         {
-
-            *Fcb = pObjectInfo->Fcb;
 
             AFSAcquireExcl( &(*Fcb)->NPFcb->Resource,
                             TRUE);

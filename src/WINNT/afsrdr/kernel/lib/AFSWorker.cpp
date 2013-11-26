@@ -653,6 +653,7 @@ AFSWorkerThread( IN PVOID Context)
     AFSWorkItem *pWorkItem;
     BOOLEAN freeWorkItem = TRUE;
     AFSDeviceExt *pControlDevExt = NULL;
+    AFSDeviceExt *pRDRDevExt = (AFSDeviceExt *) AFSRDRDeviceObject->DeviceExtension;
     LONG lCount;
 
     pControlDevExt = (AFSDeviceExt *)AFSControlDeviceObject->DeviceExtension;
@@ -719,18 +720,21 @@ AFSWorkerThread( IN PVOID Context)
                     case AFS_WORK_FLUSH_FCB:
                     {
 
-                        ntStatus = AFSFlushExtents( pWorkItem->Specific.Fcb.Fcb,
-                                                    &pWorkItem->AuthGroup);
+			if( !BooleanFlagOn( pRDRDevExt->DeviceFlags, AFS_DEVICE_FLAG_DIRECT_SERVICE_IO))
+			{
+			    ntStatus = AFSFlushExtents( pWorkItem->Specific.Fcb.Fcb,
+							&pWorkItem->AuthGroup);
 
-                        if( !NT_SUCCESS( ntStatus))
-                        {
+			    if( !NT_SUCCESS( ntStatus))
+			    {
 
-                            AFSReleaseExtentsWithFlush( pWorkItem->Specific.Fcb.Fcb,
-                                                        &pWorkItem->AuthGroup,
-                                                        FALSE);
-                        }
+				AFSReleaseExtentsWithFlush( pWorkItem->Specific.Fcb.Fcb,
+							    &pWorkItem->AuthGroup,
+							    FALSE);
+			    }
+			}
 
-                        ASSERT( pWorkItem->Specific.Fcb.Fcb->OpenReferenceCount != 0);
+			ASSERT( pWorkItem->Specific.Fcb.Fcb->OpenReferenceCount != 0);
 
                         lCount = InterlockedDecrement( &pWorkItem->Specific.Fcb.Fcb->OpenReferenceCount);
 
@@ -786,13 +790,13 @@ AFSWorkerThread( IN PVOID Context)
         }
     } // worker thread loop
 
-    ClearFlag( pPoolContext->State, AFS_WORKER_INITIALIZED);
-
     // Wake up another worker so they too can exit
 
     KeSetEvent( &pControlDevExt->Specific.Control.WorkerQueueHasItems,
                 0,
                 FALSE);
+
+    ClearFlag( pPoolContext->State, AFS_WORKER_INITIALIZED);
 
     PsTerminateSystemThread( 0);
 
@@ -936,13 +940,13 @@ AFSIOWorkerThread( IN PVOID Context)
         }
     } // worker thread loop
 
-    ClearFlag( pPoolContext->State, AFS_WORKER_INITIALIZED);
-
     // Wake up another IOWorker so they too can exit
 
     KeSetEvent( &pControlDevExt->Specific.Control.IOWorkerQueueHasItems,
                 0,
                 FALSE);
+
+    ClearFlag( pPoolContext->State, AFS_WORKER_INITIALIZED);
 
     PsTerminateSystemThread( 0);
 

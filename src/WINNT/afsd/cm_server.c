@@ -1029,7 +1029,7 @@ cm_FindServerByUuid(afsUUID *serverUuid, int type, int locked)
         lock_ObtainRead(&cm_serverLock);
 
     for (tsp = cm_allServersp; tsp; tsp = tsp->allNextp) {
-        if (tsp->type == type && !afs_uuid_equal(&tsp->uuid, serverUuid))
+	if (tsp->type == type && afs_uuid_equal(&tsp->uuid, serverUuid))
             break;
     }
 
@@ -1629,7 +1629,7 @@ int cm_ServerEqual(cm_server_t *srv1, cm_server_t *srv2)
         if (UuidEqual((UUID *)&srv1->uuid, (UUID *)&srv2->uuid, &status))
             return 1;
     } else {
-        if (srv1->flags & CM_SERVERFLAG_UUID)
+        if (srv2->flags & CM_SERVERFLAG_UUID)
             return 0;
 
         /* Neither support UUID so perform an addr/port comparison */

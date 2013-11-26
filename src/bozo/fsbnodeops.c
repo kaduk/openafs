@@ -17,7 +17,6 @@
 #include <lwp.h>
 #include <rx/rx.h>
 #include <afs/afsutil.h>
-#include <opr/queue.h>
 
 #include "bnode.h"
 #include "bnode_internal.h"
@@ -94,7 +93,7 @@ struct bnode * dafs_create(char *ainstance, char *afilecmd, char *avolcmd,
 
 static int fs_hascore(struct bnode *abnode);
 static int fs_restartp(struct bnode *abnode);
-static int fs_delete(struct bnode *abnode);
+static void fs_delete(struct bnode *abnode);
 static int fs_timeout(struct bnode *abnode);
 static int fs_getstat(struct bnode *abnode, afs_int32 * astatus);
 static int fs_setstat(struct bnode *abnode, afs_int32 astatus);
@@ -326,7 +325,7 @@ RestoreSalFlag(struct fsbnode *abnode)
     return 0;
 }
 
-static int
+static void
 fs_delete(struct bnode *bn)
 {
     struct fsbnode *abnode = (struct fsbnode *)bn;
@@ -339,7 +338,7 @@ fs_delete(struct bnode *bn)
     if (abnode->scancmd)
 	free(abnode->scancmd);
     free(abnode);
-    return 0;
+    return;
 }
 
 

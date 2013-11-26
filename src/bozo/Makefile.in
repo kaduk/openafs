@@ -39,6 +39,7 @@ LIBS=   ${TOP_LIBDIR}/librx.a \
 	${TOP_LIBDIR}/libopr.a \
 	${TOP_LIBDIR}/libsys.a \
 	${TOP_LIBDIR}/libprocmgmt.a \
+	${TOP_LIBDIR}/libafsrfc3961.a \
 	${TOP_LIBDIR}/libafshcrypto_lwp.a
 
 OBJS=bosserver.o bnode.o ezbnodeops.o fsbnodeops.o bosint.ss.o bosint.xdr.o \
@@ -80,11 +81,10 @@ bosint.cs.c: bosint.h
 bosint.ss.c: bosint.h
 bosint.xdr.c: bosint.h
 
-bnode.h: boserr.c
-
-boserr.c: bnode.p.h boserr.et
+boserr.c bnode.h: bnode.p.h boserr.et
 	$(RM) -f boserr.c bnode.h
 	${COMPILE_ET} -p ${srcdir} boserr -h bnode
+bnode.h: boserr.c
 
 bosserver.o: bosserver.c ${INCLS} AFS_component_version_number.o
 
@@ -126,31 +126,35 @@ smail-notifier: smail-notifier.o $(LIBS)
 # Install targets
 #
 install: bosserver bos bos_util libbos.a bosint.h bnode.h
-	${INSTALL} -d ${DESTDIR}${afssrvbindir}
-	${INSTALL} -d ${DESTDIR}${afssrvsbindir}
-	${INSTALL} -d ${DESTDIR}${bindir}
-	${INSTALL} -d ${DESTDIR}${includedir}/afs
-	${INSTALL} -d ${DESTDIR}${libdir}/afs
-	${INSTALL_PROGRAM} bosserver ${DESTDIR}${afssrvsbindir}/bosserver
-	${INSTALL_DATA} bosint.h ${DESTDIR}${includedir}/afs/bosint.h
-	${INSTALL_PROGRAM} bos ${DESTDIR}${bindir}/bos
-	${INSTALL_PROGRAM} bos ${DESTDIR}${afssrvbindir}/bos
-	${INSTALL_PROGRAM} bos_util ${DESTDIR}${afssrvsbindir}/bos_util
-	${INSTALL_DATA} libbos.a ${DESTDIR}${libdir}/afs/libbos.a
-	${INSTALL_DATA} bnode.h ${DESTDIR}${includedir}/afs/bnode.h
+	if [ "x$(ENABLE_PTHREADED_BOS)" != "xyes" ] ; then \
+		${INSTALL} -d ${DESTDIR}${afssrvbindir}; \
+		${INSTALL} -d ${DESTDIR}${afssrvsbindir}; \
+		${INSTALL} -d ${DESTDIR}${bindir}; \
+		${INSTALL} -d ${DESTDIR}${includedir}/afs; \
+		${INSTALL} -d ${DESTDIR}${libdir}/afs; \
+		${INSTALL_PROGRAM} bosserver ${DESTDIR}${afssrvsbindir}/bosserver; \
+		${INSTALL_DATA} bosint.h ${DESTDIR}${includedir}/afs/bosint.h; \
+		${INSTALL_PROGRAM} bos ${DESTDIR}${bindir}/bos; \
+		${INSTALL_PROGRAM} bos ${DESTDIR}${afssrvbindir}/bos; \
+		${INSTALL_PROGRAM} bos_util ${DESTDIR}${afssrvsbindir}/bos_util; \
+		${INSTALL_DATA} libbos.a ${DESTDIR}${libdir}/afs/libbos.a; \
+		${INSTALL_DATA} bnode.h ${DESTDIR}${includedir}/afs/bnode.h; \
+	fi
 
 dest: bosserver bos bos_util libbos.a bosint.h bnode.h
-	${INSTALL} -d ${DEST}/bin
-	${INSTALL} -d ${DEST}/include/afs
-	${INSTALL} -d ${DEST}/lib/afs
-	${INSTALL} -d ${DEST}/root.server/usr/afs/bin
-	${INSTALL_PROGRAM} bosserver ${DEST}/root.server/usr/afs/bin/bosserver
-	${INSTALL_DATA} bosint.h ${DEST}/include/afs/bosint.h
-	${INSTALL_PROGRAM} bos ${DEST}/bin/bos
-	${INSTALL_PROGRAM} bos ${DEST}/root.server/usr/afs/bin/bos
-	${INSTALL_PROGRAM} bos_util ${DEST}/root.server/usr/afs/bin/bos_util
-	${INSTALL_DATA} libbos.a ${DEST}/lib/afs/libbos.a
-	${INSTALL_DATA} bnode.h ${DEST}/include/afs/bnode.h
+	if [ "x$(ENABLE_PTHREADED_BOS)" != "xyes" ] ; then \
+		${INSTALL} -d ${DEST}/bin; \
+		${INSTALL} -d ${DEST}/include/afs; \
+		${INSTALL} -d ${DEST}/lib/afs; \
+		${INSTALL} -d ${DEST}/root.server/usr/afs/bin; \
+		${INSTALL_PROGRAM} bosserver ${DEST}/root.server/usr/afs/bin/bosserver; \
+		${INSTALL_DATA} bosint.h ${DEST}/include/afs/bosint.h; \
+		${INSTALL_PROGRAM} bos ${DEST}/bin/bos; \
+		${INSTALL_PROGRAM} bos ${DEST}/root.server/usr/afs/bin/bos; \
+		${INSTALL_PROGRAM} bos_util ${DEST}/root.server/usr/afs/bin/bos_util; \
+		${INSTALL_DATA} libbos.a ${DEST}/lib/afs/libbos.a; \
+		${INSTALL_DATA} bnode.h ${DEST}/include/afs/bnode.h; \
+	fi
 
 #
 # Misc. targets

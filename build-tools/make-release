@@ -1,12 +1,14 @@
 #!/usr/bin/perl
+use warnings;
+use strict;
 
 use Getopt::Long;
 use Pod::Usage;
 use File::Path;
 use File::Temp;
 
-my $tag;
-my $last;
+my $help;
+my $man;
 my $tagPoint;
 my $last;
 my $outDir = ".";
@@ -64,6 +66,9 @@ system("git describe --abbrev=4 $tagName > $tempDir/$name/.version");
 system ("cd $tempDir/$name && ./regen.sh") == 0
     or die $!;
 
+# A list of files to compress
+my @toCompress;
+
 # Create the documentation tarball
 system("tar -cf $outDir/$name-doc.tar -C $tempDir $name/doc") == 0
     or die "Unable to create documentation tarball : $!";
@@ -74,7 +79,7 @@ File::Path::rmtree("$tempDir/$name/doc");
 
 # Create the source tarball (both .gz and .bz2)
 system("tar -cf $outDir/$name-src.tar -C $tempDir $name") == 0
-    or die "Unable to create documentation tarball : $!";
+    or die "Unable to create source code tarball : $!";
 push @toCompress, "$outDir/$name-src.tar";
 
 # Construct the diffs, and zip them
@@ -84,9 +89,10 @@ if ($last) {
     push @toCompress, "$outDir/$name.diff";
 }
 
-my @toMD5 = @toCompress;
+my @toMD5;
 
-# Compress everything that needs squashing 
+# Compress everything that needs squashing,
+# and also set up a list for md5 checksumming.
 foreach my $file (@toCompress) {
     system("gzip < $file > $file.gz") == 0
 	or die "Unable to create gzip file of '$file' : $!";
@@ -95,6 +101,14 @@ foreach my $file (@toCompress) {
     system("bzip2 < $file > $file.bz2") == 0
 	or die "Unable to create bzip file of '$file' : $!";
     push @toMD5, "$file.bz2";
+
+    # Delete the uncompressed tar files.
+    if ($file =~ /\.tar$/) {
+      unlink($file);
+    } else {
+      # Otherwise, queue this file for md5 checksumming.
+      push @toMD5, $file;
+    }
 }
 
 foreach my $file (@toMD5) {

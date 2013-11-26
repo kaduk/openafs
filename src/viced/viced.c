@@ -1042,7 +1042,7 @@ ParseArgs(int argc, char *argv[])
 
     cmd_AddParmAtOffset(opts, OPT_spare, "-spare", CMD_SINGLE,
 			CMD_OPTIONAL, "kB overage on volume quota");
-    cmd_AddParmAtOffset(opts, OPT_pctspare, "pctspare", CMD_SINGLE,
+    cmd_AddParmAtOffset(opts, OPT_pctspare, "-pctspare", CMD_SINGLE,
 			CMD_OPTIONAL, "percentage overage on volume quota");
 
     cmd_AddParmAtOffset(opts, OPT_hostcpsrefresh, "-hr", CMD_SINGLE,
@@ -1116,12 +1116,8 @@ ParseArgs(int argc, char *argv[])
 		    	CMD_OPTIONAL, "location of audit log");
     cmd_AddParmAtOffset(opts, OPT_auditiface, "-audit-interface", CMD_SINGLE,
 			CMD_OPTIONAL, "interface to use for audit logging");
-    cmd_AddParmAtOffset(opts, OPT_config, "-config", CMD_SINGLE, CMD_OPTIONAL,
-			"configuration location");
     cmd_AddParmAtOffset(opts, OPT_debug, "-d", CMD_SINGLE, CMD_OPTIONAL,
 			"debug level");
-    cmd_AddParmAtOffset(opts, OPT_logfile, "-logfile", CMD_SINGLE,
-			CMD_OPTIONAL, "location of logfile");
     cmd_AddParmAtOffset(opts, OPT_mrafslogs, "-mrafslogs", CMD_FLAG,
 			CMD_OPTIONAL, "enable MRAFS style logging");
     cmd_AddParmAtOffset(opts, OPT_threads, "-p", CMD_SINGLE, CMD_OPTIONAL,
@@ -1169,6 +1165,9 @@ ParseArgs(int argc, char *argv[])
 	    CMD_OPTIONAL, "configuration location");
 
     code = cmd_Parse(argc, argv, &opts);
+    if (code == CMD_HELP) {
+	exit(0);
+    }
     if (code)
 	return -1;
 
@@ -1891,6 +1890,9 @@ main(int argc, char *argv[])
     SetupLogSignals();
 
     LogCommandLine(argc, argv, "starting", "", "File server", FSLog);
+    if (afsconf_GetLatestKey(confDir, NULL, NULL) == 0) {
+	LogDesWarning();
+    }
 
 #if !defined(AFS_NT40_ENV)
     /* initialize the pthread soft signal handler thread */
