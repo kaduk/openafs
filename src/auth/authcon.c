@@ -310,10 +310,7 @@ afsconf_BuildServerSecurityObjects(void *rock,
 {
     struct afsconf_dir *dir = rock;
 
-    if (dir->securityFlags & AFSCONF_SECOPTS_ALWAYSENCRYPT)
-	*numClasses = 4;
-    else
-	*numClasses = 3;
+    *numClasses = 5;
 
     *classes = calloc(*numClasses, sizeof(**classes));
 
@@ -323,6 +320,7 @@ afsconf_BuildServerSecurityObjects(void *rock,
 						      afsconf_GetKey,
 						      _afsconf_GetRxkadKrb5Key,
 						      NULL);
+    (*classes)[4] = NULL;
 
     if (dir->securityFlags & AFSCONF_SECOPTS_ALWAYSENCRYPT)
 	(*classes)[3] = rxkad_NewKrb5ServerSecurityObject(rxkad_crypt, dir,
