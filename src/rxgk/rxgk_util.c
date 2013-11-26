@@ -40,6 +40,7 @@
 #include <afs/stds.h>
 
 #include <gssapi/gssapi.h>
+#include <gssapi/gssapi_krb5.h>
 #include <errno.h>
 #include <rx/rx.h>
 #include <rx/rxgk.h>
@@ -83,6 +84,75 @@ copy_rxgkdata(RXGK_Data *out, RXGK_Data *in)
     memcpy(out->val, in->val, in->len);
     out->len = in->len;
     return 0;
+}
+
+/*
+ * Used to set service-specific data for a server process.
+ * Store the GSS acceptor name, and optionally a path to a keytab,
+ * cached creds, and more.
+ */
+afs_int32
+rxgk_set_gss_specific(struct rx_service *svc, char *svcname, char *host,
+		      char *keytab)
+{
+    struct rxgk_gss_sspecific_data *gk = NULL;
+    char *string_name = NULL;
+    gss_buffer_desc name_buf = GSS_C_EMPTY_BUFFER;
+    afs_int32 ret;
+    afs_uint32 major, minor, time_rec;
+
+    if (svc == NULL || svcname == NULL || host == NULL)
+	return RXGK_INCONSISTENCY;
+
+    gk = calloc(1, sizeof(*gk));
+    if (gk == NULL) {
+	ret = ENOMEM;
+	goto cleanup;
+    }
+    gk->sname = GSS_C_NO_NAME;
+    gk->creds = GSS_C_NO_CREDENTIAL;
+
+    ret = asprintf(&string_name, "%s@%s", svcname, host);
+    if (ret < 0)
+	goto cleanup;
+    name_buf.value = string_name;
+    name_buf.length = strlen(string_name);
+    major = gss_import_name(&minor, &name_buf, GSS_C_NT_HOSTBASED_SERVICE,
+			    &gk->sname);
+    if (GSS_ERROR(major)) {
+	/* mumble gss_display_status() here */
+	ret = major;
+	goto cleanup;
+    }
+#if 1	/* XXX configure check for the presence of the function. */
+    if (keytab != NULL) {
+	ret = krb5_gss_register_acceptor_identity(keytab);
+	if (ret != 0)
+	    goto cleanup;
+    }
+#endif
+    major = gss_acquire_cred(&minor, gk->sname, 0, GSS_C_NO_OID_SET,
+			     GSS_C_ACCEPT, &gk->creds, NULL, &time_rec);
+    if (GSS_ERROR(major)) {
+	/* mumble gss_display_status() here */
+	ret = major;
+	goto cleanup;
+    }
+    if (time_rec != 0 && time_rec != GSS_C_INDEFINITE) {
+	gk->expires = RXGK_NOW() + time_rec * 1000 * 1000 * 10;
+    }
+    rx_SetServiceSpecific(svc, RXGK_NEG_SSPECIFIC_GSS, gk);
+    gk = NULL;
+    ret = 0;
+
+cleanup:
+    if (gk != NULL) {
+	(void)gss_release_name(&minor, &gk->sname);
+	(void)gss_release_cred(&minor, &gk->creds);
+    }
+    free(gk);
+    free(string_name);
+    return ret;
 }
 
 afs_uint32

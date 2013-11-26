@@ -50,6 +50,14 @@ struct rxgkStats {
     afs_uint32 psent;
 };
 
+/* Service-specific data for GSS acceptor related bits. */
+struct rxgk_gss_sspecific_data {
+    gss_name_t sname;
+    char *keytab_path;
+    rxgkTime expires;
+    gss_cred_id_t creds;
+};
+
 /*
  * rgxk_server.c
  */
