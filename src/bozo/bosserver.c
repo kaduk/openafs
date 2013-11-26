@@ -39,6 +39,9 @@
 #include <rx/xdr.h>
 #include <rx/rx_globals.h>
 #include <rx/rxkad.h>
+#if defined(AFS_PTHREAD_ENV) && defined(ENABLE_RXGK)
+#include <rx/rxgk.h>
+#endif
 #include <rx/rxstat.h>
 #include <afs/keys.h>
 #include <afs/ktime.h>
@@ -1160,6 +1163,23 @@ main(int argc, char **argv, char **envp)
 
     afsconf_SetNoAuthFlag(tdir, noAuth);
     afsconf_BuildServerSecurityObjects(tdir, &securityClasses, &numClasses);
+#if defined(AFS_PTHREAD_ENV) && defined(ENABLE_RXGK)
+    code = rxgk_NewEphemeralService_SecObj(0, &tservice, "bozo-rxgk",
+					   securityClasses, numClasses);
+    if (code != 0) {
+	bozo_Log("Failed to register for rxgk\n");
+    }
+    code = gethostname(namebuf, sizeof(namebuf));
+    if (code != 0) {
+	bozo_Log("Could not get hostname for setting GSS identity\n");
+    }
+    code = rxgk_set_gss_specific(tservice, "afs3-bos", namebuf, NULL);
+    if (code != 0) {
+	bozo_Log("Failed to register GSS service-specific bits\n");
+    }
+    rx_SetMinProcs(tservice, 2);
+    rx_SetMaxProcs(tservice, 4);
+#endif
 
     if (DoPidFiles) {
 	bozo_CreatePidFile("bosserver", NULL, getpid());
