@@ -64,8 +64,7 @@ main(int argc, char *argv[])
     secobjs[0] = rxnull_NewServerSecurityObject();
     secobjs[1] = secobjs[2] = secobjs[3] = NULL;
 
-    ret = rxgk_NewService_SecObj(port, &service, "rxgkd", secobjs, 5,
-				 &dummy_getkey, NULL);
+    ret = rxgk_NewEphemeralService_SecObj(port, &service, "rxgkd", secobjs, 5);
     if (ret != 0) {
 	dprintf(2, "Registering service and security object failed\n");
         exit(1);
