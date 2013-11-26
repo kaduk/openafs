@@ -784,5 +784,6 @@ GetOsdMetadata(
 ) split = 65562;
 */
 
+typedef opaque mechdata_opaque<>;
 SetCallBackKey(afs_int32 securityIndex,
-	       opaque mech_data<>) = 65563; /* XXX not allocated */
+	       mechdata_opaque mech_data) = 65563; /* XXX not allocated */

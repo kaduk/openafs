@@ -6921,7 +6921,7 @@ sys_error_to_et(afs_int32 in)
 
 afs_int32
 SRXAFS_SetCallBackKey(struct rx_call *acall, afs_int32 securityIndex,
-		      mech_data *data)
+		      mechdata_opaque *data)
 {
     /* XXXBJK This routine is a stub implementation. */
 
