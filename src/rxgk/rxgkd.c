@@ -52,7 +52,6 @@ main(int argc, char *argv[])
     struct rxgk_getkey_sspecific_data gk;
     int ret;
     u_short port = 8888;
-    u_short svc = 34567;
 
     memset(&gk, 0, sizeof(gk));
 
@@ -64,18 +63,13 @@ main(int argc, char *argv[])
 
     secobjs[0] = rxnull_NewServerSecurityObject();
     secobjs[1] = secobjs[2] = secobjs[3] = NULL;
-    secobjs[RX_SECIDX_GK] = rxgk_NewServerSecurityObject(NULL, &dummy_getkey);
 
-    service = rx_NewService(port, svc, "rxgkd", secobjs, 5 /* nSecObjs */,
-			    RXGK_ExecuteRequest);
-    if (service == NULL) {
-	dprintf(2, "Registering service failed\n");
+    ret = rxgk_NewService_SecObj(port, &service, "rxgkd", secobjs, 5,
+				 &dummy_getkey, NULL);
+    if (ret != 0) {
+	dprintf(2, "Registering service and security object failed\n");
         exit(1);
     }
-    /* Register the getkey function for token generation. */
-    gk.getkey = &dummy_getkey;
-    gk.rock = NULL;
-    rx_SetServiceSpecific(service, RXGK_NEG_SSPECIFIC_GETKEY, &gk);
 
     rx_SetMinProcs(service, 2);
     rx_SetMaxProcs(service, 2);
