@@ -124,16 +124,16 @@ get_expiration(rxgkTime start, afs_uint32 gss_lifetime)
 
     printf("time_rec is %u\n", gss_lifetime);
     printf("start_time is %llu\n", start);
-    ret = start + gss_lifetime * 1000 * 10;
-    if ((now - start) > 50000) {
+    ret = start + gss_lifetime * 1000 * 1000 * 10;
+    if ((now - start) > 50000000) {
 	/* We've been processing for 5 seconds?! */
 	dprintf(2, "extended SRXGK_GSSNegotiation processing\n");
 	/* five minutes only */
-	ret = start + 5 * 60 * 1000 * 10;
+	ret = start + 5 * 60 * 1000 * 1000 * 10;
     }
     if (now < start) {
 	/* time went backwards */
-	ret = now + 5 * 60 * 1000 * 10;
+	ret = now + 5 * 60 * 1000 * 1000 * 10;
     }
 
     return ret;

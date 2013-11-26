@@ -56,7 +56,7 @@ struct rxgk_header {
 static_inline rxgkTime RXGK_NOW(void)
 {
     time_t _a = time(0);
-    rxgkTime _b = ((rxgkTime)_a) * 1000 * 10;
+    rxgkTime _b = ((rxgkTime)_a) * 1000 * 1000 * 10;
     return _b;
 }
 
