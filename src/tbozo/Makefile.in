@@ -10,6 +10,8 @@ include @TOP_OBJDIR@/src/config/Makefile.config
 include @TOP_OBJDIR@/src/config/Makefile.pthread
 include @TOP_OBJDIR@/src/config/Makefile.libtool
 
+MODULE_CFLAGS= @RXGK_CFLAGS@
+
 BOZO=$(srcdir)/../bozo
 
 ENABLE_PTHREADED_BOS=@ENABLE_PTHREADED_BOS@
