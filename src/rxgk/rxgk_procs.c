@@ -39,6 +39,8 @@
 
 #include <rx/rxgk.h>
 
+#include "rxgk_private.h"
+
 /* One week */
 #define MAX_LIFETIME	(60 * 60 * 24 * 7)
 /* One TiB */
@@ -79,36 +81,28 @@ process_client_params(RXGK_StartParams *params, RXGK_TokenInfo *info)
 }
 
 /*
- * Acquire GSS acceptor credentials in creds.
+ * Put cached GSS acceptor credentials in creds.
+ * These creds should not be released by the caller.
  * Returns GSS error codes with corresponding minor status.
  */
-static afs_uint32
-get_creds(afs_uint32 *minor_status, gss_cred_id_t *creds)
+static afs_int32
+get_creds(struct rx_call *call, gss_cred_id_t *creds)
 {
-    gss_buffer_desc name_buf;
-    gss_name_t sname;
-    afs_uint32 ret, dummy;
-    char *name = "afs-rxgk@_afs.perfluence.mit.edu";
+    struct rxgk_gss_sspecific_data *gk;
+    struct rx_connection *conn = NULL;
+    struct rx_service *svc = NULL;
+    afs_int32 ret;
 
-    /* Tell gssapi-krb5 where to find the keytab. */
-    krb5_gss_register_acceptor_identity(
-	"/Users/kaduk/openafs/perfluence.keytab");
-
-    name_buf.value = name;
-    name_buf.length = strlen(name);
-    ret = gss_import_name(minor_status, &name_buf, GSS_C_NT_HOSTBASED_SERVICE,
-			  &sname);
-    if (ret != 0)
-	return ret;
-
-    /* Actually get creds. */
-    ret = gss_acquire_cred(minor_status, GSS_C_NO_NAME, 0 /* time */,
-			    (gss_OID_set)gss_mech_set_krb5, GSS_C_ACCEPT, creds,
-			    NULL /* actual mechs */, NULL /* time rec */);
-    if (ret != 0)
-	return ret;
-
-    (void)gss_release_name(&dummy, &sname);
+    conn = rx_ConnectionOf(call);
+    svc = rx_ServiceOf(conn);
+    gk = rx_GetServiceSpecific(svc, RXGK_NEG_SSPECIFIC_GSS);
+    if (gk == NULL)
+	return RXGK_INCONSISTENCY;
+    if (gk->expires > 0 && gk->expires < RXGK_NOW()) {
+	dprintf(2, "cached credentials expired!\n");
+	return RXGK_INCONSISTENCY;
+    }
+    *creds = gk->creds;
     return 0;
 }
 
@@ -617,12 +611,9 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 	goto out;
 
     /* Need credentials before we can accept a security context. */
-    *gss_major_status = get_creds(gss_minor_status, &creds);
-    if (GSS_ERROR(*gss_major_status)) {
+    ret = get_creds(z_call, &creds);
+    if (ret != 0) {
 	dprintf(2, "No credentials!\n");
-	printf("get_creds gives major %i minor %i\n",
-	       ret, *gss_minor_status);
-	ret = RXGK_INCONSISTENCY;
 	goto out;
     }
 
@@ -731,7 +722,6 @@ out:
     /* gss_token_in aliases XDR-allocated storage */
     (void)gss_release_buffer(&dummy, &gss_token_out);
     (void)gss_release_buffer(&dummy, &k0);
-    (void)gss_release_cred(&dummy, &creds);
     (void)gss_delete_sec_context(&dummy, &gss_ctx, GSS_C_NO_BUFFER);
     (void)gss_release_name(&dummy, &client_name);
     xdr_free((xdrproc_t)xdr_RXGK_ClientInfo, &info);
