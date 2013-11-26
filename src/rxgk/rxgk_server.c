@@ -119,6 +119,8 @@ rxgk_NewService_SecObj(u_short port, struct rx_service **service_out,
     afs_int32 ret;
     u_short svc = 34567;
 
+    *service_out = NULL;
+
     if (nsecObjs < 5 || secObjs == NULL || service_out == NULL)
 	return RX_INVALID_OPERATION;
 
