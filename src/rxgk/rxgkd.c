@@ -69,6 +69,12 @@ main(int argc, char *argv[])
 	dprintf(2, "Registering service and security object failed\n");
         exit(1);
     }
+    ret= rxgk_set_gss_specific(service, "afs-rxgk", "_afs.perfluence.mit.edu",
+			       "/Users/kaduk/openafs/perfluence.keytab");
+    if (ret != 0) {
+	dprintf(2, "Registering GSS-specific bits failed\n");
+	exit(1);
+    }
 
     rx_SetMinProcs(service, 2);
     rx_SetMaxProcs(service, 2);
