@@ -53,7 +53,7 @@ main(int argc, char **argv)
 
     afstest_SkipTestsIfBadHostname();
 
-    plan(9);
+    plan(13);
     dirname = afstest_BuildTestConfig();
 
     dir = afsconf_Open(dirname);
@@ -68,14 +68,18 @@ main(int argc, char **argv)
     /* Server Security objects */
 
     afsconf_BuildServerSecurityObjects(dir, &classes, &numClasses);
-    is_int(3, numClasses, "3 security classes are returned, as expected");
+    is_int(5, numClasses, "5 security classes are returned, as expected");
     ok(classes[1] == NULL, "The rxvab class is undefined, as requested");
+    ok(classes[3] == NULL, "The rxkae class is undefined, as requested");
+    ok(classes[4] == NULL, "The rxgk class is undefined, as expected");
     free(classes);
 
     afsconf_SetSecurityFlags(dir, AFSCONF_SECOPTS_ALWAYSENCRYPT);
 
     afsconf_BuildServerSecurityObjects(dir, &classes, &numClasses);
-    is_int(4, numClasses, "When encryption is enabled, 4 classes are returned");
+    is_int(5, numClasses, "When encryption is enabled, 5 classes are still returned");
+    ok(classes[3] != NULL, "The rxkae class is undefined, as requested");
+    ok(classes[4] == NULL, "The rxgk class is undefined, as expected");
 
     /* Up to date checks */
 
