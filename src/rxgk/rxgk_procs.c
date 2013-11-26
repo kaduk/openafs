@@ -583,7 +583,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     RXGK_Level level;
     rxgkTime start_time;
     rxgk_key key;
-    afs_int32 ret, kvno, enctype;
+    afs_int32 ret, kvno = 0, enctype = 0;
     afs_uint32 time_rec, dummy;
     size_t len;
     char *tmp;
