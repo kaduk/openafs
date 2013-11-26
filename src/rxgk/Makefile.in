@@ -20,7 +20,7 @@ LT_deps =   $(top_builddir)/src/opr/liboafs_opr.la \
 LT_libs =   -lgssapi_krb5 ${LIB_krb5} -lk5crypto ${LIB_hcrypto}
 
 all: depinstall rxgk_int.cs.c rxgk_int.ss.c rxgk_int.xdr.c rxgk_int.h \
-	${LT_objs} rxgkd ndebug
+	${LT_objs} rxgkd ndebug liboafs_rxgk.la
 
 generated: \
 	rxgk_errs.h rxgk_errs.c rxgk_int.cx.c rxgk_int.xdr.c rxgk_int.ss.c
