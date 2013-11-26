@@ -363,7 +363,7 @@ uss: hcrypto kauth cmd comerr rx vlserver vol volser
 bozo: cmd comerr audit auth kauth volser
 	+${COMPILE_PART1} bozo ${COMPILE_PART2}
 
-tbozo: cmd comerr audit auth kauth volser bozo
+tbozo: cmd comerr audit auth kauth volser bozo rxgk
 	+case ${SYS_NAME} in \
 	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*|*_darwin_*) \
 		${COMPILE_PART1} tbozo ${COMPILE_PART2} ;; \

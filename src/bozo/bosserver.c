@@ -1160,6 +1160,20 @@ main(int argc, char **argv, char **envp)
 
     afsconf_SetNoAuthFlag(tdir, noAuth);
     afsconf_BuildServerSecurityObjects(tdir, &securityClasses, &numClasses);
+#ifdef AFS_PTHREAD_ENV
+    code = rxgk_NewEphemeralService_SecObj(0, &tservice, "bozo-rxgk",
+					   securityClasses, numClasses);
+    if (code != 0) {
+	bozo_Log("Failed to register for rxgk\n");
+    }
+    code = rxgk_set_gss_specific(tservice, "afs3-bos", "glossolalia.mit.edu",
+				 "/home/kaduk/openafs/glossolalia.keytab");
+    if (code != 0) {
+	bozo_Log("Failed to register GSS service-specific bits\n");
+    }
+    rx_SetMinProcs(tservice, 2);
+    rx_SetMaxProcs(tservice, 4);
+#endif
 
     if (DoPidFiles) {
 	bozo_CreatePidFile("bosserver", NULL, getpid());

@@ -17,6 +17,7 @@ ENABLE_PTHREADED_BOS=@ENABLE_PTHREADED_BOS@
 LT_objs=bosint.xdr.lo bosint.cs.lo boserr.lo AFS_component_version_number.lo
 
 LT_deps=$(top_builddir)/src/rx/liboafs_rx.la \
+	$(top_builddir)/src/rxgk/liboafs_rxgk.la \
 	$(top_builddir)/src/comerr/liboafs_comerr.la
 
 HEADERS=bnode.h \
