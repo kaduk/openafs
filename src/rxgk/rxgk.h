@@ -140,5 +140,10 @@ struct rx_securityClass *rxgk_NewClientSecurityObject(RXGK_Level level,
 						      rxgk_key k0,
 						      RXGK_Data *token,
 						      afsUUID *uuid);
+struct rx_securityClass *rxgk_NegotiateSecurityObject(RXGK_Level level,
+						      afsUUID *uuid,
+						      u_short port, char *svc,
+						      char *hostname,
+						      afs_uint32 addr);
 
 #endif /* OPENAFS_RXGK_H */
