@@ -100,6 +100,9 @@ GetConn(struct cmd_syndesc *as, int aencrypt)
     afsconf_secflags secFlags;
     struct rx_securityClass *sc;
     afs_int32 scIndex;
+#ifdef AFS_PTHREAD_ENV
+    RXGK_Level level;
+#endif
 
     hostname = as->parms[0].items->data;
     th = hostutil_GetHostByName(hostname);
@@ -139,7 +142,11 @@ GetConn(struct cmd_syndesc *as, int aencrypt)
 
 #ifdef AFS_PTHREAD_ENV
     if (as->parms[ADDPARMOFFSET + 3].items) {	/* -rxgk */
-	sc = rxgk_NegotiateSecurityObject(RXGK_LEVEL_CRYPT, NULL,
+	if (aencrypt)
+	    level = RXGK_LEVEL_CRYPT;
+	else
+	    level = RXGK_LEVEL_AUTH;
+	sc = rxgk_NegotiateSecurityObject(level, NULL,
 					  htons(AFSCONF_NANNYPORT),
 					  "afs3-bos", hostname, addr);
 	scIndex = RX_SECIDX_GK;
