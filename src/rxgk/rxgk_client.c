@@ -599,7 +599,7 @@ fill_authenticator(RXGK_Authenticator *authenticator, char *nonce,
 	goto cleanup;
     }
     authenticator->call_numbers.len = RX_MAXCALLS;
-    for(i = 0; i < ncalls; ++i)
+    for(i = 0; i < RX_MAXCALLS; ++i)
 	authenticator->call_numbers.val[i] = (afs_uint32)call_numbers[i];
     ret = 0;
 cleanup:
