@@ -22,6 +22,10 @@
 #include <afs/cellconfig.h>
 #include <rx/rx.h>
 #include <rx/xdr.h>
+#ifdef AFS_PTHREAD_ENV
+#include <gssapi/gssapi.h>
+#include <rx/rxgk.h>
+#endif
 #include <afs/auth.h>
 #include <afs/cellconfig.h>
 #include <afs/cmd.h>
@@ -133,12 +137,27 @@ GetConn(struct cmd_syndesc *as, int aencrypt)
     if (as->parms[ADDPARMOFFSET].items) /* -cell */
         cellname = as->parms[ADDPARMOFFSET].items->data;
 
-    code = afsconf_PickClientSecObj(tdir, secFlags, NULL, cellname,
-				    &sc, &scIndex, NULL);
-    if (code) {
-	afs_com_err("bos", code, "(configuring connection security)");
-	exit(1);
+#ifdef AFS_PTHREAD_ENV
+    if (as->parms[ADDPARMOFFSET + 3].items) {	/* -rxgk */
+	sc = rxgk_NegotiateSecurityObject(RXGK_LEVEL_CRYPT, NULL,
+					  htons(AFSCONF_NANNYPORT),
+					  "afs3-bos", hostname, addr);
+	scIndex = RX_SECIDX_GK;
+	if (sc == NULL) {
+	    afs_com_err("bos", RXGK_BAD_TOKEN, "(making client security object)");
+	    exit(1);
+	}
+    } else {
+#endif
+	code = afsconf_PickClientSecObj(tdir, secFlags, NULL, cellname,
+					&sc, &scIndex, NULL);
+	if (code) {
+	    afs_com_err("bos", code, "(configuring connection security)");
+	    exit(1);
+	}
+#ifdef AFS_PTHREAD_ENV
     }
+#endif
 
     if (scIndex == RX_SECIDX_NULL)
 	fprintf(stderr, "bos: running unauthenticated\n");
@@ -1676,6 +1695,8 @@ add_std_args(struct cmd_syndesc *ts)
 			  "don't authenticate");
     /* + 2 */ cmd_AddParm(ts, "-localauth", CMD_FLAG, CMD_OPTIONAL,
 			  "create tickets from KeyFile");
+    /* + 3 */ cmd_AddParm(ts, "-rxgk", CMD_FLAG, CMD_OPTIONAL,
+			  "Use rxgk for connection security");
 }
 
 #include "AFS_component_version_number.c"
