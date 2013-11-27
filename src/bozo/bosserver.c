@@ -1167,7 +1167,7 @@ main(int argc, char **argv, char **envp)
 	bozo_Log("Failed to register for rxgk\n");
     }
     code = rxgk_set_gss_specific(tservice, "afs3-bos", "glossolalia.mit.edu",
-				 "/home/kaduk/openafs/glossolalia.keytab");
+				 NULL);
     if (code != 0) {
 	bozo_Log("Failed to register GSS service-specific bits\n");
     }
