@@ -516,7 +516,9 @@ struct rx_ackPacket {
 
 typedef enum {
     RX_SECIDX_NULL = 0,
+    RX_SECIDX_VAB  = 1,
     RX_SECIDX_KAD  = 2,
+    RX_SECIDX_KAE  = 3,
     RX_SECIDX_GK   = 4,
     RX_SECIDX_K5   = 5,
 } rx_securityIndex;
