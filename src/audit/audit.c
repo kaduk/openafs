@@ -429,7 +429,8 @@ osi_auditU(struct rx_call *call, char *audEvent, int errCode, ...)
 	    if (secClass == RX_SECIDX_NULL) {	/* unauthenticated */
 		osi_audit("AFS_Aud_Unauth", (-1), AUD_STR, audEvent, AUD_END);
 		strcpy(afsName, "--UnAuth--");
-	    } else if (secClass == RX_SECIDX_KAD) {	/* authenticated */
+	    } else if (secClass == RX_SECIDX_KAD || secClass == RX_SECIDX_KAE) {
+		/* authenticated with rxkad */
                 char tcell[MAXKTCREALMLEN];
                 char name[MAXKTCNAMELEN];
                 char inst[MAXKTCNAMELEN];
@@ -457,7 +458,7 @@ osi_auditU(struct rx_call *call, char *audEvent, int errCode, ...)
 			strlcat(afsName, tcell, sizeof(afsName));
 		    }
 		}
-	    } else {		/* Unauthenticated & unknown */
+	    } else {		/* Unauthenticated and/or unknown */
 		osi_audit("AFS_Aud_UnknSec", (-1), AUD_STR, audEvent, AUD_END);
                 strcpy(afsName, "--Unknown--");
 	    }
