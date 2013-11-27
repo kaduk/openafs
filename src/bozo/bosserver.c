@@ -1166,8 +1166,11 @@ main(int argc, char **argv, char **envp)
     if (code != 0) {
 	bozo_Log("Failed to register for rxgk\n");
     }
-    code = rxgk_set_gss_specific(tservice, "afs3-bos", "glossolalia.mit.edu",
-				 NULL);
+    code = gethostname(namebuf, sizeof(namebuf));
+    if (code != 0) {
+	bozo_Log("Could not get hostname for setting GSS identity\n");
+    }
+    code = rxgk_set_gss_specific(tservice, "afs3-bos", namebuf, NULL);
     if (code != 0) {
 	bozo_Log("Failed to register GSS service-specific bits\n");
     }
