@@ -160,4 +160,12 @@ union rxgk_private {
     rxgk_type type;
 };
 
+/*
+ * rxgk_token.c
+ */
+afs_int32 make_token(struct rx_opaque *out, RXGK_TokenInfo *info,
+		     gss_buffer_t k0, rxgkTime start, PrAuthName *identities,
+		     int nids, rxgk_key key, afs_int32 kvno,
+		     afs_int32 enctype);
+
 #endif /* RXGK_PROTOTYPES_H */
