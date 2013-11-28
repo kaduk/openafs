@@ -95,6 +95,9 @@ struct RXGK_CombineOptions {
     RXGK_Level levels<>;
 };
 
+/* XXX errorcode was removed from this structure, but I am leaving it
+ * for convenience.  We do not implement the wire protocol that uses
+ * this structure. */
 struct RXGK_TokenInfo {
     unsigned int errorcode;
     RXGK_Enctype enctype;
