@@ -394,7 +394,7 @@ mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
 	ret = RXGK_INCONSISTENCY;
 	goto cleanup;
     }
-    memcpy(out->val, cksum.checksum.data, len);
+    memcpy(out->val, ck_out.checksum.data, len);
 
 cleanup:
     free_Checksum(&ck_out);
