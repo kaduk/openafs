@@ -128,7 +128,6 @@ struct RXGK_Authenticator {
     RXGK_Level level;
     unsigned int epoch;
     unsigned int cid;
-    unsigned int maxcalls;
     unsigned int call_numbers<>;
 };
 

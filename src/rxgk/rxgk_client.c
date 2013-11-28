@@ -549,8 +549,8 @@ fill_authenticator(RXGK_Authenticator *authenticator, char *nonce,
 		   struct rxgk_cprivate *cp, struct rx_connection *aconn)
 {
     XDR xdrs;
-    afs_int32 call_numbers[RX_MAXCALLS], maxcall;
-    int ret, i, ncalls;
+    afs_int32 call_numbers[RX_MAXCALLS];
+    int ret, i;
     u_int len;
 
     memset(&xdrs, 0, sizeof(xdrs));
@@ -588,10 +588,6 @@ fill_authenticator(RXGK_Authenticator *authenticator, char *nonce,
     ret = rxi_GetCallNumberVector(aconn, call_numbers);
     if (ret != 0)
 	goto cleanup;
-    ncalls = maxcall = 0;
-    for(i = 0; i < RX_MAXCALLS; ++i)
-	maxcall = (maxcall > call_numbers[i]) ? maxcall : call_numbers[i];
-    authenticator->maxcalls = maxcall;
     authenticator->call_numbers.val = xdr_alloc(RX_MAXCALLS *
 						sizeof(afs_int32));
     if (authenticator->call_numbers.val == NULL) {
