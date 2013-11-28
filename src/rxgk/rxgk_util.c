@@ -208,10 +208,10 @@ void
 rxgk_populate_header(struct rxgk_header *header, struct rx_packet *apacket,
 		     afs_int32 index, afs_uint32 length)
 {
-    header->epoch = apacket->header.epoch;
-    header->cid = apacket->header.cid;
-    header->callNumber = apacket->header.callNumber;
-    header->seq = apacket->header.seq;
+    header->epoch = htonl(apacket->header.epoch);
+    header->cid = htonl(apacket->header.cid);
+    header->callNumber = htonl(apacket->header.callNumber);
+    header->seq = htonl(apacket->header.seq);
     header->index = htonl(index);
     header->length = htonl(length);
 }
