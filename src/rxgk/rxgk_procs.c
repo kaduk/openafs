@@ -373,6 +373,36 @@ get_long_term_key(struct rx_call *acall, rxgk_key *key, afs_int32 *kvno,
     return (*gk->getkey)(gk->rock, kvno, enctype, key);
 }
 
+/*
+ * Returns true if the acceptor (stored in the rx service-specific
+ * data) name and initiator name (client_name) are the same; false
+ * otherwise.
+ */
+static int
+is_selfauth(struct rx_call *call, gss_name_t client_name)
+{
+    struct rx_connection *conn;
+    struct rx_service *svc;
+    struct rxgk_gss_sspecific_data *gk = NULL;
+    afs_uint32 major, minor;
+    int eq;
+
+    conn = rx_ConnectionOf(call);
+    svc = rx_ServiceOf(conn);
+    gk = rx_GetServiceSpecific(svc, RXGK_NEG_SSPECIFIC_GSS);
+    if (gk == NULL) {
+	/* Fail safe. */
+	printf("No service-specific GSS data while checking for selfauth\n");
+	return 0;
+    }
+    major = gss_compare_name(&minor, gk->sname, client_name, &eq);
+    if (GSS_ERROR(major))
+	return 0;
+    if (eq != 0)
+	return 1;
+    return 0;
+}
+
 afs_int32
 SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 		   RXGK_Data *input_token_buffer, RXGK_Data *opaque_in,
@@ -518,8 +548,14 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     ret = get_long_term_key(z_call, &key, &kvno, &enctype);
     if (ret != 0)
 	goto out;
-    ret = make_token(&info.token, &localinfo, &k0, start_time, identity, 1, key,
-		     kvno, enctype);
+    /* If we're negotiating with ourself, print a token instead of supplying
+     * an identity. */
+    if (is_selfauth(z_call, client_name)) {
+	ret = print_token(&info.token, &k0, key, kvno, enctype);
+    } else {
+	ret = make_token(&info.token, &localinfo, &k0, start_time, identity,
+			 1, key, kvno, enctype);
+    }
     /* Clean up right away so as to not leave key material around */
     release_key(&key);
     if (ret != 0)
