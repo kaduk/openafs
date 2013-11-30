@@ -227,3 +227,57 @@ make_token(struct rx_opaque *out, RXGK_TokenInfo *info, gss_buffer_t k0,
     xdr_free((xdrproc_t)xdr_RXGK_Token, &token);
     return ret;
 }
+
+/*
+ * Print a token (with empty identity list) where the master key (k0)
+ * already exists, and encrypt it in the specified key/kvno/enctype.
+ */
+#define DEFAULT_LIFETIME	(60 * 60 * 10)
+#define DEFAULT_BYTELIFE	(1024 * 1024 * 1024)
+#define RXGK_NEVERDATE		0x7fffffffffffffffll
+afs_int32
+print_token(struct rx_opaque *out, gss_buffer_t k0, rxgk_key key,
+	    afs_int32 kvno, afs_int32 enctype)
+{
+    RXGK_TokenInfo info;
+    rxgkTime start;
+
+    memset(&info, 0, sizeof(info));
+    start = RXGK_NOW();
+
+    info.enctype = enctype;
+    info.level = RXGK_LEVEL_CRYPT;
+    info.lifetime = DEFAULT_LIFETIME;
+    info.bytelife = DEFAULT_BYTELIFE;
+    info.expiration = RXGK_NEVERDATE;
+
+    start = RXGK_NOW();
+    return make_token(out, &info, k0, start, NULL, 0, key, kvno, enctype);
+}
+
+/*
+ * Print a token (with empty identity list) with a random master key,
+ * and encrypt it in the specified key/kvno/enctype.  Return the master
+ * key as well as the token, so that the token is usable.  The random key
+ * is chosen of the same enctype as the token-encrypting key.
+ * The caller must free k0 with release_key().
+ */
+afs_int32
+print_token_and_key(struct rx_opaque *out, rxgk_key key, afs_int32 kvno,
+		    afs_int32 enctype, rxgk_key *k0_out)
+{
+    rxgk_key k0;
+    afs_int32 ret;
+
+    *k0_out = NULL;
+    ret = random_key(enctype, &k0);
+    if (ret != 0)
+	return ret;
+    ret = print_token(out, k0, key, kvno, enctype);
+    if (ret != 0) {
+	release_key(&k0);
+	return ret;
+    }
+    *k0_out = k0;
+    return 0;
+}
