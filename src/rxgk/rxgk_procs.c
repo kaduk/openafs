@@ -551,7 +551,7 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     /* If we're negotiating with ourself, print a token instead of supplying
      * an identity. */
     if (is_selfauth(z_call, client_name)) {
-	ret = print_token(&info.token, &k0, key, kvno, enctype);
+	ret = print_token(&info.token, &localinfo, &k0, key, kvno, enctype);
     } else {
 	ret = make_token(&info.token, &localinfo, &k0, start_time, identity,
 			 1, key, kvno, enctype);

@@ -147,10 +147,11 @@ struct rx_securityClass *rxgk_NegotiateSecurityObject(RXGK_Level level,
 						      afs_uint32 addr);
 
 /* rxgk_token.c */
-afs_int32 print_token(struct rx_opaque *out, gss_buffer_t k0, rxgk_key key,
-		      afs_int32 kvno, afs_int32 enctype);
-afs_int32 print_token_and_key(struct rx_opaque *out, rxgk_key key,
-			      afs_int32 kvno, afs_int32 enctype,
+afs_int32 print_token(struct rx_opaque *out, RXGK_TokenInfo *input_info,
+		      gss_buffer_t k0, rxgk_key key, afs_int32 kvno,
+		      afs_int32 enctype);
+afs_int32 print_token_and_key(struct rx_opaque *out, RXGK_Level level,
+			      rxgk_key key, afs_int32 kvno, afs_int32 enctype,
 			      rxgk_key *k0_out);
 
 #endif /* OPENAFS_RXGK_H */

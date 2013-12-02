@@ -236,8 +236,8 @@ make_token(struct rx_opaque *out, RXGK_TokenInfo *info, gss_buffer_t k0,
 #define DEFAULT_BYTELIFE	(1024 * 1024 * 1024)
 #define RXGK_NEVERDATE		0x7fffffffffffffffll
 afs_int32
-print_token(struct rx_opaque *out, gss_buffer_t k0, rxgk_key key,
-	    afs_int32 kvno, afs_int32 enctype)
+print_token(struct rx_opaque *out, RXGK_TokenInfo *input_info, gss_buffer_t k0,
+	    rxgk_key key, afs_int32 kvno, afs_int32 enctype)
 {
     RXGK_TokenInfo info;
     rxgkTime start;
@@ -245,8 +245,8 @@ print_token(struct rx_opaque *out, gss_buffer_t k0, rxgk_key key,
     memset(&info, 0, sizeof(info));
     start = RXGK_NOW();
 
-    info.enctype = enctype;
-    info.level = RXGK_LEVEL_CRYPT;
+    info.enctype = input_info->enctype;
+    info.level = input_info->level;
     info.lifetime = DEFAULT_LIFETIME;
     info.bytelife = DEFAULT_BYTELIFE;
     info.expiration = RXGK_NEVERDATE;
@@ -263,17 +263,24 @@ print_token(struct rx_opaque *out, gss_buffer_t k0, rxgk_key key,
  * The caller must free k0 with release_key().
  */
 afs_int32
-print_token_and_key(struct rx_opaque *out, rxgk_key key, afs_int32 kvno,
-		    afs_int32 enctype, rxgk_key *k0_out)
+print_token_and_key(struct rx_opaque *out, RXGK_Level level, rxgk_key key,
+		    afs_int32 kvno, afs_int32 enctype, rxgk_key *k0_out)
 {
     rxgk_key k0;
+    RXGK_TokenInfo info;
     afs_int32 ret;
 
+    memset(&info, 0, sizeof(info));
     *k0_out = NULL;
     ret = random_key(enctype, &k0);
     if (ret != 0)
 	return ret;
-    ret = print_token(out, k0, key, kvno, enctype);
+    info.level = level;
+    info.enctype = enctype;
+    info.lifetime = DEFAULT_LIFETIME;
+    info.bytelife = DEFAULT_BYTELIFE;
+    info.expiration = RXGK_NEVERDATE;
+    ret = print_token(out, &info, k0, key, kvno, enctype);
     if (ret != 0) {
 	release_key(&k0);
 	return ret;
