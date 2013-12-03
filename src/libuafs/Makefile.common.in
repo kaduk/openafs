@@ -197,6 +197,8 @@ UAFSOBJ = \
 	$(UOBJ)/rx_multi.o \
 	$(UOBJ)/rx_null.o \
 	$(UOBJ)/rx_opaque.o \
+	$(UOBJ)/rx_prname.o \
+	$(UOBJ)/rx_prname.o \
 	$(UOBJ)/rx_getaddr.o \
 	$(UOBJ)/rx_stats.o \
 	$(UOBJ)/rx_packet.o \
@@ -320,6 +322,8 @@ PICUAFSOBJ = \
 	$(PICOBJ)/rx_multi.o \
 	$(PICOBJ)/rx_null.o \
 	$(PICOBJ)/rx_opaque.o \
+	$(PICOBJ)/rx_prname.o \
+	$(PICOBJ)/rx_prname.o \
 	$(PICOBJ)/rx_getaddr.o \
 	$(PICOBJ)/rx_stats.o \
 	$(PICOBJ)/rx_packet.o \
@@ -443,6 +447,8 @@ AFSWEBOBJ = \
 	$(WEBOBJ)/rx_multi.o \
 	$(WEBOBJ)/rx_null.o \
 	$(WEBOBJ)/rx_opaque.o \
+	$(WEBOBJ)/rx_prname.o \
+	$(WEBOBJ)/rx_prname.o \
 	$(WEBOBJ)/rx_getaddr.o \
 	$(WEBOBJ)/rx_stats.o \
 	$(WEBOBJ)/rx_packet.o \
@@ -560,6 +566,8 @@ AFSWEBOBJKRB = \
 	$(WEBOBJ)/rx_multi.o \
 	$(WEBOBJ)/rx_null.o \
 	$(WEBOBJ)/rx_opaque.o \
+	$(WEBOBJ)/rx_prname.o \
+	$(WEBOBJ)/rx_prname.o \
 	$(WEBOBJ)/rx_getaddr.o \
 	$(WEBOBJ)/rx_stats.o \
 	$(WEBOBJ)/rx_packet.o \
@@ -682,6 +690,7 @@ JUAFSOBJ = \
 	$(JUAFS)/rx_multi.o \
 	$(JUAFS)/rx_null.o \
 	$(JUAFS)/rx_opaque.o \
+	$(JUAFS)/rx_prname.o \
 	$(JUAFS)/rx_getaddr.o \
 	$(JUAFS)/rx_stats.o \
 	$(JUAFS)/rx_packet.o \
@@ -856,6 +865,8 @@ $(UOBJ)/rx_multi.o: $(TOP_SRC_RX)/rx_multi.c
 $(UOBJ)/rx_null.o: $(TOP_SRC_RX)/rx_null.c
 	$(CRULE1)
 $(UOBJ)/rx_opaque.o: $(TOP_SRC_RX)/rx_opaque.c
+	$(CRULE1)
+$(UOBJ)/rx_prname.o: $(TOP_SRC_RX)/rx_prname.c
 	$(CRULE1)
 $(UOBJ)/rx_getaddr.o: $(TOP_SRC_RX)/rx_getaddr.c
 	$(CRULE1)
@@ -1107,6 +1118,8 @@ $(PICOBJ)/rx_multi.o: $(TOP_SRC_RX)/rx_multi.c
 $(PICOBJ)/rx_null.o: $(TOP_SRC_RX)/rx_null.c
 	$(CRULEPIC)
 $(PICOBJ)/rx_opaque.o: $(TOP_SRC_RX)/rx_opaque.c
+	$(CRULEPIC)
+$(PICOBJ)/rx_prname.o: $(TOP_SRC_RX)/rx_prname.c
 	$(CRULEPIC)
 $(PICOBJ)/rx_getaddr.o: $(TOP_SRC_RX)/rx_getaddr.c
 	$(CRULEPIC)
@@ -1360,6 +1373,8 @@ $(WEBOBJ)/rx_multi.o: $(TOP_SRC_RX)/rx_multi.c
 $(WEBOBJ)/rx_null.o: $(TOP_SRC_RX)/rx_null.c
 	$(CRULE2)
 $(WEBOBJ)/rx_opaque.o: $(TOP_SRC_RX)/rx_opaque.c
+	$(CRULE2)
+$(WEBOBJ)/rx_prname.o: $(TOP_SRC_RX)/rx_prname.c
 	$(CRULE2)
 $(WEBOBJ)/rx_getaddr.o: $(TOP_SRC_RX)/rx_getaddr.c
 	$(CRULE2)
@@ -1617,6 +1632,8 @@ $(JUAFS)/rx_multi.o: $(TOP_SRC_RX)/rx_multi.c
 $(JUAFS)/rx_null.o: $(TOP_SRC_RX)/rx_null.c
 	$(CRULE1)
 $(JUAFS)/rx_opaque.o: $(TOP_SRC_RX)/rx_opaque.c
+	$(CRULE1)
+$(JUAFS)/rx_prname.o: $(TOP_SRC_RX)/rx_prname.c
 	$(CRULE1)
 $(JUAFS)/rx_getaddr.o: $(TOP_SRC_RX)/rx_getaddr.c
 	$(CRULE1)
