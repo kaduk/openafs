@@ -46,7 +46,6 @@
 #include <gssapi/gssapi.h>
 #include <rx/rxgk.h>
 
-#include <afs/cellconfig.h>
 #include <afs/rfc3961.h>
 #include <assert.h>
 
@@ -126,21 +125,6 @@ etype_to_len(int etype)
 	case 18: return 32;
 	default: return -1;
     }
-}
-
-/*
- * Hack of a function implementing the rxgk_getkey_func typedef.
- * Always uses a hardcoded "cell-wide" identity in a hardcoded file, loading
- * the key from file every time.
- */
-afs_int32
-dummy_getkey(void *rock, afs_int32 *kvno, afs_int32 *enctype, rxgk_key *key)
-{
-    if (kvno == NULL || *kvno < 0)
-	return RXGK_BADKEYNO;
-    if (enctype == NULL || *enctype < 0)
-	return RXGK_BADETYPE;
-    return get_server_key(key, kvno, enctype);
 }
 
 /*
@@ -228,56 +212,6 @@ out:
     krb5_free_context(ctx);
     free(buf);
     free(keyblock);
-    return ktor(ret);
-}
-
-/*
- * Get the long-term shared key of the cell (from KeyFileExt).  We attempt to
- * extract the specified kvno and enctype, unless zero is specified, when we
- * extract the default key/enctype.
- */
-afs_int32
-get_server_key(rxgk_key *key, afs_int32 *kvno, afs_int32 *enctype)
-{
-    struct afsconf_dir *adir;
-    struct afsconf_typedKey *akey;
-    struct afsconf_typedKeyList *akeys;
-    struct rx_opaque *raw_key;
-    krb5_context ctx;
-    krb5_keyblock *new_key;
-    krb5_error_code ret;
-    afs_int32 type;
-
-    *key = NULL;
-
-    adir = afsconf_Open("/Users/kaduk/etc/openafs/");
-
-    if (*kvno != 0) {
-	ret = afsconf_GetKeyByTypes(adir, afsconf_rxgk, *kvno, *enctype,
-				    &akey);
-	if (ret != 0)
-	    return ret;
-    } else {
-	ret = afsconf_GetLatestKeysByType(adir, afsconf_rxgk, &akeys);
-	if (ret != 0)
-	    return ret;
-	akey = *(akeys->keys);		/* there should be a better API! */
-    }
-
-    afsconf_typedKey_values(akey, &type, kvno, enctype, &raw_key);
-
-    ret = krb5_init_context(&ctx);
-    if (ret != 0)
-	return ktor(ret);
-    new_key = malloc(sizeof(*new_key));
-    ret = krb5_keyblock_init(ctx, *enctype, raw_key->val, raw_key->len,
-			     new_key);
-    if (ret != 0)
-	goto out;
-
-    *key = new_key;
-out:
-    krb5_free_context(ctx);
     return ktor(ret);
 }
 
