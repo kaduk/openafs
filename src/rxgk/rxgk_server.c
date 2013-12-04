@@ -523,3 +523,23 @@ cleanup:
     xdr_free((xdrproc_t)xdr_RXGK_Authenticator, &authenticator);
     return ret;
 }
+
+afs_int32
+rxgk_GetServerInfo(struct rx_connection *conn, RXGK_Level *level,
+		   rxgkTime *expiry, struct rx_identity **identity)
+{
+    struct rxgk_sconn *sconn;
+    size_t i;
+
+    sconn = rx_GetSecurityData(conn);
+    if (sconn == NULL)
+	return RXGK_INCONSISTENCY;
+    *identity = rx_identity_copy(sconn->client);
+    if (*identity == NULL)
+	return ENOMEM;
+    if (level != NULL)
+	*level = sconn->level;
+    if (expiry != NULL)
+	*expiry = sconn->expiration;
+    return 0;
+}
