@@ -24,6 +24,7 @@
 #include <rx/xdr.h>
 #ifdef AFS_PTHREAD_ENV
 #include <gssapi/gssapi.h>
+#include <gssapi/gssapi_krb5.h>
 #include <rx/rxgk.h>
 #endif
 #include <afs/auth.h>
@@ -82,6 +83,58 @@ DateOf(time_t atime)
     return tbuffer;
 }
 
+#ifdef AFS_PTHREAD_ENV
+/*
+ * Possibly not needed with heimdal, which will reach into the keytab
+ * for a given name in gss_init_sec_context, if the keytab is readable,
+ * without prompting?
+ * A better solution on MIT is to use gss_acquire_cred_from(), but
+ * it's unclear we need this behavior at all and this is pretty far
+ * in the call stack from where we actually have a credential object.
+ */
+static void
+gss_ikeytab_setup(char *hostname)
+{
+    afs_uint32 major, minor;
+    krb5_error_code ret;
+    krb5_ccache ccache = NULL;
+    krb5_context ctx;
+    krb5_creds creds;
+    krb5_get_init_creds_opt *opt;
+    krb5_keytab keytab = NULL;
+    krb5_principal client = NULL;
+    char *ccname = "MEMORY:localauth";
+
+    if (krb5_init_context(&ctx) != 0)
+	return;
+    ret = krb5_get_init_creds_opt_alloc(ctx, &opt);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_kt_default(ctx, &keytab);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_sname_to_principal(ctx, hostname, "afs3-bos", KRB5_NT_UNKNOWN,
+				  &client);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_cc_resolve(ctx, ccname, &ccache);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_get_init_creds_opt_set_out_ccache(ctx, opt, ccache);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_get_init_creds_keytab(ctx, &creds, client, keytab, 0, NULL, opt);
+    if (ret != 0)
+	goto cleanup;
+
+    major = gss_krb5_ccache_name(&minor, ccname, NULL);
+cleanup:
+    krb5_get_init_creds_opt_free(ctx, opt);
+    krb5_kt_close(ctx, keytab);
+    krb5_free_principal(ctx, client);
+    krb5_free_context(ctx);
+}
+#endif
 
 /* use the syntax descr to get a connection, authenticated appropriately.
  * aencrypt is set if we want to encrypt the data on the wire.
@@ -146,6 +199,14 @@ GetConn(struct cmd_syndesc *as, int aencrypt)
 	    level = RXGK_LEVEL_CRYPT;
 	else
 	    level = RXGK_LEVEL_AUTH;
+	if (as->parms[ADDPARMOFFSET + 2].items) { /* -localauth */
+	    /* Fake up credentials for negotiating, using the acceptor keytab
+	     * to get initiator creds. */
+/* XXX should be configure check */
+#if 1
+	    gss_ikeytab_setup(hostname);
+#endif
+	}
 	sc = rxgk_NegotiateSecurityObject(level, NULL,
 					  htons(AFSCONF_NANNYPORT),
 					  "afs3-bos", hostname, addr);
