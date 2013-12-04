@@ -42,6 +42,7 @@
 #include <rx/rx.h>
 #include <rx/xdr.h>
 #include <rx/rx_packet.h>
+#include <rx/rx_identity.h>
 #include <gssapi/gssapi.h>
 #include <errno.h>
 #include <rx/rxgk.h>

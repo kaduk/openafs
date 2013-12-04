@@ -45,6 +45,7 @@
 #include <rx/rx.h>
 #include <rx/xdr.h>
 #include <rx/rx_packet.h>
+#include <rx/rx_identity.h>
 #include <gssapi/gssapi.h>
 #include <rx/rxgk.h>
 #include <hcrypto/rand.h>
@@ -333,6 +334,37 @@ unpack_token(RXGK_Token *token, RXGK_Data *in)
     return 0;
 }
 
+static struct rx_identity *
+prnames_to_identity(PrAuthName *namelist, size_t nnames)
+{
+    rx_identity_kind kind;
+    struct rx_identity *tmp;
+    char *display;
+
+    /* Could grab the acceptor identity from ServiceSpecific if wanted. */
+    if (nnames == 0)
+	return rx_identity_new(RX_ID_SUPERUSER, "<printed token>",
+			       "", 0);
+    else if (nnames > 1)
+	return NULL;
+    /* XXX Need a solution for compound identities! */
+    if (namelist[0].kind == 1)
+	kind = RX_ID_KRB4;
+    else if (namelist[0].kind == 2)
+	kind = RX_ID_GSS;
+    else
+	return NULL;
+    display = malloc(namelist[0].display.len + 1);
+    if (display == NULL)
+	return NULL;
+    memcpy(display, namelist[0].display.val, namelist[0].display.len);
+    display[namelist[0].display.len] = '\0';
+    tmp = rx_identity_new(kind, display, namelist[0].data.val,
+			  namelist[0].data.len);
+    free(display);
+    return tmp;
+}
+
 static int
 process_token(RXGK_Data *tc, struct rxgk_sprivate *sp, struct rxgk_sconn *sc)
 {
@@ -362,6 +394,8 @@ process_token(RXGK_Data *tc, struct rxgk_sprivate *sp, struct rxgk_sconn *sc)
     ret = make_key(&sc->k0, token.K0.val, token.K0.len, token.enctype);
     sc->level = token.level;
     sc->expiration = token.expirationtime;
+    sc->client = prnames_to_identity(token.identities.val,
+				     token.identities.len);
     
 cleanup:
     xdr_free((xdrproc_t)xdr_RXGK_TokenContainer, &container);

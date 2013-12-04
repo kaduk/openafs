@@ -43,6 +43,7 @@
 #include <rx/rx_packet.h>
 #include <rx/xdr.h>
 #include <gssapi/gssapi.h>
+#include <rx/rx_identity.h>
 #include <rx/rxgk.h>
 
 #include "rxgk_private.h"

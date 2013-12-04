@@ -88,6 +88,7 @@ struct rxgk_sconn {
     unsigned char challenge[20];
     struct rxgkStats stats;
     rxgkTime start_time;
+    struct rx_identity *client;
     afs_uint32 key_number;
     rxgk_key k0;
 };

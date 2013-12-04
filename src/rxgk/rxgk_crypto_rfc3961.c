@@ -44,6 +44,7 @@
 #include <afsconfig.h>
 
 #include <gssapi/gssapi.h>
+#include <rx/rx_identity.h>
 #include <rx/rxgk.h>
 
 #include <afs/rfc3961.h>
