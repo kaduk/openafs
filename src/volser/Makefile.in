@@ -33,6 +33,7 @@ LIBS=\
 	${TOP_LIBDIR}/libauth.a \
 	${TOP_LIBDIR}/libcmd.a \
 	${TOP_LIBDIR}/librxkad.a \
+	@RXGK_LIBS_STATIC@ \
 	${TOP_LIBDIR}/librxstat.a \
 	${TOP_LIBDIR}/librx.a \
 	${TOP_LIBDIR}/liblwp.a \
