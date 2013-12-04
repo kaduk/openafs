@@ -113,7 +113,7 @@ gss_ikeytab_setup(char *hostname)
     ret = krb5_kt_default(ctx, &keytab);
     if (ret != 0)
 	goto cleanup;
-    ret = krb5_sname_to_principal(ctx, hostname, "afs3-bos", KRB5_NT_UNKNOWN,
+    ret = krb5_sname_to_principal(ctx, hostname, "afs3-bos", KRB5_NT_SRV_HST,
 				  &client);
     if (ret != 0)
 	goto cleanup;
