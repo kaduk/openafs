@@ -20,6 +20,11 @@
 #include <rx/xdr.h>
 #include <rx/rx.h>
 #include <rx/rx_identity.h>
+#ifdef AFS_PTHREAD_ENV
+/* XXX it is a bug to need gssapi.h here */
+#include <gssapi/gssapi.h>
+#include <rx/rxgk.h>
+#endif
 #include <afs/afsutil.h>
 #include <afs/fileutil.h>
 
@@ -708,6 +713,32 @@ rxkadSuperUser(struct afsconf_dir *adir, struct rx_call *acall,
     return kerberosSuperUser(adir, tname, tinst, tcell, identity);
 }
 
+#ifdef AFS_PTHREAD_ENV
+static int
+rxgkSuperUser(struct afsconf_dir *adir, struct rx_call *acall,
+	      struct rx_identity **identity_out)
+{
+    struct rx_identity *identity;
+    rxgkTime expiry;
+    size_t nnames;
+
+    if (rxgk_GetServerInfo(rx_ConnectionOf(acall), NULL /*level*/, &expiry,
+			   &identity) != 0)
+	return 0;
+    if (expiry < RXGK_NOW())
+	return 0;
+
+    if (afsconf_IsSuperIdentity(adir, identity)) {
+	if (identity_out != NULL)
+	    *identity_out = identity;
+	else
+	    rx_identity_free(&identity);
+	return 1;
+    }
+    return 0;
+}
+#endif
+
 /*!
  * Check whether the user authenticated on a given RX call is a super
  * user or not. If they are, return a pointer to the identity of that
@@ -747,17 +778,23 @@ afsconf_SuperIdentity(struct afsconf_dir *adir, struct rx_call *acall,
 
     tconn = rx_ConnectionOf(acall);
     code = rx_SecurityClassOf(tconn);
-    if (code == 0) {
+    if (code == RX_SECIDX_NULL) {
 	UNLOCK_GLOBAL_MUTEX;
 	return 0;		/* not authenticated at all, answer is no */
     } else if (code == 1) {
 	/* bcrypt tokens */
 	UNLOCK_GLOBAL_MUTEX;
 	return 0;		/* not supported any longer */
-    } else if (code == 2) {
+    } else if (code == RX_SECIDX_KAD) {
 	flag = rxkadSuperUser(adir, acall, identity);
 	UNLOCK_GLOBAL_MUTEX;
 	return flag;
+#ifdef AFS_PTHREAD_ENV
+    } else if (code == RX_SECIDX_GK) {
+	flag = rxgkSuperUser(adir, acall, identity);
+	UNLOCK_GLOBAL_MUTEX;
+	return flag;
+#endif
     } else {			/* some other auth type */
 	UNLOCK_GLOBAL_MUTEX;
 	return 0;		/* mysterious, just say no */

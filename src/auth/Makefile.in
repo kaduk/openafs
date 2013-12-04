@@ -21,6 +21,7 @@ LT_deps= $(top_builddir)/src/opr/liboafs_opr.la \
 	 $(top_builddir)/src/comerr/liboafs_comerr.la \
 	 $(top_builddir)/src/rx/liboafs_rx.la \
 	 $(top_builddir)/src/rxkad/liboafs_rxkad.la \
+	 $(top_builddir)/src/rxgk/liboafs_rxgk.la \
 	 $(top_builddir)/src/audit/liboafs_audit.la \
 	 $(top_builddir)/src/util/liboafs_util.la \
 	 $(top_builddir)/src/sys/liboafs_sys.la

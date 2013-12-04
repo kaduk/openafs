@@ -223,7 +223,7 @@ rxgk: cmd comerr hcrypto rx rxgk_depinstall rfc3961
 rxkad: cmd comerr hcrypto rfc3961 rx rxkad_depinstall
 	+${COMPILE_PART1} rxkad ${COMPILE_PART2}
 
-auth: cmd comerr hcrypto lwp rx rxkad audit sys auth_depinstall
+auth: cmd comerr hcrypto lwp rx rxkad rxgk audit sys auth_depinstall
 	+${COMPILE_PART1} auth ${COMPILE_PART2}
 
 ubik: cmd comerr auth ubik_depinstall sys
@@ -453,7 +453,7 @@ vlserver_depinstall: config rxgen ubik_depinstall auth_depinstall
 tvlserver_depinstall: config rxgen ubik_depinstall auth_depinstall
 	+${COMPILE_PART1} tvlserver ${COMPILE_DEPINSTALL}
 
-auth_depinstall: config rxgen comerr
+auth_depinstall: config rxgen comerr rxgk_depinstall
 	+${COMPILE_PART1} auth ${COMPILE_DEPINSTALL}
 
 fsint_depinstall: config rxgen
