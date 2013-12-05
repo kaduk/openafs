@@ -43,6 +43,7 @@
 #include <rx/rx_packet.h>
 #include <rx/xdr.h>
 #include <gssapi/gssapi.h>
+#include <errno.h>
 #include <rx/rx_identity.h>
 #include <rx/rxgk.h>
 
@@ -115,7 +116,8 @@ rxgk_NewConnection(struct rx_securityClass *aobj,
 	rx_SetSecurityData(aconn, cc);
 	/* Set the header and trailer size to be reserved for the security
          * class in each packet. */
-	rxgk_security_overhead(aconn, cp->level, cp->k0);
+	if (rxgk_security_overhead(aconn, cp->level, cp->k0) != 0)
+	    goto error;
     }
     return 0;
 error:
@@ -166,11 +168,19 @@ check_mic_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
     size_t miclen;
 
     ret = mic_length(tk, &miclen);
+    if (ret != 0)
+	return ret;
     len = rx_GetDataSize(apacket) - miclen;
     plain.val = xdr_alloc(sizeof(*header) + len);
+    if (plain.val == NULL)
+	return ENOMEM;
     plain.len = sizeof(*header) + len;
     header = plain.val;
     mic.val = xdr_alloc(miclen);
+    if (mic.val == NULL) {
+	xdr_free((xdrproc_t)xdr_RXGK_Data, &plain);
+	return ENOMEM;
+    }
     mic.len = miclen;
     rxgk_populate_header(header, apacket, rx_SecurityClassOf(aconn), len);
     rx_packetread(apacket, 0, miclen, mic.val);
@@ -181,6 +191,8 @@ check_mic_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
 
     /* Data remains untouched in-place. */
 
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &plain);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &mic);
     return ret;
 }
 
@@ -193,13 +205,20 @@ decrypt_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
 	       struct rx_packet *apacket)
 {
     RXGK_Data plain, crypt;
-    struct rxgk_header *header, *cryptheader;
+    struct rxgk_header *header = NULL, *cryptheader;
     afs_int32 ret, len;
 
+    zero_rxgkdata(&crypt);
     ret = 0;
     len = rx_GetDataSize(apacket);
     header = malloc(sizeof(*header));
+    if (header == NULL)
+	return ENOMEM;
     crypt.val = xdr_alloc(len);
+    if (crypt.val == NULL) {
+	ret = ENOMEM;
+	goto cleanup;
+    }
     crypt.len = len;
     /* XXX I don't see how securityIndex is actually what is meant */
     rxgk_populate_header(header, apacket, rx_SecurityClassOf(aconn), len);
@@ -207,19 +226,26 @@ decrypt_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
 
     /* The actual encryption */
     ret = decrypt_in_key(tk, keyusage, &crypt, &plain);
+    if (ret != 0)
+	goto cleanup;
     cryptheader = plain.val;
 
     /* Verify the encrypted header */
     header->length = cryptheader->length;
     ret = memcmp(header, cryptheader, sizeof(*header));
-    if (ret != 0)
+    if (ret != 0) {
 	ret = RXGK_SEALED_INCON;
+	goto cleanup;
+    }
 
     /* Now, put the data back. */
     len = ntohl(cryptheader->length) + sizeof(*header);
     rx_packetwrite(apacket, 0, len, plain.val);
     /* rx_SetDataSize(apacket, len); */
 
+cleanup:
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &crypt);
+    free(header);
     return ret;
 }
 
@@ -290,14 +316,16 @@ rxgk_CheckPacket(struct rx_securityClass *aobj, struct rx_call *acall,
 	return ret;
     ret = derive_tk(&tk, k0, rx_GetConnectionEpoch(aconn),
 		    rx_GetConnectionId(aconn), start_time, kvno);
+    if (ret != 0)
+	return ret;
     keyusage = pick_recv_keyusage(isserver, level);
     if (keyusage == -1)
 	return RXGK_INCONSISTENCY;
 
     switch(level) {
 	case RXGK_LEVEL_CLEAR:
-	    ret = 0;
-	    break;
+	    /* Do not fall through to the kvno update with no crypto. */
+	    return 0;
 	case RXGK_LEVEL_AUTH:
 	    ret = check_mic_packet(tk, keyusage, aconn, apacket);
 	    break;
@@ -325,26 +353,38 @@ mic_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
     RXGK_Data plain, mic;
     struct rxgk_header *header;
     afs_int32 len, miclen;
+    int ret;
 
+    zero_rxgkdata(&mic);
+    zero_rxgkdata(&plain);
     len = rx_GetDataSize(apacket);
     miclen = rx_GetSecurityHeaderSize(aconn);
     plain.val = xdr_alloc(sizeof(*header) + len);
+    if (plain.val == NULL)
+	return ENOMEM;
     plain.len = sizeof(*header) + len;
     header = plain.val;
     rxgk_populate_header(header, apacket, rx_SecurityClassOf(aconn), len);
     rx_packetread(apacket, miclen, len, plain.val + sizeof(*header));
 
     /* The actual mic */
-    mic_in_key(tk, keyusage, &plain, &mic);
+    ret = mic_in_key(tk, keyusage, &plain, &mic);
+    if (ret != 0)
+	goto cleanup;
 
-    if (mic.len != miclen)
-	return RXGK_INCONSISTENCY;
+    if (mic.len != miclen) {
+	ret = RXGK_INCONSISTENCY;
+	goto cleanup;
+    }
 
     /* Now, put the data back. */
     rx_packetwrite(apacket, 0, mic.len, mic.val);
     rx_SetDataSize(apacket, mic.len + len);
 
-    return 0;
+cleanup:
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &plain);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &mic);
+    return ret;
 }
 
 /*
@@ -360,8 +400,14 @@ enc_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
     struct rxgk_header *header;
     afs_int32 ret, len;
 
+    zero_rxgkdata(&plain);
+    zero_rxgkdata(&crypt);
     len = rx_GetDataSize(apacket);
     plain.val = xdr_alloc(sizeof(*header) + len);
+    if (plain.val == NULL) {
+	ret = ENOMEM;
+	goto cleanup;
+    }
     plain.len = sizeof(*header) + len;
     header = plain.val;
     rx_packetread(apacket, 0, len + sizeof(*header), plain.val);
@@ -370,13 +416,18 @@ enc_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
 
     /* The actual encryption */
     ret = encrypt_in_key(tk, keyusage, &plain, &crypt);
+    if (ret != 0)
+	goto cleanup;
 
     /* Now, put the data back. */
     rxi_RoundUpPacket(apacket, crypt.len - plain.len);
     rx_packetwrite(apacket, 0, crypt.len, crypt.val);
     rx_SetDataSize(apacket, crypt.len);
 
-    return 0;
+cleanup:
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &plain);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &crypt);
+    return ret;
 }
 
 static_inline afs_int32
@@ -444,6 +495,8 @@ rxgk_PreparePacket(struct rx_securityClass *aobj, struct rx_call *acall,
     rx_SetPacketCksum(apacket, htons(wkvno));
     ret = derive_tk(&tk, k0, rx_GetConnectionEpoch(aconn),
 		    rx_GetConnectionId(aconn), start_time, lkvno);
+    if (ret != 0)
+	return ret;
     keyusage = pick_send_keyusage(isserver, level);
     if (keyusage == -1)
 	return RXGK_INCONSISTENCY;

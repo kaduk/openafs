@@ -1,4 +1,4 @@
-/* rxgk/rxgk_crypto.c - Wrappers for RFC3961 crypto usd in RXGK. */
+/* rxgk/rxgk_crypto_rfc3961.c - Wrappers for RFC3961 crypto usd in RXGK. */
 /*
  * Copyright (C) 2013 by the Massachusetts Institute of Technology.
  * All rights reserved.
@@ -205,6 +205,8 @@ random_key(afs_int32 enctype, rxgk_key *key_out)
 	goto out;
     krb5_generate_random_block(buf, (size_t)len);
     ret = krb5_keyblock_init(ctx, enctype, buf, len, keyblock);
+    if (ret != 0)
+	goto out;
 
     *key_out = keyblock;
     keyblock = NULL;
@@ -288,7 +290,7 @@ mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
     krb5_context ctx;
     Checksum cksum;
     krb5_cksumtype cstype;
-    krb5_crypto crypto;
+    krb5_crypto crypto = NULL;
     Checksum ck_out;
     krb5_enctype enctype;
     krb5_error_code ret;
@@ -296,6 +298,7 @@ mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
     size_t len;
 
     memset(&cksum, 0, sizeof(cksum));
+    memset(&ck_out, 0, sizeof(ck_out));
     zero_rxgkdata(out);
 
     ret = krb5_init_context(&ctx);
@@ -349,7 +352,7 @@ check_mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *mic)
 {
     krb5_context ctx;
     Checksum cksum;
-    krb5_crypto crypto;
+    krb5_crypto crypto = NULL;
     krb5_enctype enctype;
     krb5_error_code ret;
     krb5_keyblock *keyblock = (krb5_keyblock *)key;
@@ -410,6 +413,8 @@ encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in, RXGK_Data *out)
     if (ret != 0)
 	goto cleanup;
     ret = krb5_encrypt(ctx, crypto, usage, in->val, in->len, &kd_out);
+    if (ret != 0)
+	goto cleanup;
     length = kd_out.length;
     out->val = xdr_alloc(length);
     if (out->val == NULL) {
@@ -486,7 +491,7 @@ PRFplus(krb5_data *out, krb5_enctype enctype, rxgk_key k0,
 	ssize_t desired_len, void *seed, size_t seed_len)
 {
     krb5_context ctx;
-    krb5_crypto crypto;
+    krb5_crypto crypto = NULL;
     krb5_data prf_in, prf_out;
     krb5_error_code ret;
     krb5_keyblock *keyblock = k0;

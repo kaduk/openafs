@@ -33,10 +33,16 @@
  * Server-side RPC procedures for RXGK.
  */
 
+#include <afsconfig.h>
+#include <afs/param.h>
+#include <afs/stds.h>
+
 #include <gssapi/gssapi.h>
 #include <gssapi/gssapi_krb5.h>
 #include <errno.h>
 
+#include <rx/rx.h>
+#include <rx/rx_identity.h>
 #include <rx/rxgk.h>
 
 #include "rxgk_private.h"
@@ -137,7 +143,7 @@ get_expiration(rxgkTime start, afs_uint32 gss_lifetime)
  * Copy the fields from a TokenInfo into a ClientInfo.
  * ClientInfo is a superset of TokenInfo.
  */
-static void
+static_inline void
 tokeninfo_to_clientinfo(RXGK_ClientInfo *client, RXGK_TokenInfo *local)
 {
 
@@ -170,6 +176,7 @@ mic_startparams(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
     xdrlen_create(&xdrs);
     if (!xdr_RXGK_StartParams(&xdrs, client_start)) {
 	ret = GSS_S_FAILURE;
+	*gss_minor_status = RXGEN_SS_MARSHAL;
 	dprintf(2, "xdrlen for StartParams says they are invalid\n");
 	goto out;
     }
@@ -179,12 +186,14 @@ mic_startparams(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
     startparams.value = malloc(len);
     if (startparams.value == NULL) {
 	dprintf(2, "Couldn't allocate for encoding StartParams\n");
+	*gss_minor_status = ENOMEM;
 	return GSS_S_FAILURE;
     }
     startparams.length = len;
     xdrmem_create(&xdrs, startparams.value, len, XDR_ENCODE);
     if (!xdr_RXGK_StartParams(&xdrs, client_start)) {
 	ret = GSS_S_FAILURE;
+	*gss_minor_status = RXGEN_SS_MARSHAL;
 	dprintf(2, "xdrmem for StartParams says they are invalid\n");
 	goto out;
     }
@@ -197,6 +206,7 @@ mic_startparams(afs_uint32 *gss_minor_status, gss_ctx_id_t gss_ctx,
     /* Must double-buffer here, as GSS allocations might not be freed by XDR. */
     mic->val = xdr_alloc(mic_buffer.length);
     if (mic->val == NULL) {
+	*gss_minor_status = ENOMEM;
 	dprintf(2, "No memory for RXGK_Data mic\n");
 	goto out;
     }
@@ -370,6 +380,8 @@ get_long_term_key(struct rx_call *acall, rxgk_key *key, afs_int32 *kvno,
     svc = rx_ServiceOf(conn);
     gk = rx_GetServiceSpecific(svc, RXGK_NEG_SSPECIFIC_GETKEY);
 
+    if (gk == NULL || gk->getkey == NULL)
+	return RXGK_INCONSISTENCY;
     return (*gk->getkey)(gk->rock, kvno, enctype, key);
 }
 
@@ -590,6 +602,7 @@ SRXGK_CombineTokens(struct rx_call *z_call, RXGK_Data *token0,
     char *tmp;
 
     /* XXXBJK This routine is a stub implementation */
+return RXGEN_OPCODE;
 
     /* fill in the new_token */
     len = 8;
@@ -622,5 +635,5 @@ SRXGK_AFSCombineTokens(struct rx_call *z_call, RXGK_Data *token0,
 {
     /* XXXBJK This routine is a stub implementation */
 
-    return 0;
+    return RXGEN_OPCODE;
 }

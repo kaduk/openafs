@@ -43,6 +43,7 @@
 #include <gssapi/gssapi_krb5.h>
 #include <errno.h>
 #include <rx/rx.h>
+#include <rx/rx_identity.h>
 #include <rx/rxgk.h>
 #include <rx/rx_packet.h>
 #include <hcrypto/rand.h>
@@ -165,12 +166,16 @@ rxgk_make_k0(afs_uint32 *minor_status, gss_ctx_id_t gss_ctx,
     afs_uint32 ret;
 
     len = etype_to_len(enctype);
-    if (len == -1)
+    if (len == -1) {
+	*minor_status = RXGK_BADETYPE;
 	return GSS_S_FAILURE;
+    }
     seed.length = client_nonce->len + server_nonce->len;
     seed.value = malloc(seed.length);
-    if (seed.value == NULL)
+    if (seed.value == NULL) {
+	*minor_status = ENOMEM;
 	return GSS_S_FAILURE;
+    }
     memcpy(seed.value, client_nonce->val, client_nonce->len);
     memcpy(seed.value + client_nonce->len, server_nonce->val, server_nonce->len);
 

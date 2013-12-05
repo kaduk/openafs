@@ -741,7 +741,9 @@ rxgk_GetResponse(struct rx_securityClass *aobj, struct rx_connection *aconn,
     ret = pack_wrap_authenticator(&encdata, &authenticator, cp, cc);
     if (ret != 0)
 	goto cleanup;
-    rx_opaque_populate(&response.authenticator, encdata.val, encdata.len);
+    ret = rx_opaque_populate(&response.authenticator, encdata.val, encdata.len);
+    if (ret != 0)
+	goto cleanup;
     /* Put the kvno we used on the wire for the remote end. */
     rx_SetPacketCksum(apacket, htons((afs_uint16)cc->key_number));
 

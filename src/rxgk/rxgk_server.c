@@ -126,6 +126,8 @@ rxgk_NewService_SecObj(u_short port, struct rx_service **service_out,
 	return RX_INVALID_OPERATION;
 
     gk = calloc(1, sizeof(*gk));
+    if (gk == NULL)
+	return ENOMEM;
 
     so = rxgk_NewServerSecurityObject(getkey_rock, getkey);
     service = rx_NewService(port, svc, serviceName, secObjs, nsecObjs,
@@ -392,6 +394,8 @@ process_token(RXGK_Data *tc, struct rxgk_sprivate *sp, struct rxgk_sconn *sc)
     if (sc->k0 != NULL)
 	release_key(&sc->k0);
     ret = make_key(&sc->k0, token.K0.val, token.K0.len, token.enctype);
+    if (ret != 0)
+	goto cleanup;
     sc->level = token.level;
     sc->expiration = token.expirationtime;
     sc->client = prnames_to_identity(token.identities.val,
