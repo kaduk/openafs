@@ -39,6 +39,7 @@
 #include <afs/param.h>
 #include <afs/stds.h>
 
+#include <ctype.h>
 #include <gssapi/gssapi.h>
 #include <gssapi/gssapi_krb5.h>
 #include <errno.h>
@@ -101,6 +102,7 @@ rxgk_set_gss_specific(struct rx_service *svc, char *svcname, char *host,
     gss_buffer_desc name_buf = GSS_C_EMPTY_BUFFER;
     afs_int32 ret;
     afs_uint32 major, minor, time_rec;
+    int i;
 
     if (svc == NULL || svcname == NULL || host == NULL)
 	return RXGK_INCONSISTENCY;
@@ -116,6 +118,8 @@ rxgk_set_gss_specific(struct rx_service *svc, char *svcname, char *host,
     ret = asprintf(&string_name, "%s@%s", svcname, host);
     if (ret < 0)
 	goto cleanup;
+    for(i = 0; i < strlen(string_name); ++i)
+	string_name[i] = tolower(string_name[i]);
     name_buf.value = string_name;
     name_buf.length = strlen(string_name);
     major = gss_import_name(&minor, &name_buf, GSS_C_NT_HOSTBASED_SERVICE,
