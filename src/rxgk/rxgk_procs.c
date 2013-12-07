@@ -129,11 +129,11 @@ get_expiration(rxgkTime start, afs_uint32 gss_lifetime)
 	/* We've been processing for 5 seconds?! */
 	dprintf(2, "extended SRXGK_GSSNegotiation processing\n");
 	/* five minutes only */
-	ret = start + 5 * 60 * 1000 * 1000 * 10;
+	ret = start + (rxgkTime)5 * 60 * 1000 * 1000 * 10;
     }
     if (now < start) {
 	/* time went backwards */
-	ret = now + 5 * 60 * 1000 * 1000 * 10;
+	ret = now + (rxgkTime)5 * 60 * 1000 * 1000 * 10;
     }
 
     return ret;
