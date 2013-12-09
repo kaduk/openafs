@@ -528,12 +528,12 @@ enum RXGK_Level {
     };
 
     struct RXGK_TokenInfo {
-        RXGK_Enctype enctype;
+        int enctype;
         RXGK_Level level;
         unsigned int lifetime;
         unsigned int bytelife;
         rxgkTime expiration;
-    }
+    };
 
     CombineTokens(IN RXGK_Data *token0, IN RXGK_Data *token1,
                   IN RXGK_CombineOptions *options,
@@ -689,7 +689,7 @@ enum RXGK_Level {
         <t>The rxgk response is an XDR encoded structure, with the following 
        signature:
 <figure><artwork>
-    const RXGK_MAXAUTHENTICATOR = 1416	/* better fit in a packet! */
+    const RXGK_MAXAUTHENTICATOR = 1416;	/* better fit in a packet! */
     struct RXGK_Response {
         rxgkTime start_time;
         RXGK_Data token;
@@ -709,7 +709,7 @@ enum RXGK_Level {
               <artwork>
     struct RXGK_Authenticator {
 	opaque nonce[20];
-	opaque appdata&lt;&gt;
+	opaque appdata&lt;&gt;;
 	RXGK_Level level;
 	unsigned int epoch;
 	unsigned int cid;
