@@ -90,4 +90,16 @@ afs_int32 rxgk_derive_tk(rxgk_key *tk, rxgk_key k0, afs_uint32 epoch,
 afs_int32 rxgk_cipher_expansion(rxgk_key k0, int *len_out);
 afs_int32 rxgk_nonce(struct rx_opaque *nonce, int len);
 
+/* rxgk_token.c */
+afs_int32 rxgk_make_token(struct rx_opaque *out, RXGK_TokenInfo *info,
+			  struct rx_opaque *k0, rxgkTime start,
+			  PrAuthName *identities, int nids, rxgk_key key,
+			  afs_int32 kvno, afs_int32 enctype);
+afs_int32 rxgk_print_token(struct rx_opaque *out, RXGK_TokenInfo *input_info,
+			   struct rx_opaque *k0, rxgk_key key, afs_int32 kvno,
+			   afs_int32 enctype);
+afs_int32 rxgk_print_token_and_key(struct rx_opaque *out, RXGK_Level level,
+				   rxgk_key key, afs_int32 kvno,
+				   afs_int32 enctype, rxgk_key *k0_out);
+
 #endif /* OPENAFS_RXGK_H */

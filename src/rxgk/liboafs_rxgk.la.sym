@@ -14,3 +14,6 @@ rxgk_decrypt_in_key
 rxgk_derive_tk
 rxgk_cipher_expansion
 rxgk_nonce
+rxgk_make_token
+rxgk_print_token
+rxgk_print_token_and_key
