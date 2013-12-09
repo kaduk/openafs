@@ -42,6 +42,9 @@
 /* Pull in the protocol description */
 #include <rx/rxgk_int.h>
 
+/* RX-internal headers we depend on. */
+#include <rx/rx_opaque.h>
+
 /* rxgk_key is an opaque type to wrap our RFC3961 implementation's concept
  * of a key.  It has (at least) the keyblock and length, kvno, and enctype. */
 typedef void * rxgk_key;
@@ -57,5 +60,26 @@ struct rx_securityClass *rxgk_NewClientSecurityObject(RXGK_Level level,
 						      rxgk_key k0,
 						      RXGK_Data *token,
 						      afsUUID *uuid);
+
+/* rxgk_crypto_XXX.c */
+afs_int32 rxgk_make_key(rxgk_key *key_out, void *raw_key, afs_int32 length,
+			afs_int32 enctype);
+afs_int32 rxgk_copy_key(rxgk_key key_in, rxgk_key *key_out);
+afs_int32 rxgk_random_key(afs_int32 enctype, rxgk_key *key_out);
+void rxgk_release_key(rxgk_key *key);
+afs_int32 rxgk_mic_length(rxgk_key key, size_t *out);
+afs_int32 rxgk_mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
+			  struct rx_opaque *out);
+afs_int32 rxgk_check_mic_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
+				RXGK_Data *mic);
+afs_int32 rxgk_encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
+			      struct rx_opaque *out);
+afs_int32 rxgk_decrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
+			      struct rx_opaque *out);
+afs_int32 rxgk_derive_tk(rxgk_key *tk, rxgk_key k0, afs_uint32 epoch,
+			 afs_uint32 cid, rxgkTime start_time,
+			 afs_uint32 key_number);
+afs_int32 rxgk_cipher_expansion(rxgk_key k0, int *len_out);
+afs_int32 rxgk_nonce(struct rx_opaque *nonce, int len);
 
 #endif /* OPENAFS_RXGK_H */
