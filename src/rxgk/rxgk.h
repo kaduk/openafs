@@ -103,6 +103,18 @@ afs_int32 rxgk_combine_keys_data(RXGK_Data *k0_data, afs_int32 e0,
 				 RXGK_Data *k1_data, afs_int32 e1,
 				 RXGK_Data * /* kn_data */, afs_int32 en);
 
+/* rxgk_token.c */
+afs_int32 rxgk_make_token(struct rx_opaque *out, RXGK_TokenInfo *info,
+			  struct rx_opaque *k0, PrAuthName *identities,
+			  int nids, rxgk_key key, afs_int32 kvno,
+			  afs_int32 enctype);
+afs_int32 rxgk_print_token(struct rx_opaque *out, RXGK_TokenInfo *input_info,
+			   struct rx_opaque *k0, rxgk_key key, afs_int32 kvno,
+			   afs_int32 enctype);
+afs_int32 rxgk_print_token_and_key(struct rx_opaque *out, RXGK_Level level,
+				   rxgk_key key, afs_int32 kvno,
+				   afs_int32 enctype, rxgk_key *k0_out);
+
 /* rxgk_util.c */
 #ifndef KERNEL
 afs_int32 rxgk_set_getkey_specific(struct rx_service *svc,

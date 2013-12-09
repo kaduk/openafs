@@ -148,6 +148,20 @@ struct rxgk_cconn {
 /* rxgk_crypto_XXX.c */
 ssize_t etype_to_len(int etype);
 
+/* rxgk_token.c */
+afs_int32 copy_ids(struct PrAuthName *out, struct PrAuthName *in, u_int n);
+afs_int32 join_ids(struct PrAuthName *id0, u_int nid0, struct PrAuthName *id1,
+		   u_int nid1, struct PrAuthName **ids_out, int *nid_out);
+afs_int32 rxgk_combinetokens_common(struct rx_call *z_call, RXGK_Token *t0,
+				    RXGK_Token *t1,
+				    RXGK_CombineOptions *options,
+				    RXGK_Data *new_token, RXGK_TokenInfo *info,
+				    struct PrAuthName *user_ids,
+				    afs_int32 nuid, rxgk_key encrypt_key,
+				    afs_int32 kvno, afs_int32 enctype);
+afs_int32 rxgk_extract_token(RXGK_Data *tc, RXGK_Token *out,
+                             rxgk_getkey_func getkey, void *rock);
+
 /* rxgk_util.c */
 void rxgk_populate_header(struct rxgk_header *header, struct rx_packet *apacket,
 			  afs_int32 index, afs_uint32 length);
