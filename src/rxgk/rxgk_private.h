@@ -124,4 +124,7 @@ struct rxgk_cconn {
     struct rxgkStats stats;
 };
 
+/* rxgk_crypto_XXX.c */
+ssize_t etype_to_len(int etype);
+
 #endif /* RXGK_PRIVATE_H */
