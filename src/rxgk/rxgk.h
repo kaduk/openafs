@@ -45,6 +45,18 @@
 /* RX-internal headers we depend on. */
 #include <rx/rx_opaque.h>
 
+/** Get the current timestamp as an rxgkTime. */
+static_inline rxgkTime RXGK_NOW(void)
+{
+    struct timeval tv;
+    osi_GetTime(&tv);
+    return (rxgkTime)tv.tv_sec * 10000000 + (rxgkTime)tv.tv_usec * 10;
+}
+/* Helper to avoid having to count zeros. */
+static_inline rxgkTime secondsToRxgkTime(afs_int32 seconds) {
+    return (seconds * (rxgkTime)10000000);
+}
+
 /* rxgk_key is an opaque type to wrap our RFC3961 implementation's concept
  * of a key.  It has (at least) the keyblock and length, and enctype. */
 typedef void * rxgk_key;
