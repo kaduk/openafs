@@ -62,6 +62,15 @@ struct rxgk_sprivate {
     rxgk_getkey_func getkey;
 };
 /*
+ * We also need to put the getkey function into a service-specific data,
+ * so that SRXGK_GSSNegotiate can get at the token-encrypting key when
+ * producing tokens.
+ */
+struct rxgk_getkey_sspecific_data {
+    rxgk_getkey_func getkey;
+    void *rock;
+};
+/*
  * Per-connection security data for the server.
  * Security level, authentication state, expiration, the current challenge
  * nonce, status, the connection start time and current key derivation key
@@ -107,5 +116,14 @@ struct rxgk_cconn {
     afs_uint32 key_number;
     struct rxgkStats stats;
 };
+
+#ifndef KERNEL
+/* rxgk_gss.c */
+afs_int32 SGSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
+			RXGK_Data *input_token_buffer, RXGK_Data *opaque_in,
+			RXGK_Data *output_token_buffer, RXGK_Data *opaque_out,
+			u_int *gss_major_status, u_int *gss_minor_status,
+			RXGK_Data *rxgk_info);
+#endif
 
 #endif /* RXGK_PROTOTYPES_H */
