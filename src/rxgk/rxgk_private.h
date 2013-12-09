@@ -148,6 +148,13 @@ struct rxgk_cconn {
 /* rxgk_crypto_XXX.c */
 ssize_t etype_to_len(int etype);
 
+/* rxgk_gss.c */
+afs_int32 SGSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
+			RXGK_Data *input_token_buffer, RXGK_Data *opaque_in,
+			RXGK_Data *output_token_buffer, RXGK_Data *opaque_out,
+			u_int *gss_major_status, u_int *gss_minor_status,
+			RXGK_Data *rxgk_info);
+
 /* rxgk_token.c */
 afs_int32 copy_ids(struct PrAuthName *out, struct PrAuthName *in, u_int n);
 afs_int32 join_ids(struct PrAuthName *id0, u_int nid0, struct PrAuthName *id1,
