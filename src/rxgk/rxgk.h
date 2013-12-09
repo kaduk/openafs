@@ -64,8 +64,12 @@ typedef void * rxgk_key;
 typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 *kvno,
 				      afs_int32 *enctype, rxgk_key *key);
 
+/* The rx service ID for the RXGK_ RPCs. */
+#define RXGK_SERVICE_ID	34567
+
 /* Indices for the service-specific data we attach to the rxgk service. */
 #define RXGK_NEG_SSPECIFIC_GETKEY	0
+#define RXGK_NEG_SSPECIFIC_GSS		1
 
 /* rxgk_server.c */
 struct rx_securityClass * rxgk_NewServerSecurityObject(void *getkey_rock,
@@ -101,7 +105,15 @@ afs_int32 rxgk_combine_keys(rxgk_key k0, rxgk_key k1, afs_int32 enctype,
 			    rxgk_key *kn);
 afs_int32 rxgk_combine_keys_data(RXGK_Data *k0_data, afs_int32 e0,
 				 RXGK_Data *k1_data, afs_int32 e1,
-				 RXGK_Data * /* kn_data */, afs_int32 en);
+				 RXGK_Data *rkn_data, afs_int32 en);
+/* rxgk_gss.c */
+afs_int32 rxgk_get_token(char *sname, char *hostname, afs_uint32 addr,
+			 u_short port, RXGK_Level level,
+			 RXGK_TokenInfo *return_info, RXGK_Data *return_k0,
+			 RXGK_Data *return_token);
+afs_int32 rxgk_set_gss_specific(struct rx_service *svc, char *svcname,
+				char *host, char *keytab);
+
 
 /* rxgk_token.c */
 afs_int32 rxgk_make_token(struct rx_opaque *out, RXGK_TokenInfo *info,

@@ -8,6 +8,7 @@ rxgk_copy_key
 rxgk_decrypt_in_key
 rxgk_derive_tk
 rxgk_encrypt_in_key
+rxgk_get_token
 rxgk_make_key
 rxgk_make_token
 rxgk_mic_in_key
@@ -18,3 +19,4 @@ rxgk_print_token_and_key
 rxgk_random_key
 rxgk_release_key
 rxgk_set_getkey_specific
+rxgk_set_gss_specific
