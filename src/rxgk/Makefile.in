@@ -3,19 +3,21 @@ include @TOP_OBJDIR@/src/config/Makefile.config
 include @TOP_OBJDIR@/src/config/Makefile.lwp
 include @TOP_OBJDIR@/src/config/Makefile.lwptool
 
+MODULE_CFLAGS= $(CPPFLAGS_gssapi)
+
 INCLS=	${TOP_INCDIR}/rx/rx.h ${TOP_INCDIR}/rx/rxgk.h ${TOP_INCDIR}/rx/rxgk_errs.h \
 	${TOP_INCDIR}/rx/rxgk_int.h
 
 LT_objs = rxgk_client.lo rxgk_server.lo rxgk_errs.lo rxgk_int.cs.lo \
 	rxgk_int.xdr.lo rxgk_int.ss.lo rxgk_procs.lo rxgk_token.lo \
-	rxgk_util.lo rxgk_crypto_rfc3961.lo
+	rxgk_gss.lo rxgk_util.lo rxgk_crypto_rfc3961.lo
 
 LT_deps =   $(top_builddir)/src/opr/liboafs_opr.la \
 	    $(top_builddir)/src/comerr/liboafs_comerr.la \
 	    $(top_builddir)/src/rx/liboafs_rx.la \
 	    $(top_builddir)/src/crypto/rfc3961/liboafs_rfc3961.la
 
-LT_libs =   # gssapi will go here
+LT_libs =   $(RXGK_GSSAPI_LIBS)
 
 all: depinstall rxgk_int.cs.c rxgk_int.ss.c rxgk_int.xdr.c rxgk_int.h \
 	${LT_objs} liboafs_rxgk.la librxgk_pic.la ${TOP_LIBDIR}/librxgk.a
