@@ -92,7 +92,13 @@ struct rx_securityClass *rxgk_NewClientSecurityObject(RXGK_Level level,
 						      afs_int32 enctype,
 						      rxgk_key k0,
 						      RXGK_Data *token,
-						      afsUUID *uuid);
+						      afsUUID *client_uuid,
+						      afsUUID *target_uuid);
+struct rx_securityClass *rxgk_NegotiateSecurityObject(RXGK_Level level,
+						      afsUUID *uuid,
+						      u_short port, char *svc,
+						      char *hostname,
+						      afs_uint32 addr);
 
 /* rxgk_crypto_XXX.c */
 afs_int32 rxgk_make_key(rxgk_key *key_out, void *raw_key, afs_uint32 length,
