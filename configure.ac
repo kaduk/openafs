@@ -62,6 +62,7 @@ AS_IF([test x"$KRB5_LIBS" != x],
 	krb5_free_keytab_entry_contents \
 	krb5_free_unparsed_name \
 	krb5_get_init_creds_opt_alloc \
+	krb5_get_init_creds_opt_set_out_ccache \
 	krb5_get_prompt_types \
 	krb5_princ_size \
 	krb5_principal_get_comp_string])
