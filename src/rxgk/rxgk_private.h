@@ -181,4 +181,15 @@ afs_int32 rxgk_service_get_long_term_key(struct rx_call *acall, rxgk_key *key,
 					 afs_int32 *kvno, afs_int32 *enctype);
 #endif
 
+/* rxgk_packet.c */
+int rxgk_check_mic_packet(rxgk_key tk, afs_int32 keyusage,
+			  struct rx_connection *aconn,
+			  struct rx_packet *apacket);
+int rxgk_decrypt_packet(rxgk_key tk, afs_int32 keyusage,
+			struct rx_connection *aconn, struct rx_packet *apacket);
+int rxgk_mic_packet(rxgk_key tk, afs_int32 keyusage,
+		    struct rx_connection *aconn, struct rx_packet *apacket);
+int rxgk_enc_packet(rxgk_key tk, afs_int32 keyusage,
+		    struct rx_connection *aconn, struct rx_packet *apacket);
+
 #endif /* RXGK_PRIVATE_H */
