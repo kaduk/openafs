@@ -47,6 +47,16 @@ struct rxgkStats {
     afs_uint32 psent;
 };
 
+/* The packet pseudoheader used for auth and crypt connections. */
+struct rxgk_header {
+    afs_int32 epoch;
+    afs_int32 cid;
+    afs_int32 callNumber;
+    afs_uint32 seq;
+    afs_int32 index;
+    afs_uint32 length;
+} __attribute__((packed));
+
 /*
  * rgxk_server.c
  */
@@ -125,5 +135,13 @@ afs_int32 SGSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 			u_int *gss_major_status, u_int *gss_minor_status,
 			RXGK_Data *rxgk_info);
 #endif
+
+/* rxgk_util.c */
+void rxgk_populate_header(struct rxgk_header *header, struct rx_packet *apacket,
+			  afs_int32 index, afs_uint32 length);
+afs_int32 rxgk_security_overhead(struct rx_connection *aconn, RXGK_Level level,
+				 rxgk_key k0);
+afs_int32 rxgk_key_number(afs_uint16 wire, afs_uint32 local, afs_uint32 *real);
+void rxgk_update_kvno(struct rx_connection *aconn, afs_uint32 kvno);
 
 #endif /* RXGK_PROTOTYPES_H */
