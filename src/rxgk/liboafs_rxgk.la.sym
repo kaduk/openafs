@@ -19,3 +19,8 @@ rxgk_print_token
 rxgk_print_token_and_key
 rxgk_get_token
 rxgk_set_gss_specific
+rxgk_NewServerSecurityObject
+rxgk_set_getkey_specific
+rxgk_NewService_SecObj
+rxgk_NewEphemeralService_SecObj
+rxgk_GetServerInfo
