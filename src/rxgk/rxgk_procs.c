@@ -50,7 +50,15 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 		   afs_uint32 *gss_major_status, afs_uint32 *gss_minor_status,
 		   RXGK_Data *rxgk_info)
 {
+#ifdef KERNEL
+    /* No libgssapi in the kernel. */
     return RXGEN_OPCODE;
+#else
+    /* The actual backend for this routine is in rxgk_gss.c. */
+    return SGSSNegotiate(z_call, client_start, input_token_buffer, opaque_in,
+			 output_token_buffer, opaque_out, gss_major_status,
+			 gss_minor_status, rxgk_info);
+#endif
 }
 
 
