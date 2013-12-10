@@ -22,6 +22,15 @@
 #include <afs/cellconfig.h>
 #include <rx/rx.h>
 #include <rx/xdr.h>
+#if defined(AFS_PTHREAD_ENV) && defined(ENABLE_RXGK)
+# ifdef HAVE_GSSAPI_GSSAPI_H
+#  include <gssapi/gssapi.h>
+#  ifdef HAVE_GSSAPI_GSSAPI_KRB5_H
+#   include <gssapi/gssapi_krb5.h>
+#  endif
+# endif
+# include <rx/rxgk.h>
+#endif
 #include <afs/auth.h>
 #include <afs/cellconfig.h>
 #include <afs/cmd.h>
@@ -77,6 +86,62 @@ DateOf(time_t atime)
     return tbuffer;
 }
 
+#if defined(AFS_PTHREAD_ENV) && defined(ENABLE_RXGK)
+/*
+ * Possibly not needed with heimdal, which will reach into the keytab
+ * for a given name in gss_init_sec_context, if the keytab is readable,
+ * without prompting?
+ * A better solution on MIT is to use gss_acquire_cred_from(), but
+ * it's unclear we need this behavior at all and this is pretty far
+ * in the call stack from where we actually have a credential object.
+ */
+static void
+gss_ikeytab_setup(char *hostname)
+{
+#ifdef HAVE_GSS_KRB5_CCACHE_NAME
+#ifdef HAVE_KRB5_GET_INIT_CREDS_OPT_SET_OUT_CCACHE
+    afs_uint32 minor;
+    krb5_error_code ret;
+    krb5_ccache ccache = NULL;
+    krb5_context ctx;
+    krb5_creds creds;
+    krb5_get_init_creds_opt *opt;
+    krb5_keytab keytab = NULL;
+    krb5_principal client = NULL;
+    char *ccname = "MEMORY:localauth";
+
+    if (krb5_init_context(&ctx) != 0)
+	return;
+    ret = krb5_get_init_creds_opt_alloc(ctx, &opt);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_kt_default(ctx, &keytab);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_sname_to_principal(ctx, hostname, "afs3-bos", KRB5_NT_SRV_HST,
+				  &client);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_cc_resolve(ctx, ccname, &ccache);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_get_init_creds_opt_set_out_ccache(ctx, opt, ccache);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_get_init_creds_keytab(ctx, &creds, client, keytab, 0, NULL, opt);
+    if (ret != 0)
+	goto cleanup;
+
+    (void)gss_krb5_ccache_name(&minor, ccname, NULL);
+cleanup:
+    krb5_get_init_creds_opt_free(ctx, opt);
+    krb5_kt_close(ctx, keytab);
+    krb5_free_principal(ctx, client);
+    krb5_free_context(ctx);
+#endif
+#endif
+}
+#endif	/* defined(AFS_PTHREAD_ENV) && defined(ENABLE_RXGK) */
 
 /* use the syntax descr to get a connection, authenticated appropriately.
  * aencrypt is set if we want to encrypt the data on the wire.
@@ -95,6 +160,9 @@ GetConn(struct cmd_syndesc *as, int aencrypt)
     afsconf_secflags secFlags;
     struct rx_securityClass *sc;
     afs_int32 scIndex;
+#if defined(AFS_PTHREAD_ENV) && defined(ENABLE_RXGK)
+    RXGK_Level level;
+#endif
 
     hostname = as->parms[0].items->data;
     th = hostutil_GetHostByName(hostname);
@@ -132,12 +200,36 @@ GetConn(struct cmd_syndesc *as, int aencrypt)
     if (as->parms[ADDPARMOFFSET].items) /* -cell */
         cellname = as->parms[ADDPARMOFFSET].items->data;
 
-    code = afsconf_PickClientSecObj(tdir, secFlags, NULL, cellname,
-				    &sc, &scIndex, NULL);
-    if (code) {
-	afs_com_err("bos", code, "(configuring connection security)");
-	exit(1);
+#if defined(AFS_PTHREAD_ENV) && defined(ENABLE_RXGK)
+    if (as->parms[ADDPARMOFFSET + 3].items) {	/* -rxgk */
+	if (aencrypt)
+	    level = RXGK_LEVEL_CRYPT;
+	else
+	    level = RXGK_LEVEL_AUTH;
+	if (as->parms[ADDPARMOFFSET + 2].items) { /* -localauth */
+	    /* Fake up credentials for negotiating, using the acceptor keytab
+	     * to get initiator creds. */
+	    gss_ikeytab_setup(hostname);
+	}
+	sc = rxgk_NegotiateSecurityObject(level, NULL,
+					  htons(AFSCONF_NANNYPORT),
+					  "afs3-bos", hostname, addr);
+	scIndex = RX_SECIDX_GK;
+	if (sc == NULL) {
+	    afs_com_err("bos", RXGK_BAD_TOKEN, "(making client security object)");
+	    exit(1);
+	}
+    } else {
+#endif
+	code = afsconf_PickClientSecObj(tdir, secFlags, NULL, cellname,
+					&sc, &scIndex, NULL);
+	if (code) {
+	    afs_com_err("bos", code, "(configuring connection security)");
+	    exit(1);
+	}
+#if defined(AFS_PTHREAD_ENV) && defined(ENABLE_RXGK)
     }
+#endif
 
     if (scIndex == RX_SECIDX_NULL)
 	fprintf(stderr, "bos: running unauthenticated\n");
@@ -1691,6 +1783,8 @@ add_std_args(struct cmd_syndesc *ts)
 			  "don't authenticate");
     /* + 2 */ cmd_AddParm(ts, "-localauth", CMD_FLAG, CMD_OPTIONAL,
 			  "create tickets from KeyFile");
+    /* + 3 */ cmd_AddParm(ts, "-rxgk", CMD_FLAG, CMD_OPTIONAL,
+			  "Use rxgk for connection security");
 }
 
 #include "AFS_component_version_number.c"
