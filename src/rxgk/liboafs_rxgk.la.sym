@@ -1,7 +1,10 @@
 RXGK_CombineTokens
 RXGK_GSSNegotiate
+rxgk_GetServerInfo
 rxgk_NewClientSecurityObject
+rxgk_NewEphemeralService_SecObj
 rxgk_NewServerSecurityObject
+rxgk_NewService_SecObj
 rxgk_check_mic_in_key
 rxgk_cipher_expansion
 rxgk_copy_key
