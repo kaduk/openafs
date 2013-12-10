@@ -44,6 +44,7 @@
 
 /* RX-internal headers we depend on. */
 #include <rx/rx_opaque.h>
+#include <rx/rx_identity.h>
 
 /** Get the current timestamp as an rxgkTime. */
 static_inline rxgkTime RXGK_NOW(void)
@@ -74,6 +75,18 @@ typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 *kvno,
 /* rxgk_server.c */
 struct rx_securityClass * rxgk_NewServerSecurityObject(void *getkey_rock,
 						       rxgk_getkey_func getkey);
+afs_int32 rxgk_NewService_SecObj(u_short port, struct rx_service **service_out,
+				 char *serviceName,
+				 struct rx_securityClass **secObjs,
+				 int nsecObjs, rxgk_getkey_func getkey,
+				 void *getkey_rock);
+afs_int32 rxgk_NewEphemeralService_SecObj(u_short port,
+					  struct rx_service **service_out,
+					  char *serviceName,
+					  struct rx_securityClass **secObjs,
+					  int nsecObjs);
+afs_int32 rxgk_GetServerInfo(struct rx_connection *conn, RXGK_Level *level,
+			     rxgkTime *expiry, struct rx_identity **identity);
 /* rxgk_client.c */
 struct rx_securityClass *rxgk_NewClientSecurityObject(RXGK_Level level,
 						      afs_int32 enctype,
