@@ -36,9 +36,6 @@
 #ifndef RXGK_PRIVATE_H
 #define RXGK_PRIVATE_H
 
-/* RX-internal headers we depend on. */
-#include <rx/rx_identity.h>
-
 /** Statistics about a connection.  Bytes and packets sent/received. */
 struct rxgkStats {
     afs_uint32 brecv;
