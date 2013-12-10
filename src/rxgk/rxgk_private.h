@@ -144,4 +144,15 @@ afs_int32 rxgk_security_overhead(struct rx_connection *aconn, RXGK_Level level,
 afs_int32 rxgk_key_number(afs_uint16 wire, afs_uint32 local, afs_uint32 *real);
 void rxgk_update_kvno(struct rx_connection *aconn, afs_uint32 kvno);
 
+/* rxgk_packet.c */
+int rxgk_check_mic_packet(rxgk_key tk, afs_int32 keyusage,
+			  struct rx_connection *aconn,
+			  struct rx_packet *apacket);
+int rxgk_decrypt_packet(rxgk_key tk, afs_int32 keyusage,
+			struct rx_connection *aconn, struct rx_packet *apacket);
+int rxgk_mic_packet(rxgk_key tk, afs_int32 keyusage,
+		    struct rx_connection *aconn, struct rx_packet *apacket);
+int rxgk_enc_packet(rxgk_key tk, afs_int32 keyusage,
+		    struct rx_connection *aconn, struct rx_packet *apacket);
+
 #endif /* RXGK_PROTOTYPES_H */
