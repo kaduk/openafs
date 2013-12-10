@@ -47,6 +47,16 @@ struct rxgkStats {
     afs_uint32 psent;
 };
 
+/* The packet pseudoheader used for auth and crypt connections. */
+struct rxgk_header {
+    afs_uint32 epoch;
+    afs_uint32 cid;
+    afs_uint32 callNumber;
+    afs_uint32 seq;
+    afs_uint32 index;
+    afs_uint32 length;
+} __attribute__((packed));
+
 /*
  * rgxk_server.c
  */
@@ -61,6 +71,17 @@ struct rxgk_sprivate {
     afs_int32 flags;
     void *rock;
     rxgk_getkey_func getkey;
+};
+/**
+ * Service-specific data needed for SRXGK_GSSNegotiate
+ *
+ * We need to put the getkey function into a service-specific data,
+ * so that SRXGK_GSSNegotiate can get at the token-encrypting key when
+ * producing tokens.
+ */
+struct rxgk_getkey_sspecific_data {
+    rxgk_getkey_func getkey;
+    void *rock;
 };
 /**
  * Per-connection security data for the server.
@@ -126,5 +147,17 @@ struct rxgk_cconn {
 
 /* rxgk_crypto_XXX.c */
 ssize_t etype_to_len(int etype);
+
+/* rxgk_util.c */
+void rxgk_populate_header(struct rxgk_header *header, struct rx_packet *apacket,
+			  afs_int32 index, afs_uint32 length);
+afs_int32 rxgk_security_overhead(struct rx_connection *aconn, RXGK_Level level,
+				 rxgk_key k0);
+afs_int32 rxgk_key_number(afs_uint16 wire, afs_uint32 local, afs_uint32 *real);
+void rxgk_update_kvno(struct rx_connection *aconn, afs_uint32 kvno);
+#ifndef KERNEL
+afs_int32 rxgk_service_get_long_term_key(struct rx_call *acall, rxgk_key *key,
+					 afs_int32 *kvno, afs_int32 *enctype);
+#endif
 
 #endif /* RXGK_PRIVATE_H */

@@ -63,6 +63,10 @@ typedef void * rxgk_key;
 
 typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 *kvno,
 				      afs_int32 *enctype, rxgk_key *key);
+
+/* Indices for the service-specific data we attach to the rxgk service. */
+#define RXGK_NEG_SSPECIFIC_GETKEY	0
+
 /* rxgk_server.c */
 struct rx_securityClass * rxgk_NewServerSecurityObject(void *getkey_rock,
 						       rxgk_getkey_func getkey);
@@ -98,5 +102,11 @@ afs_int32 rxgk_combine_keys(rxgk_key k0, rxgk_key k1, afs_int32 enctype,
 afs_int32 rxgk_combine_keys_data(RXGK_Data *k0_data, afs_int32 e0,
 				 RXGK_Data *k1_data, afs_int32 e1,
 				 RXGK_Data * /* kn_data */, afs_int32 en);
+
+/* rxgk_util.c */
+#ifndef KERNEL
+afs_int32 rxgk_set_getkey_specific(struct rx_service *svc,
+				   rxgk_getkey_func getkey, void *getkey_rock);
+#endif
 
 #endif /* OPENAFS_RXGK_H */

@@ -14,3 +14,4 @@ rxgk_mic_length
 rxgk_nonce
 rxgk_random_key
 rxgk_release_key
+rxgk_set_getkey_specific
