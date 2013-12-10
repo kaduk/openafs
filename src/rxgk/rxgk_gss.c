@@ -422,9 +422,9 @@ rxgk_get_token(char *sname, char *hostname, afs_uint32 addr, u_short port,
 				   gss_flags, &ret_flags, conn, &params,
 				   &opaque_in, &opaque_out, &info_in, &info_out);
 	/* Always free the input arguments. */
-	rx_opaque_freeContents(&token_in);
-	rx_opaque_freeContents(&opaque_in);
-	rx_opaque_freeContents(&info_in);
+	xdr_free((xdrproc_t)xdr_RXGK_Data, &token_in);
+	xdr_free((xdrproc_t)xdr_RXGK_Data, &opaque_in);
+	xdr_free((xdrproc_t)xdr_RXGK_Data, &info_in);
 	/* Swap things over for a possible next cycle. */
 	token_in.val = token_out.val;
 	token_in.len = token_out.len;
