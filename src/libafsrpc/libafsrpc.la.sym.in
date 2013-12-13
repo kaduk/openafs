@@ -145,7 +145,7 @@ rx_tranquil
 rxevent_Init
 rxevent_Post
 rxevent_debugFile
-rxi_Alloc
+@rxgk_GetServerInfo@rxi_Alloc
 rxi_AllocDataBuf
 rxi_Free
 rxi_GetCallNumberVector
