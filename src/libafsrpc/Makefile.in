@@ -9,6 +9,8 @@ srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
 include @TOP_OBJDIR@/src/config/Makefile.libtool
 
+BUILD_RXGK=@BUILD_RXGK@
+
 LT_objs = \
 	$(top_builddir)/src/fsint/libafsrpc_fsint.la \
 	$(top_builddir)/src/rx/libafsrpc_rx.la \
@@ -21,9 +23,9 @@ LT_objs = \
 	$(top_builddir)/src/lwp/libafsrpc_lwpcompat.la
 
 LT_deps = \
-	$(top_builddir)/src/opr/liboafs_opr.la
+	$(top_builddir)/src/opr/liboafs_opr.la @RXGK_LIBS@
 
-LT_libs = $(LIB_hcrypto) $(LIB_roken) $(MT_LIBS)
+LT_libs = $(LIB_hcrypto) $(LIB_roken) $(MT_LIBS) @RXGK_GSSAPI_LIBS@
 
 all: libafsrpc.la libafsrpc_pic.la \
 	$(TOP_LIBDIR)/libafsrpc.a \
@@ -34,7 +36,12 @@ all: libafsrpc.la libafsrpc_pic.la \
 # when it links the libafsrpc_sys.la convenience library.
 
 libafsrpc.la.sym: libafsrpc.la.sym.in
-	cp ${srcdir}/libafsrpc.la.sym.in $@
+	if [ "x${BUILD_RXGK}" != "xyes" ]; then \
+		sed -e '/^rxgk_GetServerInfo$$/d' \
+			< ${srcdir}/libafsrpc.la.sym.in > $@; \
+	else \
+		cp ${srcdir}/libafsrpc.la.sym.in $@; \
+	fi
 
 libafsrpc.la: libafsrpc.la.sym $(LT_objs) $(LT_deps) libafsrpc_pic.la
 	@set -e; set -x; case "$(SYS_NAME)" in \
