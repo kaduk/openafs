@@ -90,10 +90,16 @@ static struct rx_securityOps rxgk_server_ops = {
     0,				/* spare 2 */
 };
 
+static struct rx_securityClass dummySC = {
+    &rxgk_server_ops,
+    NULL,
+    0
+};
+
 struct rx_securityClass *
 rxgk_NewServerSecurityObject(void *getkey_rock, rxgk_getkey_func getkey)
 {
-    return NULL;
+    return &dummySC;
 }
 
 static int

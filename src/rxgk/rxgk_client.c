@@ -80,11 +80,17 @@ static struct rx_securityOps rxgk_client_ops = {
     0,
 };
 
+static struct rx_securityClass dummySC = {
+    &rxgk_client_ops,
+    NULL,
+    0
+};
+
 struct rx_securityClass *
 rxgk_NewClientSecurityObject(RXGK_Level level, afs_int32 enctype, rxgk_key k0,
 			     RXGK_Data *token, afsUUID *uuid)
 {
-    return NULL;
+    return &dummySC;
 }
 
 static int
