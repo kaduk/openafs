@@ -403,7 +403,6 @@ rxgk_encrypt_in_key(rxgk_key key, afs_int32 usage, RXGK_Data *in,
     krb5_enctype enctype;
     krb5_error_code ret;
     krb5_keyblock *keyblock = (krb5_keyblock *)key;
-    size_t length;
 
     memset(&kd_out, 0, sizeof(kd_out));
     memset(out, 0, sizeof(*out));
