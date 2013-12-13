@@ -106,7 +106,7 @@ rxgk_decrypt_packet(rxgk_key tk, afs_int32 keyusage,
     if (ret != 0)
 	goto cleanup;
     rxgk_populate_header(header, apacket, rx_SecurityClassOf(aconn), len);
-    rx_packetread(apacket, 0, len, crypt.val);
+    rx_packetread(apacket, 0u, len, crypt.val);
 
     /* The actual encryption */
     ret = rxgk_decrypt_in_key(tk, keyusage, &crypt, &plain);
@@ -124,7 +124,7 @@ rxgk_decrypt_packet(rxgk_key tk, afs_int32 keyusage,
 
     /* Now, put the data back. */
     len = ntohl(cryptheader->length) + sizeof(*header);
-    rx_packetwrite(apacket, 0, len, plain.val);
+    rx_packetwrite(apacket, 0u, len, plain.val);
     /* rx_SetDataSize(apacket, len); */
 
 cleanup:
@@ -145,7 +145,7 @@ rxgk_mic_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
 {
     struct rx_opaque plain = RX_EMPTY_OPAQUE, mic = RX_EMPTY_OPAQUE;
     struct rxgk_header *header;
-    afs_int32 len, miclen;
+    afs_uint32 len, miclen;
     int ret;
 
     len = rx_GetDataSize(apacket);
@@ -168,7 +168,7 @@ rxgk_mic_packet(rxgk_key tk, afs_int32 keyusage, struct rx_connection *aconn,
     }
 
     /* Now, put the data back. */
-    rx_packetwrite(apacket, 0, mic.len, mic.val);
+    rx_packetwrite(apacket, 0u, mic.len, mic.val);
     rx_SetDataSize(apacket, mic.len + len);
 
 cleanup:
