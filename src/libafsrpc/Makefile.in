@@ -21,9 +21,9 @@ LT_objs = \
 	$(top_builddir)/src/lwp/libafsrpc_lwpcompat.la
 
 LT_deps = \
-	$(top_builddir)/src/opr/liboafs_opr.la
+	$(top_builddir)/src/opr/liboafs_opr.la @RXGK_LIBS@
 
-LT_libs = $(LIB_hcrypto) $(LIB_roken) $(MT_LIBS)
+LT_libs = $(LIB_hcrypto) $(LIB_roken) $(MT_LIBS) @RXGK_GSSAPI_LIBS@
 
 all: libafsrpc.la libafsrpc_pic.la \
 	$(TOP_LIBDIR)/libafsrpc.a \
@@ -36,14 +36,14 @@ all: libafsrpc.la libafsrpc_pic.la \
 libafsrpc.la: libafsrpc.la.sym $(LT_objs) $(LT_deps) libafsrpc_pic.la
 	@set -e; set -x; case "$(SYS_NAME)" in \
 	rs_aix*) \
-	    $(LT_LDLIB_shlib) -Wl,-bI:../sys/afsl.exp \
+	    $(LT_LDLIB_shlib_missing) -Wl,-bI:../sys/afsl.exp \
 		$(LT_objs) $(LT_deps) $(LT_libs) ;; \
 	*) \
-	    $(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs);; \
+	    $(LT_LDLIB_shlib_missing) $(LT_objs) $(LT_deps) $(LT_libs);; \
 	esac
 
-libafsrpc_pic.la: $(LT_objs)
-	$(LT_LDLIB_pic) $(LT_objs)
+libafsrpc_pic.la: $(LT_objs) @RXGK_LIBS_RPC@
+	$(LT_LDLIB_pic) $(LT_objs) @RXGK_LIBS_RPC@
 
 # AIX needs libafsrpc to also be linked against the syscall import list
 libafsrpc.a: $(LT_objs) libafsrpc.la
