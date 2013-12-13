@@ -20,3 +20,4 @@ oafs_h_krb5_copy_keyblock_contents
 oafs_h_krb5_free_keyblock
 oafs_h_krb5_free_keyblock_contents
 oafs_h_krb5_verify_checksum
+oafs_h_krb5_generate_random_block
