@@ -606,7 +606,6 @@ get_creds(struct rx_call *call, gss_cred_id_t *creds)
     struct rxgk_gss_sspecific_data *gk;
     struct rx_connection *conn = NULL;
     struct rx_service *svc = NULL;
-    afs_int32 ret;
 
     conn = rx_ConnectionOf(call);
     svc = rx_ServiceOf(conn);
@@ -870,7 +869,6 @@ get_long_term_key(struct rx_call *acall, rxgk_key *key, afs_int32 *kvno,
     struct rx_connection *conn;
     struct rx_service *svc;
     struct rxgk_getkey_sspecific_data *gk;
-    afs_int32 ret;
 
     conn = rx_ConnectionOf(acall);
     svc = rx_ServiceOf(conn);
@@ -925,7 +923,6 @@ SGSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     RXGK_ClientInfo info;
     RXGK_TokenInfo localinfo;
     PrAuthName *identity;
-    RXGK_Level level;
     rxgkTime start_time;
     rxgk_key key;
     afs_int32 ret, kvno = 0, enctype = 0;
