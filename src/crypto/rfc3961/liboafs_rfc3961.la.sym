@@ -4,6 +4,7 @@ oafs_h_krb5_copy_keyblock
 oafs_h_krb5_copy_keyblock_contents
 oafs_h_krb5_create_checksum
 oafs_h_krb5_crypto_destroy
+oafs_h_krb5_crypto_fx_cf2
 oafs_h_krb5_crypto_init
 oafs_h_krb5_crypto_overhead
 oafs_h_krb5_crypto_prf
@@ -20,3 +21,4 @@ oafs_h_krb5_init_context
 oafs_h_krb5_keyblock_get_enctype
 oafs_h_krb5_keyblock_init
 oafs_h_krb5_verify_checksum
+oafs_h_krb5_generate_random_block
