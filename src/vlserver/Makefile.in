@@ -130,6 +130,9 @@ Kvldbint.xdr.c: vldbint.xg
 libvldb.a: $(LT_objs)
 	$(LT_LDLIB_lwp) $(LT_objs)
 
+liboafs_vldb.la.sym: liboafs_vldb.la.sym.in
+	cp ${srcdir}/liboafs_vldb.la.sym.in $@
+
 liboafs_vldb.la: liboafs_vldb.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

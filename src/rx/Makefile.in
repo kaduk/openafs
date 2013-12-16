@@ -44,6 +44,9 @@ xdr_refernce.lo: xdr_refernce.c xdr.h xdr_prototypes.h
 librx.a: $(LT_objs)
 	$(LT_LDLIB_lwp) $(LT_objs)
 
+liboafs_rx.la.sym: liboafs_rx.la.sym.in
+	cp ${srcdir}/liboafs_rx.la.sym.in $@
+
 liboafs_rx.la: liboafs_rx.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

@@ -80,6 +80,9 @@ n-fold.lo: ${UPSTREAM}/krb5/n-fold.c ${HEADERS}
 store-int.lo: ${UPSTREAM}/krb5/store-int.c ${HEADERS}
 	$(LTLWP_CCRULE) ${UPSTREAM}/krb5/store-int.c
 
+liboafs_rfc3961.la.sym: liboafs_rfc3961.la.sym.in
+	cp ${srcdir}/liboafs_rfc3961.la.sym.in $@
+
 liboafs_rfc3961.la: liboafs_rfc3961.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs) $(MT_LIBS)
 

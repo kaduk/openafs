@@ -26,6 +26,9 @@ all: \
 	liboafs_fsint.la \
 	libafsrpc_fsint.la
 
+liboafs_fsint.la.sym: liboafs_fsint.la.sym.in
+	cp ${srcdir}/liboafs_fsint.la.sym.in $@
+
 liboafs_fsint.la: liboafs_fsint.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

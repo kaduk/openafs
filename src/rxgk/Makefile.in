@@ -57,6 +57,9 @@ rxgk_int.ss.o: rxgk_int.ss.c rxgk_int.xdr.c rxgk_int.h
 rxgk_int.cs.o: rxgk_int.cs.c rxgk_int.xdr.c rxgk_int.h
 rxgk_int.xdr.o: rxgk_int.xdr.c rxgk_int.h
 
+liboafs_rxgk.la.sym: liboafs_rxgk.la.sym.in
+	cp ${srcdir}/liboafs_rxgk.la.sym.in $@
+
 liboafs_rxgk.la: liboafs_rxgk.la.sym ${LT_objs} ${LT_deps}
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

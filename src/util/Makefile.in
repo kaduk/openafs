@@ -57,6 +57,9 @@ util.a: $(LT_objs)
 libafsutil_pic.la: $(LT_objs)
 	$(LT_LDLIB_pic) $(LT_objs)
 
+liboafs_util.la.sym: liboafs_util.la.sym.in
+	cp ${srcdir}/liboafs_util.la.sym.in $@
+
 liboafs_util.la: liboafs_util.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

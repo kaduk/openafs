@@ -133,6 +133,9 @@ utst_int.ss.o: utst_int.ss.c ${INCLS} utst_int.h
 utst_int.cs.o: utst_int.cs.c ${INCLS} utst_int.h
 utst_int.xdr.o: utst_int.xdr.c ${INCLS} utst_int.h 
 
+liboafs_ubik.la.sym: liboafs_ubik.la.sym.in
+	cp ${srcdir}/liboafs_ubik.la.sym.in $@
+
 liboafs_ubik.la: liboafs_ubik.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

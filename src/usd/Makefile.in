@@ -24,6 +24,9 @@ ${TOP_INCDIR}/afs/usd.h: usd.h
 #
 # Build targets
 #
+liboafs_usd.la.sym: liboafs_usd.la.sym.in
+	cp ${srcdir}/liboafs_usd.la.sym.in $@
+
 liboafs_usd.la: liboafs_usd.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

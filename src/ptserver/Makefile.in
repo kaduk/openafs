@@ -168,6 +168,9 @@ pterror.h: pterror.c
 display.lo: $(INCLS)
 ptuser.lo: $(LINCLS)
 
+liboafs_prot.la.sym: liboafs_prot.la.sym.in
+	cp ${srcdir}/liboafs_prot.la.sym.in $@
+
 liboafs_prot.la: liboafs_prot.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

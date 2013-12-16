@@ -46,7 +46,10 @@ compile_et:	compile_et.o error_table.o
 libafscom_err.a: $(LT_objs)
 	$(LT_LDLIB_lwp) $(LT_objs)
 
-liboafs_comerr.la: $(LT_objs) $(LT_deps)
+liboafs_comerr.la.sym: liboafs_comerr.la.sym.in
+	cp ${srcdir}/liboafs_comerr.la.sym.in $@
+
+liboafs_comerr.la: liboafs_comerr.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 
 libafsrpc_comerr.la: $(LT_objs)

@@ -50,6 +50,9 @@ liblwp.a: ${LIBOBJS} $(LT_objs)
 	$(AR) crv $@ ${LIBOBJS} .lwp/waitkey.o .lwp/fasttime.o .lwp/lock.o
 	$(RANLIB) $@
 
+liboafs_lwpcompat.la.sym: liboafs_lwpcompat.la.sym.in
+	cp ${srcdir}/liboafs_lwpcompat.la.sym.in $@
+
 liboafs_lwpcompat.la: liboafs_lwpcompat.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

@@ -98,6 +98,9 @@ libauth.a: $(LT_objs)
 libauth.krb.a: $(KRB_objs)
 	$(LT_LDLIB_lwp) $(KRB_objs)
 
+liboafs_auth.la.sym: liboafs_auth.la.sym.in
+	cp ${srcdir}/liboafs_auth.la.sym.in $@
+
 liboafs_auth.la: liboafs_auth.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

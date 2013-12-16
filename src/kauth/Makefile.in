@@ -102,6 +102,9 @@ ${TOP_INCDIR}/afs/kauth.h: kauth.h
 ${TOP_INCDIR}/afs/kaport.h: kaport.h
 	${INSTALL_DATA} $? $@
 
+liboafs_kauth.la.sym: liboafs_kauth.la.sym.in
+	cp ${srcdir}/liboafs_kauth.la.sym.in $@
+
 liboafs_kauth.la: liboafs_kauth.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

@@ -75,6 +75,9 @@ ${TOP_INCDIR}/rx/rxkad_convert.h: rxkad_convert.h
 librxkad.a: $(LT_objs)
 	$(LT_LDLIB_lwp) $(LT_objs)
 
+liboafs_rxkad.la.sym: liboafs_rxkad.la.sym.in
+	cp ${srcdir}/liboafs_rxkad.la.sym.in $@
+
 liboafs_rxkad.la: liboafs_rxkad.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 

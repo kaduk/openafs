@@ -104,6 +104,9 @@ libsys.a: $(LT_objs) afsl.exp syscall.lo
 
 # On AIX, liboafs_sys uses lsetpag() and lpioctl() which are syscall stubs,
 # we need to include afsl.exp in order to link against them
+liboafs_sys.la.sym: liboafs_sys.la.sym.in
+	cp ${srcdir}/liboafs_sys.la.sym.in $@
+
 liboafs_sys.la: liboafs_sys.la.sym $(LT_objs) $(LT_deps) afsl.exp
 	@set -e; set -x; case "$(SYS_NAME)" in \
 	rs_aix*) \

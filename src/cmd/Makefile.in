@@ -64,7 +64,10 @@ libcmd.a: $(LT_objs)
 libcmd_pic.la: $(LT_objs)
 	$(LT_LDLIB_pic) $(LT_objs)
 
-liboafs_cmd.la: $(LT_objs) $(LT_deps)
+liboafs_cmd.la.sym: liboafs_cmd.la.sym.in
+	cp ${srcdir}/liboafs_cmd.la.sym.in $@
+
+liboafs_cmd.la: liboafs_cmd.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 
 AFS_component_version_number64.o: AFS_component_version_number.c
