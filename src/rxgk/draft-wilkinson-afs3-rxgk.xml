@@ -951,6 +951,9 @@ end
       <t>The error table base should be 1233242880, with codes within the
         table assigned relative numbers starting from 0 in the order
         appearing above.</t>
+      <t>This document adopts the rxgk security negotiation service
+        number 34567 into the RXGK_ package, and requests that that package
+        and the corresponding RPC numbers be entered into the registry.</t>
     </section>
     <section anchor="IANA" title="IANA Considerations">
       <t>This memo includes no request to IANA.</t>
