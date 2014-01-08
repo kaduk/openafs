@@ -1167,6 +1167,10 @@ end
           and deal with the fallout accordingly.</t>
         <t>Be internally consistent about encoding GSS major status codes.</t>
       </section>
+      <section title="Since 09">
+        <t>General grammar/style edits.</t>
+        <t>Request the AFS-3 registry add RPC numbers and the RXGK_ package.</t>
+      </section>
     </section>
   </back>
 </rfc>
