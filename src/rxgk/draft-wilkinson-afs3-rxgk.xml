@@ -280,8 +280,9 @@ enum RXGK_Level {
 	 be at least 20 octets in length, but SHOULD NOT be longer than
          the longest key generation seed length in the
          <xref target="RFC3961" /> profile of the proposed enctypes.</t></list>
-       The client then continues the negotiation loop (described below) by
-       calling GSS_Init_sec_context() to obtain an output token
+       The GSSNegotiate RPC is used within the GSS negotiation loop (described
+       below), which begins with the client calling GSS_Init_sec_context()
+       to obtain an output token
        to send to the server. The GSS service name is application dependent;
        for constructing a service name see <xref target="keyneg" />.</t>
       <t>The client then calls GSSNegotiate, as defined above. This takes
@@ -317,7 +318,8 @@ enum RXGK_Level {
         response to the client.  See below.</t></list></t>
        </section>
        <section title="GSS Negotiation Loop">
-       <t>The client and server undergo a standard GSS negotiation loop,
+       <t>To effect key negotiation, the client and server undertake
+        a standard GSS negotiation loop,
         using the GSSNegotiate() RPC as the communication channel for
         exchanging context tokens.  The client acts as the GSS initiator,
         calling GSS_Init_sec_context(), and the server is the GSS acceptor,
@@ -329,7 +331,7 @@ enum RXGK_Level {
         context negotiation (GSS_Init_sec_context() and GSS_Accept_sec_context()
         return GSS_S_COMPLETE) or an error occurs with the negotiation.</t>
       <t>All calls to GSSNegotiate() in the loop MUST occur on the same
-       Rx connection.  GSS security context tokens are
+       RX connection.  GSS security context tokens are
        transferred from initiator to acceptor in the input_token_buffer
        argument of the RPC, and security context tokens are transferred
        from the acceptor to the initiator in the output_token_buffer
@@ -413,7 +415,7 @@ enum RXGK_Level {
        confidentiality protection itself is one error that might be indicated
        in such a fashion.
        The client should decrypt the received rxgk_info structure
-       using gss_unwrap().  If the value of conf_state returned from
+       using GSS_Unwrap().  If the value of conf_state returned from
        gss_unwrap() is zero,
        then the negotiation has failed to obtain a valid token.  In this
        case the value of the errorcode element may still be inspected for
@@ -519,7 +521,7 @@ enum RXGK_Level {
       </t>
       </section>
       <section title="RPC Definition">
-        <t>The combine keys RPC is defined as:</t>
+        <t>The token combination RPC is defined as:</t>
         <figure>
           <artwork>
     struct RXGK_CombineOptions {
@@ -632,8 +634,9 @@ enum RXGK_Level {
 	 connection keys. Each connection has a key number, which starts at
 	 0. When a connection exceeds one of its lifetimes, either side may
 	 elect to increment the key number. When the other endpoint sees
-	 a key number increment, it should reset all of its connection
-	 counters. Endpoints should accept packets encrypted with either
+	 a key number increment, it should the connection counters it uses to
+	 enforce these connection key lifetimes.
+	 Endpoints should accept packets encrypted with either
 	 the current, previous, or next key number, to allow for resends
 	 around the rekeying process.
       </t>
