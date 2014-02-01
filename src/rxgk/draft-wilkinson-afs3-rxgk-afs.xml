@@ -184,7 +184,8 @@
         <t>Clients using a printed token (see <xref target="printing"/>) MUST
 	   provide that token as token0. token1 MUST be empty. Printed tokens
 	   cannot be combined with any other token, and servers MUST reject
-	   attempts to do so.</t>
+	   attempts to do so, whether via the CombineTokens RPC, the
+           AFSCombineTokens RPC, or any other token-combining procedure.</t>
         <t>If the server is unable to perform the AFSCombineTokens operation
           with the given arguments, a nonzero value is returned.
           Clients MUST NOT use such an error as an indication to fall back to
