@@ -154,10 +154,9 @@
                      OUT RXGK_TokenInfo *token_info) = 3;
 	</artwork></figure>
         <list style="hanging" hangIndent="6">
-          <t hangText="token0:">An rxgk token obtained using the
-            GSSNegotiate RPC.</t>
-          <t hangText="token1:">Either an rxgk token obtained using the 
-            GSSNegotiate RPC, or empty (zero-length).</t>
+          <t hangText="token0:">An rxgk token for the vlserver.</t>
+          <t hangText="token1:">Either an rxgk token for the vlserver, or empty
+            (zero-length).</t>
           <t hangText="options:">An RXGK_CombineOpeions structure containing
             a list of enctypes acceptable to the client and a list of
             security levels acceptable to the client.</t><t hangText="destination:">The UUID of the server new_token is
@@ -179,6 +178,9 @@
         <t>Clients which are working on behalf of a single user can provide
           an empty token1, but MUST use AFSCombineTokens to obtain a
           destination specific token for each fileserver they contact.</t>
+        <t>The output token from AFSCombineTokens is a token for the fileserver
+           indicated by the destination argument.  As such, it is not a valid
+           input token for a successive AFSCombineTokens operation.</t>
         <t>Clients using a printed token (see <xref target="printing"/>) MUST
 	   provide that token as token0. token1 MUST be empty. Printed tokens
 	   cannot be combined with any other token, and servers MUST reject
