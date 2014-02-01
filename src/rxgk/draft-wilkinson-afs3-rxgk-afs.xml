@@ -150,8 +150,8 @@
                      IN RXGK_Data *token1,
                      IN RXGK_CombineOptions *options,
                      IN afsUUID destination,
-		     OUT RXGK_Data *new_token,
-		     OUT RXGK_TokenInfo *token_info) = 3;
+                     OUT RXGK_Data *new_token,
+                     OUT RXGK_TokenInfo *token_info) = 3;
 	</artwork></figure>
         <list style="hanging" hangIndent="6">
           <t hangText="token0:">An rxgk token obtained using the
@@ -208,9 +208,9 @@
           pre-shared key has been used to encrypt the core token data.
         <figure><artwork>
     struct RXGK_TokenContainer {
-      afs_int32 kvno;
-      afs_int32 enctype;
-      opaque    encrypted_token&lt;&gt;;
+        afs_int32 kvno;
+        afs_int32 enctype;
+        opaque    encrypted_token&lt;&gt;;
     };
 	</artwork></figure>
            The RXGK_TokenContainer structure is XDR encoded and transported
@@ -245,14 +245,14 @@
           RPC-L:
         <figure><artwork>
     struct RXGK_Token {
-      afs_int32 enctype;
-      opaque K0&lt;&gt;;
-      RXGK_Level level;
-      rxgkTime start_time;
-      afs_int32 lifetime;
-      afs_int32 bytelife;
-      rxgkTime expirationtime;
-      struct PrAuthName identities&lt;&gt;;
+        afs_int32 enctype;
+        opaque K0&lt;&gt;;
+        RXGK_Level level;
+        rxgkTime start_time;
+        afs_int32 lifetime;
+        afs_int32 bytelife;
+        rxgkTime expirationtime;
+        struct PrAuthName identities&lt;&gt;;
     };
         </artwork></figure>
         <list style="hanging" hangIndent="6"><t hangText="enctype:">The RFC3961 encryption type of the session key
@@ -284,7 +284,7 @@
 	   contains the UUID of the client.
       <figure><artwork>
     struct RXGK_Authenticator_AFSAppData {
-    afsUUID uuid;
+        afsUUID uuid;
     };
         </artwork></figure>
       </t>
@@ -398,25 +398,25 @@
       <t>The VL_RegisterAddrsAndKey RPC is described by the following RPC-L:
 <figure><artwork>
     struct RXGK_ServerKeyDataRequest {
-	afs_int32 enctypes&lt;&gt;;
-	opaque nonce1[20];
+        afs_int32 enctypes&lt;&gt;;
+        opaque nonce1[20];
     };
 
     struct RXGK_ServerKeyDataResponse {
         afs_int32 enctype;
         afs_int32 kvno;
-	opaque nonce2[20];
+        opaque nonce2[20];
     };
 
     typedef opaque keyDataRequest&lt;&gt;;
     typedef opaque keyDataResponse&lt;&gt;;
     VL_RegisterAddrsAndKey(
         IN afsUUID *uuidp,
-	IN afs_int32 spare1,
-	IN bulkaddrs *ipaddr,
-	IN afs_int32 secIndex,
-	IN keyDataRequest *request,
-	OUT keyDataResponse *response) = XXX;
+        IN afs_int32 spare1,
+        IN bulkaddrs *ipaddr,
+        IN afs_int32 secIndex,
+        IN keyDataRequest *request,
+        OUT keyDataResponse *response) = XXX;
        </artwork></figure>
       <list style="hanging" hangIndent="6"><t hangText="uuidp:">The fileserver's UUID.</t><t hangText="spare1:">Unused.  (Clients SHOULD pass zero.)</t><t hangText="ipaddr:">The list of addresses to register as belonging
          to this fileserver.</t><t hangText="secIndex:">The index of the security mechanism for 
@@ -466,7 +466,7 @@
        the following RPC (in the RXAFS service):
       <figure><artwork>
      RXAFS_SetCallBackKey(afs_int32 securityIndex,
-		          opaque mech_data&lt;&gt;) = XXX;
+                          opaque mech_data&lt;&gt;) = XXX;
 </artwork></figure>
       <list style="hanging" hangIndent="6">
       <t hangText="securityIndex:">The security index of the mechanism for
@@ -476,15 +476,15 @@
          structure.</t></list>
       <figure><artwork>
     struct RXGK_CallBackKeyData {
-	afs_int32 enctype;
-	opaque K0&lt;1024&gt;;
-	RXGK_Level level;
-	/* no rxgkTime start_time */
-	afs_int32 lifetime;
-	afs_int32 bytelife;
-	/* no rxgkTime expirationtime */
-	RXGK_Data token;
-	/* no identities needed */
+        afs_int32 enctype;
+        opaque K0&lt;1024&gt;;
+        RXGK_Level level;
+        /* no rxgkTime start_time */
+        afs_int32 lifetime;
+        afs_int32 bytelife;
+        /* no rxgkTime expirationtime */
+        RXGK_Data token;
+        /* no identities needed */
     }
 </artwork></figure>
        <list style="hanging" hangIndent="6">
