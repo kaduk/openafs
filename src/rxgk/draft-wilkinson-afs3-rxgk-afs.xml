@@ -727,6 +727,15 @@
         <t>Deal with fallout of errorcode's removal from RXGK_TokenInfo.</t>
         <t>Rework "securing the callback channel".</t>
       </section>
+      <section title="Since 03">
+        <t>Clarify the distinction between dbserver and fileserver tokens.</t>
+        <t>AFSCombineTokens is the only way to get file server tokens.</t>
+        <t>Add new kind of PrAuthName, PRAUTHTYPE_EMPTY.</t>
+        <t>Specify how cache manager token identities are stored in file
+          server tokens.</t>
+        <t>Place bounds on some XDR opaque arrays.</t>
+        <t>Expound more about printed tokens, for dbservers and fileservers.</t>
+      </section>
     </section>
   </back>
 </rfc>
