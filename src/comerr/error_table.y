@@ -18,10 +18,10 @@
 #ifdef AFS_NT40_ENV
 #include <sys/types.h>
 #include <afs/afsutil.h>
+#include <sys/timeb.h>
 #else
 #include <sys/time.h>
 #endif
-#include <sys/timeb.h>
 #include "error_table.h"
 #include "mit-sipb-cr.h"
 
