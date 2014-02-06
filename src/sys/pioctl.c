@@ -46,8 +46,10 @@ lpioctl(char *path, int cmd, void *cmarg, int follow)
 int
 lpioctl(char *path, int cmd, void *cmarg, int follow)
 {
-    int errcode, rval;
-#ifndef AFS_LINUX20_ENV
+    int errcode;
+#if defined(AFS_LINUX20_ENV)
+    int rval;
+#else
     /* As kauth/user.c says, handle smoothly the case where no AFS system call
      * exists (yet). */
     void (*old)(int) = signal(SIGSYS, SIG_IGN);
@@ -61,16 +63,11 @@ lpioctl(char *path, int cmd, void *cmarg, int follow)
 	errcode = syscall(AFS_SYSCALL, AFSCALL_PIOCTL, path, cmd, cmarg,
 			  follow);
 #elif defined(AFS_DARWIN80_ENV)
-    rval = ioctl_afs_syscall(AFSCALL_PIOCTL, (long)path, cmd, (long)cmarg,
-			     follow, 0, 0, &errcode);
-    if (rval)
-	errcode = rval;
+    errcode = ioctl_afs_syscall(AFSCALL_PIOCTL, (long)path, cmd, (long)cmarg,
+				follow, 0, 0, &errcode);
 #elif defined(AFS_SUN511_ENV)
-    rval = ioctl_sun_afs_syscall(AFSCALL_PIOCTL, (uintptr_t)path, cmd,
-                                 (uintptr_t)cmarg, follow, 0, 0, &errcode);
-    if (rval) {
-	errcode = rval;
-    }
+    errcode = ioctl_sun_afs_syscall(AFSCALL_PIOCTL, (uintptr_t)path, cmd,
+				    (uintptr_t)cmarg, follow, 0, 0, &errcode);
 #else
     errcode = syscall(AFS_SYSCALL, AFSCALL_PIOCTL, path, cmd, cmarg, follow);
 #endif
