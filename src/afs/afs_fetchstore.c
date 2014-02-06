@@ -1034,7 +1034,9 @@ rxfs_fetchInit(struct afs_conn *tc, struct rx_connection *rxconn,
 	code = EIO;
     }
 
+#ifdef AFS_64BIT_CLIENT
 err:
+#endif
     if (!code && code1)
 	code = code1;
 
