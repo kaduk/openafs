@@ -182,7 +182,7 @@ afs_osi_Read(struct osi_file *afile, int offset, void *aptr,
     AFS_GUNLOCK();
     code =
 	gop_rdwr(UIO_READ, afile->vnode, (caddr_t) aptr, asize, afile->offset,
-		 AFS_UIOSYS, IO_UNIT|IO_NODELOCKED, afs_osi_credp, &resid);
+		 AFS_UIOSYS, IO_UNIT, afs_osi_credp, &resid);
     AFS_GLOCK();
     if (code == 0) {
 	code = asize - resid;
