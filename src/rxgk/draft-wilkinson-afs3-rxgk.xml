@@ -16,7 +16,7 @@
 <?rfc symrefs='yes'?>
 <?rfc compact='yes'?>
 <?rfc subcompact='no'?>
-<rfc category="info" ipr="trust200902" docName="draft-wilkinson-afs3-rxgk-10" submissionType="independent">
+<rfc category="info" ipr="trust200902" docName="draft-wilkinson-afs3-rxgk-11" submissionType="independent">
   <front>
     <title>rxgk: GSSAPI based security class for RX</title>
     <author initials="S." surname="Wilkinson" fullname="Simon Wilkinson">
@@ -31,7 +31,7 @@
         <email>kaduk@mit.edu</email>
       </address>
     </author>
-    <date day="8" month="January" year="2014"/>
+    <date day="1" month="March" year="2014"/>
     <abstract>
       <t>rxgk is a security class for the RX RPC protocol. It uses the GSSAPI
        framework to provide an authentication service that provides
