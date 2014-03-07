@@ -154,6 +154,17 @@
         the AFSCombineTokens RPC described in
         <xref target="AFSCombineTokens"/>.</t>
     </section>
+    <section title="Authenticator Data">
+      <t>The appdata opaque within the RXGK_Authenticator structure contains the results
+           of XDR encoding the RXGK_Authenticator_AFSAppData structure. The uuid field
+	   contains the UUID of the client.
+      <figure><artwork>
+    struct RXGK_Authenticator_AFSAppData {
+        afsUUID uuid;
+    };
+        </artwork></figure>
+      </t>
+    </section>
     <section title="Tokens">
       <section title="Container" anchor="container">
         <t>rxgk tokens for AFS take the form of some key management data,
@@ -252,6 +263,37 @@
         </t>
       </section>
     </section>
+    <section title="Client Tokens" anchor="client-tokens">
+      <t>In order to protect users of a multi-user cache manager from each
+        other, it must be impossible for an individual user to determine the
+        key used to protect operations which affect the cache. This requires
+        that the cache manager have key material of its own which can be
+        combined with that of the user. This functionality is provided by
+        the AFSCombineTokens call specified earlier in this document. However,
+        this call requires that a cache manager have access to a token for this
+        purpose.</t>
+      <section title="Keyed Clients" anchor="cm-keying">
+        <t>When a host already has key material for a GSSAPI mechanism
+          supported by rxgk, that material MAY be used to key the client.
+          The client simply calls the rxgk negotiation service using the
+          relevant material, and obtains a token. Combined tokens may not
+          be used as cache manager tokens.  The client SHOULD frequently
+          regenerate this token, to avoid combined tokens having unnecessarily
+          close expiration times.  The client SHOULD NOT regenerate this token
+          so often so as to place excessive load on the vlservers.</t>
+        <t>It is recommended that identities created specifically for use by 
+          a cache manager have the name afs3-callback@&lt;hostname&gt; where 
+          &lt;hostname&gt; is the fully qualified domain name of the cache
+          manager.</t>
+      </section>
+      <section title="Unkeyed Clients">
+        <t>When a client has no key material, it is possible that an
+          anonymous GSSAPI connection may succeed. Clients MAY attempt to
+          negotiate such a connection by calling GSS_Init_sec_context() 
+          with the <xref target="RFC2743">anon_req_flag</xref> and the 
+          default credentials set.</t>
+      </section>
+    </section>
       <section title="The AFSCombineTokens Operation" anchor="AFSCombineTokens">
         <t>
           AFS extends the existing CombineTokens operation to provide a
@@ -340,48 +382,6 @@
           concatenation.
         </t>
       </section>
-    <section title="Authenticator Data">
-      <t>The appdata opaque within the RXGK_Authenticator structure contains the results
-           of XDR encoding the RXGK_Authenticator_AFSAppData structure. The uuid field
-	   contains the UUID of the client.
-      <figure><artwork>
-    struct RXGK_Authenticator_AFSAppData {
-        afsUUID uuid;
-    };
-        </artwork></figure>
-      </t>
-    </section>
-    <section title="Client Tokens" anchor="client-tokens">
-      <t>In order to protect users of a multi-user cache manager from each
-        other, it must be impossible for an individual user to determine the
-        key used to protect operations which affect the cache. This requires
-        that the cache manager have key material of its own which can be
-        combined with that of the user. This functionality is provided by
-        the AFSCombineTokens call specified earlier in this document. However,
-        this call requires that a cache manager have access to a token for this
-        purpose.</t>
-      <section title="Keyed Clients" anchor="cm-keying">
-        <t>When a host already has key material for a GSSAPI mechanism
-          supported by rxgk, that material MAY be used to key the client.
-          The client simply calls the rxgk negotiation service using the
-          relevant material, and obtains a token. Combined tokens may not
-          be used as cache manager tokens.  The client SHOULD frequently
-          regenerate this token, to avoid combined tokens having unnecessarily
-          close expiration times.  The client SHOULD NOT regenerate this token
-          so often so as to place excessive load on the vlservers.</t>
-        <t>It is recommended that identities created specifically for use by 
-          a cache manager have the name afs3-callback@&lt;hostname&gt; where 
-          &lt;hostname&gt; is the fully qualified domain name of the cache
-          manager.</t>
-      </section>
-      <section title="Unkeyed Clients">
-        <t>When a client has no key material, it is possible that an
-          anonymous GSSAPI connection may succeed. Clients MAY attempt to
-          negotiate such a connection by calling GSS_Init_sec_context() 
-          with the <xref target="RFC2743">anon_req_flag</xref> and the 
-          default credentials set.</t>
-      </section>
-    </section>
     <section title="Server to Server Communication">
       <t>A number of portions of the AFS protocol require that servers
         communicate amongst themselves. To secure this with rxgk we require
