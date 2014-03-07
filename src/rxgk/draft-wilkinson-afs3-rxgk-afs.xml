@@ -276,7 +276,7 @@
         </t>
       </section>
     </section>
-    <section title="Client Tokens" anchor="client-tokens">
+    <section title="Cache Manager Tokens" anchor="client-tokens">
       <t>In order to protect users of a multi-user cache manager from each
         other, it must be impossible for an individual user to determine the
         key used to protect operations which affect the cache. This requires
