@@ -410,7 +410,6 @@
           in the list, of kind PRAUTHTYPE_EMPTY.
         </t>
       </section>
-    </section>
     <section title="Declaring rxgk Support for a Fileserver">
       <t>The AFSCombineTokens call has specific behaviour when a destination
         endpoint does not support rxgk. Implementing this behaviour requires
@@ -537,6 +536,7 @@
       <t>K is the key generation seed length as specified in enctype's RFC3961
        profile.</t>
       <t>|| is the concatenation operation.</t>
+    </section>
     </section>
     <section title="Securing the Callback Channel">
       <t>AFS has traditionally had an unprotected callback channel. However,
