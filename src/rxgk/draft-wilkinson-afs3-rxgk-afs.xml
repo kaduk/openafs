@@ -456,7 +456,7 @@
         <!-- XXX - we need to define a VL_ RPC which can be used to remove
                   the rxgk capable marking -->
       </section>
-      <section title="Per Server Keys" anchor="per-server">
+      <section title="Registering Per Server Keys" anchor="per-server">
         <t>The provisioning of file servers with their own keys,
         rather than the cell-wide
         master key, requires the ability to maintain a directory of these keys
