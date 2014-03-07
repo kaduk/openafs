@@ -152,7 +152,12 @@
         are obtained from the standard rxgk negotiation services, but
         tokens for file servers are obtained through a new procedure,
         the AFSCombineTokens RPC described in
-        <xref target="AFSCombineTokens"/>.</t>
+        <xref target="AFSCombineTokens"/>.
+      </t>
+      <t>The input and output opaques of the GSSNegotiate RPC are left
+        as implementation-defined, as needed to retain information across
+        subsequent calls during a single GSS negotiation loop.
+      </t>
     </section>
     <section title="Authenticator Data">
       <t>The appdata opaque within the RXGK_Authenticator structure contains the results
