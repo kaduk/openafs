@@ -153,94 +153,6 @@
         tokens for file servers are obtained through a new procedure,
         the AFSCombineTokens RPC described in
         <xref target="AFSCombineTokens"/>.</t>
-      <section title="The AFSCombineTokens Operation" anchor="AFSCombineTokens">
-        <t>
-          AFS extends the existing CombineTokens operation to provide a
-	  more featured token manipulation and conversion service.
-          This operation takes a user
-	  token, an optional cache manager token, options for enctype and
-          security level negotiation with the server,
-          and a destination file server identifier. It
-	  returns a token specific to the specified destination, and a structure
-	  containing some information describing the returned token.
-          AFSCombineTokens is the only way to obtain a valid file server token
-          (other than printing a token, see <xref target="printing"/>).
-        <figure><artwork>
-    AFSCombineTokens(IN RXGK_Data *token0,
-                     IN RXGK_Data *token1,
-                     IN RXGK_CombineOptions *options,
-                     IN afsUUID destination,
-                     OUT RXGK_Data *new_token,
-                     OUT RXGK_TokenInfo *token_info) = 3;
-	</artwork></figure>
-        <list style="hanging" hangIndent="6">
-          <t hangText="token0:">An rxgk token for the vlserver.</t>
-          <t hangText="token1:">Either an rxgk token for the vlserver, or empty
-            (zero-length).</t>
-          <t hangText="options:">An RXGK_CombineOptions structure containing
-            a list of enctypes acceptable to the client and a list of
-            security levels acceptable to the client.</t><t hangText="destination:">The UUID of the server new_token is
-            intended for. Fileserver UUIDs may be obtained from the VLDB
-            in the same call that returns their addresses.</t><t hangText="new_token:">The output rxgk token, or empty
-            (zero-length).</t><t hangText="token_info:">Information describing the returned token.</t></list>
-          The AFSCombineTokens call MUST only be performed over a secured rxgk
-          connection.  AFSCombineTokens MUST NOT be offered over an
-          RXGK_LEVEL_CLEAR connection.
-          Servers MUST reject all attempts to perform this operation
-          over channels that do not offer integrity protection.  This
-          integrity guarantee protects the returned
-          token information (token_info) as well as the options and destination
-          arguments submitted to the server.</t>
-        <t>Clients which are caching the results of RPCs on behalf of
-          multiple users (such as a traditional AFS Cache Manager), SHOULD 
-          provide both the user's token (as token0) and a token generated
-          from an identity that is private to the cache manager (as token1).
-          This prevents a user from poisoning the cache for other users.
-	  Recommendations on keying cache managers are contained in
-	  <xref target="cm-keying"/>.</t>
-        <t>Clients which are working on behalf of a single user can provide
-          an empty token1, but MUST use AFSCombineTokens to obtain a
-          destination-specific token for each fileserver they contact.</t>
-        <t>The output token from AFSCombineTokens is a token specific to
-           the fileserver
-           indicated by the destination argument.  As such, it is not a valid
-           input token for a successor AFSCombineTokens operation, as the
-           input tokens for AFSCombineTokens must be tokens for the
-           vlserver.</t>
-        <t>Clients using a printed token (see <xref target="printing"/>) MUST
-	   provide that token as token0. token1 MUST be empty. Printed tokens
-	   cannot be combined with any other token, and servers MUST reject
-	   attempts to do so, whether via the CombineTokens RPC, the
-           AFSCombineTokens RPC, or any other token-combining procedure.</t>
-        <t>If the server is unable to perform the AFSCombineTokens operation
-          with the given arguments, a nonzero value is returned.
-          Clients MUST NOT use such an error as an indication to fall back to
-          to a different security class.</t>
-        <t>If the returned token is zero-length, then the destination does not
-          support rxgk, and the client MAY fall back to using a different
-	  authentication mechanism for that server. An rxgk capable client
-	  operating within an rxgk enabled cell MUST NOT downgrade its 
-	  choice of security layer in any other situation.</t>
-        <t>Other aspects of the operation of AFSCombineTokens, including the
-          combination of keys and tokens, are largely the same as
-          the CombineTokens RPC, documented in
-          CombineTokens call, documented in 
-          <xref target="I-D.wilkinson-afs3-rxgk"/>.  The only differences
-          pertain to the case where the supplied token1 is empty.
-          In this case, there is only one input token master key, so the
-          KRB-FX-CF2() algorithm is not applicable; in these cases the
-          master key K0 from token0 is reused unchanged for the output token.
-          The case where token1 is empty also requires special handling
-          for the identities list in new_token, which is discussed in
-          <xref target="TokenContents"/>.</t>
-        <t>The combination of identity information into the new_token is
-          not specified in <xref target="I-D.wilkinson-afs3-rxgk"/>, being
-          left as application-specific function.  For the AFS-3 protocols,
-          identity information in tokens is stored as a list of PrAuthNames,
-          and the identity combination algorithm is order-preserving
-          concatenation.
-        </t>
-      </section>
     </section>
     <section title="Tokens">
       <section title="Container" anchor="container">
@@ -340,6 +252,94 @@
         </t>
       </section>
     </section>
+      <section title="The AFSCombineTokens Operation" anchor="AFSCombineTokens">
+        <t>
+          AFS extends the existing CombineTokens operation to provide a
+	  more featured token manipulation and conversion service.
+          This operation takes a user
+	  token, an optional cache manager token, options for enctype and
+          security level negotiation with the server,
+          and a destination file server identifier. It
+	  returns a token specific to the specified destination, and a structure
+	  containing some information describing the returned token.
+          AFSCombineTokens is the only way to obtain a valid file server token
+          (other than printing a token, see <xref target="printing"/>).
+        <figure><artwork>
+    AFSCombineTokens(IN RXGK_Data *token0,
+                     IN RXGK_Data *token1,
+                     IN RXGK_CombineOptions *options,
+                     IN afsUUID destination,
+                     OUT RXGK_Data *new_token,
+                     OUT RXGK_TokenInfo *token_info) = 3;
+	</artwork></figure>
+        <list style="hanging" hangIndent="6">
+          <t hangText="token0:">An rxgk token for the vlserver.</t>
+          <t hangText="token1:">Either an rxgk token for the vlserver, or empty
+            (zero-length).</t>
+          <t hangText="options:">An RXGK_CombineOptions structure containing
+            a list of enctypes acceptable to the client and a list of
+            security levels acceptable to the client.</t><t hangText="destination:">The UUID of the server new_token is
+            intended for. Fileserver UUIDs may be obtained from the VLDB
+            in the same call that returns their addresses.</t><t hangText="new_token:">The output rxgk token, or empty
+            (zero-length).</t><t hangText="token_info:">Information describing the returned token.</t></list>
+          The AFSCombineTokens call MUST only be performed over a secured rxgk
+          connection.  AFSCombineTokens MUST NOT be offered over an
+          RXGK_LEVEL_CLEAR connection.
+          Servers MUST reject all attempts to perform this operation
+          over channels that do not offer integrity protection.  This
+          integrity guarantee protects the returned
+          token information (token_info) as well as the options and destination
+          arguments submitted to the server.</t>
+        <t>Clients which are caching the results of RPCs on behalf of
+          multiple users (such as a traditional AFS Cache Manager), SHOULD 
+          provide both the user's token (as token0) and a token generated
+          from an identity that is private to the cache manager (as token1).
+          This prevents a user from poisoning the cache for other users.
+	  Recommendations on keying cache managers are contained in
+	  <xref target="cm-keying"/>.</t>
+        <t>Clients which are working on behalf of a single user can provide
+          an empty token1, but MUST use AFSCombineTokens to obtain a
+          destination-specific token for each fileserver they contact.</t>
+        <t>The output token from AFSCombineTokens is a token specific to
+           the fileserver
+           indicated by the destination argument.  As such, it is not a valid
+           input token for a successor AFSCombineTokens operation, as the
+           input tokens for AFSCombineTokens must be tokens for the
+           vlserver.</t>
+        <t>Clients using a printed token (see <xref target="printing"/>) MUST
+	   provide that token as token0. token1 MUST be empty. Printed tokens
+	   cannot be combined with any other token, and servers MUST reject
+	   attempts to do so, whether via the CombineTokens RPC, the
+           AFSCombineTokens RPC, or any other token-combining procedure.</t>
+        <t>If the server is unable to perform the AFSCombineTokens operation
+          with the given arguments, a nonzero value is returned.
+          Clients MUST NOT use such an error as an indication to fall back to
+          to a different security class.</t>
+        <t>If the returned token is zero-length, then the destination does not
+          support rxgk, and the client MAY fall back to using a different
+	  authentication mechanism for that server. An rxgk capable client
+	  operating within an rxgk enabled cell MUST NOT downgrade its 
+	  choice of security layer in any other situation.</t>
+        <t>Other aspects of the operation of AFSCombineTokens, including the
+          combination of keys and tokens, are largely the same as
+          the CombineTokens RPC, documented in
+          CombineTokens call, documented in 
+          <xref target="I-D.wilkinson-afs3-rxgk"/>.  The only differences
+          pertain to the case where the supplied token1 is empty.
+          In this case, there is only one input token master key, so the
+          KRB-FX-CF2() algorithm is not applicable; in these cases the
+          master key K0 from token0 is reused unchanged for the output token.
+          The case where token1 is empty also requires special handling
+          for the identities list in new_token, which is discussed in
+          <xref target="TokenContents"/>.</t>
+        <t>The combination of identity information into the new_token is
+          not specified in <xref target="I-D.wilkinson-afs3-rxgk"/>, being
+          left as application-specific function.  For the AFS-3 protocols,
+          identity information in tokens is stored as a list of PrAuthNames,
+          and the identity combination algorithm is order-preserving
+          concatenation.
+        </t>
+      </section>
     <section title="Authenticator Data">
       <t>The appdata opaque within the RXGK_Authenticator structure contains the results
            of XDR encoding the RXGK_Authenticator_AFSAppData structure. The uuid field
