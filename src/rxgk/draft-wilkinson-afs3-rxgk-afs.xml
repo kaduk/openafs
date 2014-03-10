@@ -330,25 +330,38 @@
       </section>
     </section>
     <section title="Cache Manager Tokens" anchor="client-tokens">
+      <t>Some deployment scenarios for AFS-3 involve multi-user machines
+        with a single Cache Manager that fetches data on the users' behalf.
+        When multiple users have access to the same content, data that
+        is fetched on the behalf of one user may be cached and re-displayed
+        to a second user, without re-fetching it from the fileserver hosting
+        the data.  The initial data aquisition is authenticated by the
+        first user's credentials, and if only that user's credentials are
+        used, it may be possible for a malicious user or users to "poison" the
+        cache for other users, and introduce bogus data.</t>
       <t>In order to protect users of a multi-user cache manager from each
-        other, it must be impossible for an individual user to determine the
-        key used to protect operations which affect the cache. This requires
-        that the cache manager have key material of its own which can be
-        combined with that of the user. This functionality is provided by
-        the AFSCombineTokens call specified earlier in this document. However,
-        this call requires that a cache manager have access to a token for this
-        purpose.</t>
+        other, it is possible to give the cache manager its own token,
+        which can be combined (<xref target="AFSCombineTokens" />) with
+        the users' tokens so that the user may
+        be authenticated at the fileserver while still preserving the
+        integrity of the data obtained by the cache manager.  In order to
+        obtain a token, the cache manager must have some means of
+        acquiring/using key material.</t>
       <section title="Keyed Clients" anchor="cm-keying">
         <t>When a host already has key material for a GSSAPI mechanism
-          supported by rxgk, that material MAY be used to key the client.
-          The client simply calls the rxgk negotiation service using the
-          relevant material, and obtains a token. Combined tokens may not
-          be used as cache manager tokens.  The client SHOULD frequently
+          supported by the vlserver, that material
+          MAY be used to key the cache manager.
+          The cache manager simply calls the rxgk negotiation service using the
+          relevant material, and obtains a token.
+          The cache manager should frequently
           regenerate this token, to avoid combined tokens having unnecessarily
-          close expiration times.  The client SHOULD NOT regenerate this token
+          close expiration times.  The cache manager should not
+          regenerate this token
           so often so as to place excessive load on the vlservers.</t>
-        <t>It is recommended that identities created specifically for use by 
-          a cache manager have the name afs3-callback@&lt;hostname&gt; where 
+        <t>It is recommended that GSS
+          identities created specifically for use by
+          a cache manager have the name afs3-callback@&lt;hostname&gt; of
+          name type GSS_C_NT_HOSTBASED_SERVICE where
           &lt;hostname&gt; is the fully qualified domain name of the cache
           manager.</t>
       </section>
@@ -358,6 +371,15 @@
           negotiate such a connection by calling GSS_Init_sec_context() 
           with the <xref target="RFC2743">anon_req_flag</xref> and the 
           default credentials set.</t>
+        <t>In some cases a cache manager may not have any dedicated
+          credentials, but have user credentials from multiple different
+          users.  These tokens could be combined using the RXGK_CombineTokens
+          operation and the combined token used as a proxy cache manager
+          token.  However, conspiring malicious users could still be able
+          to manipulate the cache, and the differing token expiration times
+          for user tokens would make cache management quite complicated
+          with this approach.  As such, it is not recommended for general use.
+        </t>
       </section>
     </section>
     <section title="The AFSCombineTokens Operation" anchor="AFSCombineTokens">
