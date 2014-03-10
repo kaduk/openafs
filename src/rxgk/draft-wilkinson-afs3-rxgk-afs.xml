@@ -382,6 +382,27 @@
         </t>
       </section>
     </section>
+    <section title="Combining Tokens" anchor="CombineTokens">
+      <t>This section describes the server-side behavior of the
+        RXGK_CombineTokens operation for the AFS-3 protocol.</t>
+      <t>The only application-specific data field in struct RXGK_Token is
+        the start_time.  Since servers MUST reject attempts to use tokens
+        whose start_time is later than the current time, any attempt to
+        use such tokens as arguments to RXGK_CombineTokens must fail.
+        Therefore, the server performing the CombineTokens operation will
+        set the start_time for the output token to be the current time
+        when it performs the combination.</t>
+      <t>The identity lists in the 'identities' fields of the two tokens
+        are combined via order-preserving concatenation and placed in the
+        'identities' field of the output token.</t>
+      <t>The 'cm_id' field MUST be empty in both input tokens, and is
+        left empty (zero-length) in the output token.</t>
+      <t>Printed tokens (<xref target="printing" />) cannot be combined
+        with any other token, and servers MUST reject attempts to do so,
+        whether via CombineTokens, AFSCombineTokens, or any other
+        token-combining procedure.
+      </t>
+    </section>
     <section title="The AFSCombineTokens Operation" anchor="AFSCombineTokens">
       <t>
           AFS extends the existing CombineTokens operation to provide a
