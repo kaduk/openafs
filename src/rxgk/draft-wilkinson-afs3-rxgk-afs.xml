@@ -44,9 +44,11 @@
       <t><xref target="I-D.wilkinson-afs3-rxgk">rxgk</xref> is a new 
 	<xref target="RFC2743">GSSAPI-based</xref> security layer for the
         <xref target="RX">RX</xref> remote procedure call system. The rxgk 
-        specification details how it may be used with a generic RX application.
-        This document provides additional detail specific to integrating 
-        rxgk with the AFS-3 distributed file system.
+        specification details how it may be used with a generic RX application,
+        but leaves some aspects of the protocol as application-specific.
+        This document resolves the application-specific portions of rxgk for
+        use with the AFS-3 distributed file system, and provides additional
+        detail specific to integrating rxgk with AFS-3.
       </t>
       <section title="The AFS-3 Distributed File System">
         <t>
@@ -65,6 +67,12 @@
           Each cell has one or more vlservers, which are synchronised using 
           an out-of-band mechanism.
         </t>
+        <t>
+          User and group information is stored in the protection database
+          (prdb), which is made available by the ptserver(s), colocated with
+          the vlservers.  Fileservers check with the prdb before granting
+          access to files which are subject to access control.
+        </t>
       </section>
       <section title="rxgk and AFS">
         <t>
@@ -79,29 +87,53 @@
         <t>AFS-3 differs from a standard rxgk deployment in that it 
           does not require GSSAPI negotiation with each server. Instead, 
           a client performs GSSAPI negotiation just once, with the vlserver,
-          receiving a token usable with any database server in the cell.
+          receiving a token usable with any database server in the cell,
+          as described in <xref target="keyneg" />.
           Traditional AFS rxkad authentication required that
           the cell-wide key be distributed to all servers in the cell, both
           database servers and file servers, making no distinction between
           tokens used for database servers and file servers.
-          rxgk can operate in such a
+          rxgk can operate in a similar
           fashion, with a cell-wide key shared amongst all servers, but
           is not limited to doing so.
         </t>
         <t>
           For more complex cell topologies, rxgk also supports configurations
-          where (some) file servers do not have the cell-wide key. Tokens
-          for these file servers are obtained by means
-          of an extended version of the CombineTokens RPC, AFSCombineTokens,
-          which takes a server identifier and will return a token encrypted
-          in the key for a specific file server.
+          where (some) file servers do not have the cell-wide key.
+          Tokens encrypted in these server-specific keys are returned by
+          an extended version of the CombineTokens RPC, AFSCombineTokens.
           AFSCombineTokens also provides a mechanism for indicating whether
           a specific server is rxgk capable, allowing cells to securely migrate
           to rxgk from other security mechanisms.
         </t>
+      </section>
+      <section title="Providing Keys for the Callback Channel">
         <t>
-          We also define mechanisms for securing the callback channel that
-          is created between fileserver and client.
+          The AFS-3 protocol provides a mechanism by which a client can
+          obtain a promise from a fileserver to "call back" when a particular
+          piece of data is changed, so that the client does not need to check
+          with the fileserver for the current-ness of the data every time it
+          is used.  At present, this takes the form of a single bit of
+          information about whether the callback is still valid, with no
+          authentication of the callback break.  It is desired that future
+          work expand the callback channel to convey more than a single
+          bit of information, and provide an authenticated (and potentially
+          confidential) channel for updating callback promises.
+        </t>
+        <t>
+          This document provides a mechanism to establish a key and token
+          that can be used to provide a secure callback channel.  Though
+          the format of that token is flexible and not specified in this
+          document, the format of the token used on the AFS-3 connection
+          that causes a callback to be established (that is, the token
+          format specified in <xref target="tokens" />) is tied to the
+          establishment of a callback key.  Callbacks are given to a
+          cache manager, but the data requests that cause them to be
+          created are made on behalf of a user, using that user's credentials.
+          The AFS-3 token format must provide a connection between the
+          data request and the key used for the callback channel; the
+          token format in <xref target="tokens" /> makes a provision for
+          this connection.
         </t>
       </section>
       <section title="Requirements Language">
@@ -119,7 +151,7 @@
         of 4.
       </t>
     </section>
-    <section title="Key Negotiation">
+    <section title="Key Negotiation" anchor="keyneg">
       <t>
         An AFS cell wishing to support rxgk MUST run an rxgk key negotiation
         service, as specified in <xref target="I-D.wilkinson-afs3-rxgk"/>, 
@@ -170,7 +202,7 @@
         </artwork></figure>
       </t>
     </section>
-    <section title="Tokens">
+    <section title="Tokens" anchor="tokens">
       <section title="Container" anchor="container">
         <t>rxgk tokens for AFS take the form of some key management data,
           followed by an encrypted data blob. The key management data (a
