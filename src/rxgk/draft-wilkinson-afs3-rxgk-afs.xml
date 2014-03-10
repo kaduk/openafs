@@ -209,11 +209,17 @@
         </t>
       </section>
     </section>
-    <section title="Tokens" anchor="tokens">
+    <section title="Token Format" anchor="tokens">
+      <t>
+        This section defines the format of rxgk tokens for use with the
+        AFS-3 protocol.  The same layout is used for database server
+        tokens and file server tokens, but one field is left unused
+        (zero-length) for database server tokens.
+      </t>
       <section title="Container" anchor="container">
         <t>rxgk tokens for AFS take the form of some key management data,
           followed by an encrypted data blob. The key management data (a
-          version number, followed by an <xref target="RFC3961"/> 
+          version number, followed by an RFC 3961
           encryption type) allows the server receiving a token to identify which
           key has been used to encrypt the core token data.
         <figure><artwork>
@@ -224,35 +230,37 @@
     };
 	</artwork></figure>
            The RXGK_TokenContainer structure is XDR encoded and transported
-	   within the 'token' field of the RXGK_ClientInfo structure specified
+           wherever a token is used, such as in the
+	   'token' field of the RXGK_ClientInfo structure specified
 	   in <xref target="I-D.wilkinson-afs3-rxgk"/>.</t>
       </section>
       <section title="Token Encryption">
-        <t>rxgk supports encrypting tokens both with a single cell-wide keys
+        <t>rxgk supports encrypting tokens both with a single cell-wide key
           and with per-file-server keys.
           The cell-wide key must be installed on all database servers in the
           cell, and may additionally be installed on non-database file servers
-          if the use of per-file-server keys is not desired.
+          when per-file-server keys are not desired.
           Cell-wide keys should be for
-          a selected RFC3961 encryption mechanism that is supported by all
+          a selected RFC 3961 encryption mechanism that is supported by all
           servers within the cell that will use that key.
           Per-server keys should be for an
           encryption mechanism that is supported by both the destination
-          server and the negotiation service. The management of per-server
+          server and the negotiation service on the vlserver.
+          The management of per-server
 	  keys is discussed in more detail in <xref target="per-server-keys"/>.</t>
         <t>Key rollover is permitted by means of a key version number. When a
           key is changed, whether cell-wide or per-server, a different (larger)
           key version number MUST be selected. Servers
           SHOULD accept tokens using old keys until the lifetime of all
-          non-printed (see <xref target="printing"/> existing tokens has
+          existing non-printed (see <xref target="printing"/>) tokens has
           elapsed.  Services using printed tokens should be prepared to
           regenerate those tokens in the case of key rollover.</t>
         <t>Encryption is performed over the XDR encoded RXGK_Token structure,
-          using the RFC3961 encrypt operation, with a key usage value of
+          using the RFC 3961 encrypt operation, with a key usage value of
 	  RXGK_SERVER_ENC_TOKEN (defined in
           <xref target="I-D.wilkinson-afs3-rxgk"/>).
           The enrypted data is stored in the
-          encryted_token field of the RXGK_TokenContainer structure described in
+          encrypted_token field of the RXGK_TokenContainer structure described in
 	  <xref target="container"/>.</t>
       </section>
       <section anchor="TokenContents" title="Token Contents">
@@ -273,9 +281,9 @@
         <list style="hanging" hangIndent="6">
           <t hangText="enctype:">The RFC3961 encryption type of the session key
             contained within this ticket.</t>
-          <t hangText="K0:">The session key (see <xref target="I-D.wilkinson-afs3-rxgk"/> 
+          <t hangText="K0:">The session key. (See <xref target="I-D.wilkinson-afs3-rxgk"/> 
 	    for details of how this key is negotiated between client and negotiation
-            service).</t>
+            service.)</t>
           <t hangText="level:">The security level, as defined in 
 	    <xref target="I-D.wilkinson-afs3-rxgk"/>, that MUST be used for this
             connection.</t>
@@ -294,7 +302,8 @@
             beyond which this token may no longer be used. Servers MUST
             reject attempts to use connections secured with this token after
             this time. A value of 0 indicates that this token never
-            expires.</t>
+            expires.  It is RECOMMENDED that an expirationtime of 0 is
+            only used for printed tokens.</t>
           <t hangText="identities:">A list of identities represented by this
             token. struct PrAuthName is the identity structure defined in 
             <xref target="I-D.brashear-afs3-pts-extended-names"/>.</t></list>
