@@ -169,27 +169,33 @@
         that wish to support cells using other rx security objects MAY downgrade
         if this identity is not available.
       </t>
-      <t>
-        Tokens returned from the GSSNegotiate and CombineTokens calls
-        MUST only be used with
-        database servers. Tokens for fileservers MUST be obtained by
-        calling AFSCombineTokens before each server is contacted.
-        rxgk tokens are in general only usable with the particular rx
-        service that produced them.  For the AFS-3 protocol, the database
-        server services are grouped together to accept a common type of
-        token, and the file server services are grouped together to accept
-        a different common type of token, but it is important to emphasize
-        that a token for a database server will not in general be useful
-        against a file server, and vice versa.  Tokens for database servers
-        are obtained from the standard rxgk negotiation services, but
-        tokens for file servers are obtained through a new procedure,
-        the AFSCombineTokens RPC described in
-        <xref target="AFSCombineTokens"/>.
-      </t>
-      <t>The input and output opaques of the GSSNegotiate RPC are left
-        as implementation-defined, as needed to retain information across
-        subsequent calls during a single GSS negotiation loop.
-      </t>
+      <section title="Application-Specific behavior for AFS-3">
+        <t>The input and output opaques of the GSSNegotiate RPC are left
+          as implementation-defined, as needed to retain information across
+          subsequent calls during a single GSS negotiation loop.
+        </t>
+      </section>
+      <section title="Token Applicability">
+        <t>
+          Tokens returned from the GSSNegotiate and CombineTokens calls
+          MUST only be used with
+          database servers. Tokens for fileservers MUST be obtained by
+          calling AFSCombineTokens (xref target="AFSCombineTokens" />)
+          before each server is contacted.
+        </t>
+        <t>
+          rxgk tokens are in general only usable with the particular rx
+          service that produced them.  For the AFS-3 protocol, the database
+          server services are grouped together to accept a common type of
+          token, and the file server services are grouped together to accept
+          a different common type of token, but it is important to emphasize
+          that a token for a database server will not in general be useful
+          against a file server, and vice versa.  Tokens for database servers
+          are obtained from the standard rxgk negotiation services, but
+          tokens for file servers are obtained through a new procedure,
+          the AFSCombineTokens RPC.
+        </t>
+      </section>
     </section>
     <section title="Authenticator Data">
       <t>The appdata opaque within the RXGK_Authenticator structure contains the results
