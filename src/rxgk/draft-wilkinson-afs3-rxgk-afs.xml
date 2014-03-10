@@ -276,6 +276,7 @@
         afs_int32 bytelife;
         rxgkTime expirationtime;
         struct PrAuthName identities&lt;&gt;;
+        struct PrAuthName cb_id&lt;&gt;;
     };
         </artwork></figure>
         <list style="hanging" hangIndent="6">
@@ -306,21 +307,25 @@
             only used for printed tokens.</t>
           <t hangText="identities:">A list of identities represented by this
             token. struct PrAuthName is the identity structure defined in 
+            <xref target="I-D.brashear-afs3-pts-extended-names"/>.</t>
+          <t hangText="cb_id:">A list of identities to be matched when
+            issuing callbacks for data received on connections using this
+            token.  In a sense, this is the "Cache Manager's identity".
+            struct PrAuthName is the identity structure defined in 
             <xref target="I-D.brashear-afs3-pts-extended-names"/>.</t></list>
           The above token structure is used for both database server tokens
-          and file server tokens, however, there is a key distinction
-          between the two: in file server tokens, the last identity in
-          the list of identities is special, and corresponds to the
-          "cache manager" identity that was presented to AFSCombineTokens
-          in token1.  File server tokens must always have a cache manager
-          identity present; if the token1 presented to AFSCombineTokens
-          is empty, a placeholder identity is introduced into the identity
-          list of the output token from AFSCombineTokens to indicate that
-          fact.  This placeholder identity is of a new kind,
-          PRAUTHTYPE_EMPTY:
-          <figure><artwork>#define PRAUTHTYPE_EMPTY XXX</artwork></figure>
-          PrAuthNames of kind PRAUTHTYPE_EMPTY MUST have empty (zero-length)
-          data and display components.
+          and file server tokens, however, there is a distinction
+          between the two.  In database server tokens, the 'cm_id' field
+          is always empty (zero-length).  In file server tokens, that
+          field may be empty, but if it is present, it corresponds to
+          the identity of the cache manager making the request on behalf
+          of the user.  (See <xref target="client-tokens" /> for further
+          discussion.)  If callbacks are to be established as a result
+          of a request using this token, a key registered to that cache
+          manager identity may be used to secure the callback channel.
+          (No other keys may be used to secure that callback channel;
+          if there are no matching callback keys, secured callbacks
+          MUST NOT be used.)
         </t>
       </section>
     </section>
