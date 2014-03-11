@@ -727,7 +727,7 @@
 </artwork></figure>
       <list style="hanging" hangIndent="6">
         <t hangText="securityIndex:">The security index of the mechanism for
-         which this key is being set. The security index for rxgk is 4.</t>
+         which this key is being set.</t>
         <t hangText="mech_data:">This contains the security object specific
          data. In rxgk's case this is an XDR encoded RXGK_CallBackKeyData
          structure.</t></list>
@@ -742,7 +742,7 @@
         /* no rxgkTime expirationtime */
         RXGK_Data token;
         /* no identities needed */
-    }
+    };
 </artwork></figure>
        <list style="hanging" hangIndent="6">
          <t hangText="enctype">The encryption type of K0.</t>
@@ -768,7 +768,7 @@
            internal per-fileserver storage location.  A client implementation
            might also reuse wholesale the token format defined in this document,
            filling the token field with an XDR-encoded RXGK_TokenContainer
-           containing an encrypted encoded RXGK_Token, with a per-client
+           containing an encrypted encoded RXGK_Token, with a per-cache manager
            secret key.</t></list>
        No expiration or start time need be transferred in this RPC (as are
        included in an RXGK_Token and RXGK_ClientInfo), because the callback
@@ -802,15 +802,15 @@
          cache manager identity,
          it should only be used to protect callbacks relating
          to data accessed using that identity.  Since extended callbacks
-         are only available when a cache manager token is in use, and
-         the cache manager token's identity is always the last identity
-         in the list, this means that the fileserver MUST only send rxgk
-         protected extended callbacks when the cache manager identity
-         in the token authenticating the RPC establishing the callback
-         matches an identity associated with that cache manager's UUID.
-         Additionally, the fileserver MUST use the callback key (and token)
-         registered to that identity for the extended callbacks established
-         as a result of the RPC.
+         are only available when a cache manager token is in use, which
+         is easily detected in the 'cm_id' field of the token, the
+         fileserver has a clear identity for the cache manager acting
+         on the user's behalf.  The fileserver MUST only send rxgk-protected
+         callbacks using the callback key registered to that cache manager
+         identity and the cache manager UUID making the request, at the
+         time of the request.  If the UUID in the request does not match
+         the stored UUID, or there is no key associated with the cache manager
+         identity, extended callbacks MUST NOT be generated for that request.
         </t>
       </section>
     </section>
