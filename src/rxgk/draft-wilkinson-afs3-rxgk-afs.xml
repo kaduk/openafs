@@ -944,6 +944,20 @@
         <t>Place bounds on some XDR opaque arrays.</t>
         <t>Expound more about printed tokens, for dbservers and fileservers.</t>
       </section>
+      <section title="Since 04">
+        <t>Rearrange content within the document in attempt to give a
+          more coherent structure and improve readability.</t>
+        <t>Add specifications for the remaining pieces of rxgk behavior
+          which the core document left as application-specific.</t>
+        <t>Change the token format.  Instead of having the last entry
+          in the identities list be the CM identity, use an explicit
+          separate field for the identity to be used for callbacks.</t>
+        <t>As a result, PRAUTHTYPE_EMPTY is no longer necessary.</t>
+        <t>General edits for grammar and readability.</t>
+        <t>Add security considerations for the DoS attach that is possible
+          by setting fake callback keys.</t>
+        <t>Add a clarifying note for the RFC 4402 PRF+ implementation.</t>
+      </section>
     </section>
   </back>
 </rfc>
