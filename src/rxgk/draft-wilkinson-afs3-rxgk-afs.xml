@@ -502,9 +502,7 @@
         communication, which we refer to as "token printing".  Printed
         tokens take on a special form (<xref target="printing" />)
         and are limited in that they
-        cannot be combined with any other token.  (They can be used as
-        the user_tok input to AFSCombineTokens in order to be converted
-        into fileserver tokens, but only with an empty cm_tok.)</t>
+        cannot be combined with any other token.</t>
       <t>However, file servers with a server-specific key (that is,
         without the cell-wide shared key), can only print a token to
         themselves.  Such tokens are not usable to communicate with
