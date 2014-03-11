@@ -591,9 +591,10 @@
             initial call to VL_RegisterAddrsAndKey.  A cell administrator's
             token could be used, but it is advantageous to allow file servers
             with per-server keys to operate without intervention by the
-            central cell administrators (thus, these file servers could
+            central cell administrators (so that these file servers could
             be run solely by a local administrator without need for central
-            administrator intervention).  Thus, is is expected that a
+            administrator intervention).</t>
+          <t>Thus, is is expected that a
             file server with a per-server key will have a dedicated GSS
             identity and credentials that it will use for registering
             with the vldb (VL_RegisterAddrsAndKey) and that will also
