@@ -738,7 +738,10 @@
        any resulting callback. We achieve this using the cache manager
        token discussed in <xref target="cm-keying"/>,
        which is required in order for a client to
-       accept secure callbacks.
+       accept secure callbacks.  Additionally, a new RPC is added for
+       cache managers to register keys with fileservers that will be
+       used to secure the connections used to update callback promises
+       generated as a result of requests from those cache managers.
      </t>
       <section title="The SetCallBackKey operation">
         <t>A cache manager may set a key for secure callbacks by issuing
