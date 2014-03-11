@@ -576,6 +576,11 @@
             VL_RegisterAddrsAndKey.</t>
         </section>
         <section title="File Servers With Per-Server Keys">
+          <t>This section describes the case when the automated keying
+            mechanism described in <xref target="per-server" /> is used.
+            If the record of per-server keys in the vldb is being manually
+            maintained, cell administrators should manually register
+            the file servers in the vldb using VL_RegisterAddrs instead.</t>
           <t>Since the goal is to
             establish a per-server key, VL_RegisterAddrsAndKey is necessary
             for the first call.  However, best practices require that the
