@@ -484,36 +484,55 @@
     </section>
     <section title="Server to Server Communication">
       <t>A number of portions of the AFS protocol require that servers
-        communicate amongst themselves. To secure this with rxgk we require
-        both a mechanism of generating tokens for these servers to use, and
-        a definition of which identities are permitted for authorisation
-	purposes. We refer to the process of forging tokens for local use,
-	given access to the relevant key, as "token printing".
+        communicate amongst themselves.  To name a limited subset of
+        examples, file servers must register their location (IP addresses)
+        with the vldb, and must query the prdb when serving data;
+        moving volumes from one file server to another requires that
+        the file servers communicate with each other directly.</t>
+      <t>A server with the cell-wide
+        shared key can forge a token for its use in server-to-server
+        communication, which we refer to as "token printing".  Printed
+        tokens take on a special form and are limited in that they
+        cannot be combined with any other token.  (They can be used as
+        the user_tok input to AFSCombineTokens in order to be converted
+        into fileserver tokens, but only with an empty cm_tok.)</t>
+      <t>However, file servers with a server-specific key (that is,
+        without the cell-wide shared key), can only print a token to
+        themselves.  Such tokens are not usable to communicate with
+        database servers (because the database servers will not use the
+        fileserver's server-specific key to decrypt incoming tokens),
+        and are not usable to communicate with other fileservers (since
+        fileserver tokens are not valid inputs to AFSCombineTokens).
+        As such, file servers with a per-server key will need
+        GSS credentials in order to function.  These credentials can
+        be used to acquire an rxgk token, allowing queries to the database
+        servers.  They can also be used to register the file server
+        in the vldb, and to create and update the file server's
+        server-specific key in the vldb.
       </t>
       <section title="Token Printing" anchor="printing">
         <t>A server with access to the cell-wide pre-shared key may print its
           own tokens for server-to-server access. To do so, it should construct
           a database server token with suitable values.
-          The list of identities in such a token
+          The lists of identities in such a token
           MUST be empty. It can then encrypt this token using the pre-shared key,
           and use it in the same way as a normal rxgk token. The receiving server
           can identify it is a printed token by the empty identity list.</t>
         <t>The session key within a printed database server token
           MUST use the same encryption
-          type as the pre-shared key. When connecting to a fileserver, a client
-          SHOULD use the AFSCombineTokens service as discussed above to ensure that
+          type as the pre-shared key. When connecting to a fileserver starting
+          from a printed token, a client
+          MUST use the AFSCombineTokens service as discussed above to ensure that
           they are using the correct key for the fileserver.</t>
         <t>File servers with per-server keys may also print tokens, though
           these tokens are in general of limited utility.  (Being file server
           tokens, they are not valid inputs to AFSCombineTokens, etc..)
-          In this case, the printed token should have a single identity
-          in the list, of kind PRAUTHTYPE_EMPTY.
         </t>
       </section>
       <section title="Declaring rxgk Support for a Fileserver">
         <t>The AFSCombineTokens call has specific behaviour when a destination
         endpoint does not support rxgk. Implementing this behaviour requires
-        that the vlserver be aware of whether a fileserver supports rxgk.
+        that the vldb have a record of whether a fileserver supports rxgk.
       </t>
         <t>Fileservers currently register with the vlserver using the 
         VL_RegisterAddrs RPC.  This document introduces an extended version,
@@ -524,16 +543,54 @@
 	support from the rx security layer used in registration. To prevent
 	downgrade attacks, once a fileserver has
         registered as being rxgk capable, the vlserver MUST NOT remove that
-        registration without administrator intervention.  When the first
-        rxgk-enabling call from a fileserver is VL_RegisterAddrs, that call
-        MUST be made using a printed token, and the implication is that
-        the token-encrypting key for that file server is the cell-wide
-        shared key.
-      </t>
+        registration without administrator intervention.</t>
+        <t>There are two tracks for registering a file server as being
+          rxgk-enabled; one for file servers with the cell-wide key, and
+          another for file servers with per-server keys.  When a file
+          server which will use the cell-wide key is registered as
+          rxgk-capable, there is no need to register a new key for that
+          server (and in fact it would be actively harmful!), so there is
+          no need to use VL_RegisterAddrsAndKey.  In this case,
+          VL_RegisterAddrs is sufficient, and using a printed token for
+          the rxgk connection for VL_RegisterAddrs indicates that the
+          file server possesses the cell-wide key.  Since the file server
+          has the cell-wide shared key, it will need get its key updated
+          when the cell-wide key is updated, and does not need to update
+          its own key separately.  As such, it will never need to call
+          VL_RegisterAddrsAndKey.  The second track is for servers which
+          will not have the cell-wide shared key.  Since the goal is to
+          establish a per-server key, VL_RegisterAddrsAndKey is necessary
+          for the first call.  However, best practices require that the
+          file server change its long-term key periodically, so it must
+          retain the ability to perform subsequent VL_RegisterAddrsAndKey
+          calls in the future, to register those new keys in the vldb.
+          For this reason, a printed token is not a useful choice for
+          performing the initial call to VL_RegisterAddrsAndKey, since
+          only a printed token would be able to perform a subsequent
+          call.  The printed token would require the cell-wide shared
+          key, eliminating any benefit from having a server-specific key.
+          As such, a regular (non-printed) token is required for the
+          initial call to VL_RegisterAddrsAndKey.  A cell administrator's
+          token could be used, but it is advantageous to allow file servers
+          with per-server keys to operate without intervention by the
+          central cell administrators (thus, these file servers could
+          be run solely by a local administrator without need for central
+          administrator intervention).  Thus, is is expected that a
+          file server with a per-server key will have a dedicated GSS
+          identity and credentials that it will use for registering
+          with the vldb (VL_RegisterAddrsAndKey) and that will also
+          be used for securing the file server's regular connections
+          to the database servers during normal operation.  The vlserver
+          will store in the vldb what GSS identity is used to perform
+          VL_RegisterAddrsAndKey for a given file server UUID, and
+          allow that identity to perform successor calls to
+          VL_RegisterAddrsAndKey for that UUID.
+        </t>
         <t>Once a fileserver has been marked as supporting rxgk, VL_RegisterAddrs
         calls for that fileserver MUST only be accepted over an rxgk
         protected connection. vlservers MUST only accept calls to
-        VL_RegisterAddrs from a printed token, an administrator, or the
+        VL_RegisterAddrs and VL_RegisterAddrsAndKey
+        from a printed token, an administrator, or the
         identity registered for the fileserver using a prior call to
         VL_RegisterAddrsandKey.
       </t>
@@ -554,33 +611,16 @@
         protocol MUST provide the VL_RegisterAddrsAndKey RPC (similar to the
         VL_RegisterAddrs RPC).  This RPC is called by a fileserver to
         register itself with the VLDB; it MUST be called over a secure
-        connection.  In particular, it MUST NOT be called over an rxkad
-        connection.</t>
+        connection that provides confidentiality protection.</t>
         <t>For the purpose of this RPC, the fileserver acts as the
         client and the vlserver as the server.  Once the RPC completes, both
         peers of the RPC call can generate a key to be used as the fileserver's
         long-term server key.</t>
-        <t>vlservers MUST NOT permit calls to VL_RegisterAddrsAndKey for UUIDs
+        <t>vlservers MUST NOT permit calls to VL_RegisterAddrsAndKey for
+        fileserver UUIDs
         which already exist within the vldb, unless that UUID already has
-        a server-specific key registered.  The identity information stored
-        in the token used to authenticate and secure the
-        VL_RegisterAddrsAndKey connection is used to provide continuity
-        between multiple calls to VL_RegisterAddrsAndKey, so a printed token
-        is not appropriate here, as it would only be useful for the first
-        call and there would be no identity available for cross-checking
-        that a second call was from the same source.  To support this
-        cross-check, when a new fileserver first registers
-        with the vldb using VL_RegisterAddrsAndKey, the vlserver MUST store the
-        identity list from the token used to make this connection.
-        The vlserver MUST only permit
-        subsequent calls to VL_RegisterAddrsAndKey for this UUID when they come
-        over a connection authenticated with that same identity list,
-        an administrator's token, or a printed token.
-        New fileserver UUIDs register themselves with
-        the vldb in a "leap of faith", binding a GSSAPI identity to the
-        fileserver UUID for future authenticated operations.
-        Fileservers SHOULD use VL_RegisterAddrsAndKey to rekey themselves
-        periodically, in accordance with key lifetime best practices.</t>
+        a server-specific key registered.
+        </t>
         <t>The VL_RegisterAddrsAndKey RPC is described by the following RPC-L:
 <figure><artwork>
     struct RXGK_ServerKeyDataRequest {
@@ -612,7 +652,7 @@
         <t hangText="ipaddr:">The list of addresses to register as belonging
          to this fileserver.</t>
         <t hangText="secIndex:">The index of the security mechanism for 
-         which a key is being set. For rxgk, this value MUST be 4.</t>
+         which a key is being set.</t>
         <t hangText="keyDataRequest:">An opaque blob of data, specific to
          the security mechanism defined by secIndex. For rxgk, it is
          the XDR-encoded representation of an RXGK_ServerKeyDataRequest
@@ -628,7 +668,19 @@
       returns that, along with 20 bytes of random data that it has generated,
       in RXGK_ServerKeyDataResponse. If there is no common encryption type,
       then the server MUST fail the request.</t>
-        <t>The file server key can then be derived by both client and server using
+        <t>The vlserver MUST store the
+        identity list from the token used to make this connection.
+        The vlserver MUST only permit
+        subsequent calls to VL_RegisterAddrsAndKey for this UUID when they come
+        over a connection authenticated with that same identity list,
+        an administrator's token, or a printed token.
+        New fileserver UUIDs register themselves with
+        the vldb in a "leap of faith", binding a GSSAPI identity to the
+        fileserver UUID for future authenticated operations.
+        Fileservers SHOULD use VL_RegisterAddrsAndKey to rekey themselves
+        periodically, in accordance with key lifetime best practices.</t>
+        <t>For rxgk, the file server key can then be derived
+          by both client and server using
 <figure><artwork>
      random-to-key(PRF+(K0, K, nonce1 || nonce2));
 </artwork></figure>
