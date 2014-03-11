@@ -827,10 +827,9 @@
         <t>Since the callback connection key is tied to the
          cache manager identity,
          it should only be used to protect callbacks relating
-         to data accessed using that identity.  Since extended callbacks
-         are only available when a cache manager token is in use, which
-         is easily detected in the 'cb_id' field of the token, the
-         fileserver has a clear identity for the cache manager acting
+         to data accessed using that identity.  This is easily achieved
+         by using the 'cb_id' field of the token, which gives the
+         fileserver the identity of the cache manager acting
          on the user's behalf.  The fileserver MUST only send rxgk-protected
          callbacks using the callback key registered to the cb_id identity
          and the cache manager UUID making the request, at the
