@@ -482,10 +482,11 @@
       <t>Other aspects of the operation of AFSCombineTokens, including the
           combination of keys and tokens, are largely the same as
           the CombineTokens RPC, documented in
-          <xref target="I-D.wilkinson-afs3-rxgk"/>.  The only differences
+          <xref target="I-D.wilkinson-afs3-rxgk"/> and
+          <xref target="CombineTokens" />.  The only differences
           pertain to the case where the supplied cm_tok is empty.
           In this case, there is only one input token master key, so the
-          KRB-FX-CF2() algorithm is not applicable; in these cases the
+          KRB-FX-CF2() algorithm is not applicable; instead, the
           master key K0 from user_tok is reused unchanged for the output token.
       </t>
     </section>
