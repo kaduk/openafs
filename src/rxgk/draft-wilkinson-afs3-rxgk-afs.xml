@@ -689,6 +689,16 @@
        encryption type chosen by the server and returned in enctype.</t>
         <t>PRF+ is the function of that name specified by 
        <xref target="RFC4402"/>.</t>
+        <t>[[The PRF+ function defined in RFC 4402 specifies that the values
+         of the counter 'n' should begin at 1, for T1, T2, ... Tn.
+         However, implementations of that PRF+ function for the
+         gss_pseudo_random() implementation for the krb5 mechanism have
+         disregarded that specification and started the counter 'n' from 0.
+         Since there is no interoperability concern between krb5
+         gss_pseudo_random() and rxgk key derivation, implementations of
+         the RFC 4402 PRF+ function for rxgk key derivation should use the
+         RFC 4402 version as specified, that is, with the counter 'n' beginning
+         at 1.]]</t>
         <t>K0 is the master key of the current rxgk session, e.g., as originally 
        determined by the GSSNegotiate call.</t>
         <t>K is the key generation seed length as specified in enctype's RFC3961
