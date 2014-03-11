@@ -801,10 +801,10 @@
        client is interested in data from the fileserver.</t>
       </section>
       <section title="Lifetime and scope of the callback channel">
-        <t>The RXAFS_SetCallBackKey RPC must be performed over a secure
+        <t>The RXAFS_SetCallBackKey RPC MUST be performed over a secure
          channel that provides confidentiality protection.
          When used to set callback keys for rxgk, this means that
-         the RPC MUST be performed over an rxgk protected connection of
+         the RPC must be performed over an rxgk protected connection of
          security level RXGK_LEVEL_CRYPT.  Additionally, the connection
          MUST have been established using solely the cache manager's token.</t>
         <t>The callback channel key is inherently tied to the identity of the
