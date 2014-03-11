@@ -586,6 +586,11 @@
           allow that identity to perform successor calls to
           VL_RegisterAddrsAndKey for that UUID.
         </t>
+        <t>Is is RECOMMENDED that GSS identities created solely for use
+          on file servers with per-server keys be of the form
+          afs3-fileserver@&lt;hostname&gt; of name type
+          GSS_C_NT_HOSTBASED_SERVICE.
+        </t>
         <t>Once a fileserver has been marked as supporting rxgk, VL_RegisterAddrs
         calls for that fileserver MUST only be accepted over an rxgk
         protected connection. vlservers MUST only accept calls to
