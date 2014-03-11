@@ -130,10 +130,10 @@
           establishment of a callback key.  Callbacks are given to a
           cache manager, but the data requests that cause them to be
           created are made on behalf of a user, using that user's credentials.
-          The AFS-3 token format must provide a connection between the
+          The AFS-3 token format must provide a relationship between the
           data request and the key used for the callback channel; the
           token format in <xref target="tokens" /> makes a provision for
-          this connection.
+          this relationship.
         </t>
       </section>
       <section title="Requirements Language">
@@ -153,7 +153,7 @@
     </section>
     <section title="Authenticator Data">
       <t>The appdata opaque within the RXGK_Authenticator structure used
-        in the rx challenge/response authenticatino exchange
+        in the rx challenge/response authentication exchange
         contains the results of XDR encoding the RXGK_Authenticator_AFSAppData
         structure. The uuid field contains the UUID of the client.
       <figure><artwork>
@@ -161,6 +161,10 @@
         afsUUID uuid;
     };
         </artwork></figure>
+      </t>
+    </section>
+    <section title="Application-Specific Constant">
+      <t>The constant RXGK_MAXDATA takes the value 1048576 for use with AFS-3.
       </t>
     </section>
     <section title="Key Negotiation" anchor="keyneg">
@@ -181,7 +185,7 @@
         that wish to support cells using other rx security objects MAY downgrade
         if this identity is not available.
       </t>
-      <section title="Application-Specific behavior for AFS-3">
+      <section title="Application-Specific GSSNegotiate Behavior for AFS-3">
         <t>The input and output opaques of the GSSNegotiate RPC are left
           as implementation-defined, as needed to retain information across
           subsequent calls during a single GSS negotiation loop.
@@ -192,7 +196,7 @@
           Tokens returned from the GSSNegotiate and CombineTokens calls
           MUST only be used with
           database servers. Tokens for fileservers MUST be obtained by
-          calling AFSCombineTokens (xref target="AFSCombineTokens" />)
+          calling AFSCombineTokens (<xref target="AFSCombineTokens" />)
           before each server is contacted.
         </t>
         <t>
@@ -290,7 +294,8 @@
             connection.</t>
           <t hangText="start_time:">The time at which the token's validity begins.
             Servers MUST reject attempts to
-            use tokens with a start_time value later than the current time.</t>
+            use tokens with a start_time value later than the current time.
+            At token creation, this field should be set to the current time.</t>
           <t hangText="lifetime:">The maximum number of seconds that a 
 	    key derived from K0 may be used for, before the connection is rekeyed.
 	    If 0, keys have no time-based limit.</t>
@@ -314,7 +319,7 @@
             struct PrAuthName is the identity structure defined in 
             <xref target="I-D.brashear-afs3-pts-extended-names"/>.</t></list>
           The above token structure is used for both database server tokens
-          and file server tokens, however, there is a distinction
+          and file server tokens; however, there is a distinction
           between the two.  In database server tokens, the 'cb_id' field
           is always empty (zero-length).  In file server tokens, that
           field may be empty, but if it is present, it corresponds to
@@ -400,7 +405,9 @@
       <t>Printed tokens (<xref target="printing" />) cannot be combined
         with any other token, and servers MUST reject attempts to do so,
         whether via CombineTokens, AFSCombineTokens, or any other
-        token-combining procedure.
+        token-combining procedure.  AFSCombineTokens with a printed user_tok
+        and an empty cm_tok is not considered to be token combination for
+        this purpose.
       </t>
     </section>
     <section title="The AFSCombineTokens Operation" anchor="AFSCombineTokens">
@@ -492,17 +499,15 @@
       <t>A server with the cell-wide
         shared key can forge a token for its use in server-to-server
         communication, which we refer to as "token printing".  Printed
-        tokens take on a special form and are limited in that they
+        tokens take on a special form (<xref target="printing" />)
+        and are limited in that they
         cannot be combined with any other token.  (They can be used as
         the user_tok input to AFSCombineTokens in order to be converted
         into fileserver tokens, but only with an empty cm_tok.)</t>
       <t>However, file servers with a server-specific key (that is,
         without the cell-wide shared key), can only print a token to
         themselves.  Such tokens are not usable to communicate with
-        database servers (because the database servers will not use the
-        fileserver's server-specific key to decrypt incoming tokens),
-        and are not usable to communicate with other fileservers (since
-        fileserver tokens are not valid inputs to AFSCombineTokens).
+        database servers or other file servers.
         As such, file servers with a per-server key will need
         GSS credentials in order to function.  These credentials can
         be used to acquire an rxgk token, allowing queries to the database
@@ -546,7 +551,8 @@
         registration without administrator intervention.</t>
         <t>There are two tracks for registering a file server as being
           rxgk-enabled; one for file servers with the cell-wide key, and
-          another for file servers with per-server keys.  When a file
+          another for file servers with per-server keys.</t>
+        <t>When a file
           server which will use the cell-wide key is registered as
           rxgk-capable, there is no need to register a new key for that
           server (and in fact it would be actively harmful!), so there is
@@ -557,7 +563,8 @@
           has the cell-wide shared key, it will need get its key updated
           when the cell-wide key is updated, and does not need to update
           its own key separately.  As such, it will never need to call
-          VL_RegisterAddrsAndKey.  The second track is for servers which
+          VL_RegisterAddrsAndKey.</t>
+        <t>The second track is for servers which
           will not have the cell-wide shared key.  Since the goal is to
           establish a per-server key, VL_RegisterAddrsAndKey is necessary
           for the first call.  However, best practices require that the
@@ -606,7 +613,7 @@
         <t>The provisioning of file servers with their own keys,
         rather than the cell-wide
         master key, requires the ability to maintain a directory of these keys
-        on the vlserver, so that the AFSCombineTokens RPC can encrypt the
+        in the vldb, so that the AFSCombineTokens RPC can encrypt the
         outgoing token with the correct key. The manner in which this directory
         is maintained is left to the implementor, who MAY decide to use a
         manual, or out of band, key management system.  Otherwise, the automated
@@ -782,7 +789,8 @@
       </section>
       <section title="Lifetime and scope of the callback channel">
         <t>The RXAFS_SetCallBackKey RPC must be performed over a secure
-         channel.  When used to set callback keys for rxgk, this means that
+         channel that provides confidentiality protection.
+         When used to set callback keys for rxgk, this means that
          the RPC MUST be performed over an rxgk protected connection of
          security level RXGK_LEVEL_CRYPT.  Additionally, the connection
          MUST have been established using solely the cache manager's token.</t>
@@ -811,8 +819,8 @@
          is easily detected in the 'cb_id' field of the token, the
          fileserver has a clear identity for the cache manager acting
          on the user's behalf.  The fileserver MUST only send rxgk-protected
-         callbacks using the callback key registered to that cache manager
-         identity and the cache manager UUID making the request, at the
+         callbacks using the callback key registered to the cb_id identity
+         and the cache manager UUID making the request, at the
          time of the request.  If the UUID in the request does not match
          the stored UUID, or there is no key associated with the cache manager
          identity, extended callbacks MUST NOT be generated for that request.
