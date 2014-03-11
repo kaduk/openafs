@@ -848,6 +848,23 @@
 	 will not be used by the cache manger itself.
        </t>
       </section>
+      <section title="Setting Callback Keys">
+        <t>The presence of the RXAFS_SetCallBackKey RPC presents a new
+          avenue for a denial-of-service attack on a file server and the
+          clients it is serving.  Any authenticated user is able to
+          perform this call, supplying key/token pairs that may never be
+          used.  The attacker is able to claim an arbitrary UUID for its
+          "cache manager UUID", since that value is not authenticated and
+          is only supplied as the appdata portion of the rxgk authenticator.
+          Thus, the attacker could cause a large number of SetCallBackKey
+          requests for any particular UUID.  However, the attacker must
+          be authenticated to do so, so so limiting a given identity to
+          a fixed number of (UUID, identity, key) triples should mitigate
+          the attack.  In particular, it is advisable for file servers
+          to retain multiple (UUID, identity, key) triples for any single
+          UUID, to aid the retention of legitimate callback keys.
+        </t>
+      </section>
     </section>
   </middle>
   <back>
