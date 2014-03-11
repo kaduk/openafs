@@ -315,7 +315,7 @@
             <xref target="I-D.brashear-afs3-pts-extended-names"/>.</t></list>
           The above token structure is used for both database server tokens
           and file server tokens, however, there is a distinction
-          between the two.  In database server tokens, the 'cm_id' field
+          between the two.  In database server tokens, the 'cb_id' field
           is always empty (zero-length).  In file server tokens, that
           field may be empty, but if it is present, it corresponds to
           the identity of the cache manager making the request on behalf
@@ -395,7 +395,7 @@
       <t>The identity lists in the 'identities' fields of the two tokens
         are combined via order-preserving concatenation and placed in the
         'identities' field of the output token.</t>
-      <t>The 'cm_id' field MUST be empty in both input tokens, and is
+      <t>The 'cb_id' field MUST be empty in both input tokens, and is
         left empty (zero-length) in the output token.</t>
       <t>Printed tokens (<xref target="printing" />) cannot be combined
         with any other token, and servers MUST reject attempts to do so,
@@ -471,7 +471,7 @@
 	  choice of security layer in any other situation.</t>
       <t>The 'identities' list from user_tok is copied to the 'identities'
           field of the new_token.  The 'identities' list from cm_tok
-          is copied to the 'cm_id' field of the new_token.</t>
+          is copied to the 'cb_id' field of the new_token.</t>
       <t>Other aspects of the operation of AFSCombineTokens, including the
           combination of keys and tokens, are largely the same as
           the CombineTokens RPC, documented in
@@ -808,7 +808,7 @@
          it should only be used to protect callbacks relating
          to data accessed using that identity.  Since extended callbacks
          are only available when a cache manager token is in use, which
-         is easily detected in the 'cm_id' field of the token, the
+         is easily detected in the 'cb_id' field of the token, the
          fileserver has a clear identity for the cache manager acting
          on the user's behalf.  The fileserver MUST only send rxgk-protected
          callbacks using the callback key registered to that cache manager
