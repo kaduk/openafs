@@ -550,55 +550,6 @@
 	downgrade attacks, once a fileserver has
         registered as being rxgk capable, the vlserver MUST NOT remove that
         registration without administrator intervention.</t>
-        <t>There are two tracks for registering a file server as being
-          rxgk-enabled; one for file servers with the cell-wide key, and
-          another for file servers with per-server keys.</t>
-        <t>When a file
-          server which will use the cell-wide key is registered as
-          rxgk-capable, there is no need to register a new key for that
-          server (and in fact it would be actively harmful!), so there is
-          no need to use VL_RegisterAddrsAndKey.  In this case,
-          VL_RegisterAddrs is sufficient, and using a printed token for
-          the rxgk connection for VL_RegisterAddrs indicates that the
-          file server possesses the cell-wide key.  Since the file server
-          has the cell-wide shared key, it will need get its key updated
-          when the cell-wide key is updated, and does not need to update
-          its own key separately.  As such, it will never need to call
-          VL_RegisterAddrsAndKey.</t>
-        <t>The second track is for servers which
-          will not have the cell-wide shared key.  Since the goal is to
-          establish a per-server key, VL_RegisterAddrsAndKey is necessary
-          for the first call.  However, best practices require that the
-          file server change its long-term key periodically, so it must
-          retain the ability to perform subsequent VL_RegisterAddrsAndKey
-          calls in the future, to register those new keys in the vldb.
-          For this reason, a printed token is not a useful choice for
-          performing the initial call to VL_RegisterAddrsAndKey, since
-          only a printed token would be able to perform a subsequent
-          call.  The printed token would require the cell-wide shared
-          key, eliminating any benefit from having a server-specific key.
-          As such, a regular (non-printed) token is required for the
-          initial call to VL_RegisterAddrsAndKey.  A cell administrator's
-          token could be used, but it is advantageous to allow file servers
-          with per-server keys to operate without intervention by the
-          central cell administrators (thus, these file servers could
-          be run solely by a local administrator without need for central
-          administrator intervention).  Thus, is is expected that a
-          file server with a per-server key will have a dedicated GSS
-          identity and credentials that it will use for registering
-          with the vldb (VL_RegisterAddrsAndKey) and that will also
-          be used for securing the file server's regular connections
-          to the database servers during normal operation.  The vlserver
-          will store in the vldb what GSS identity is used to perform
-          VL_RegisterAddrsAndKey for a given file server UUID, and
-          allow that identity to perform successor calls to
-          VL_RegisterAddrsAndKey for that UUID.
-        </t>
-        <t>Is is RECOMMENDED that GSS identities created solely for use
-          on file servers with per-server keys be of the form
-          afs3-fileserver@&lt;hostname&gt; of name type
-          GSS_C_NT_HOSTBASED_SERVICE.
-        </t>
         <t>Once a fileserver has been marked as supporting rxgk, VL_RegisterAddrs
         calls for that fileserver MUST only be accepted over an rxgk
         protected connection. vlservers MUST only accept calls to
@@ -607,6 +558,58 @@
         identity registered for the fileserver using a prior call to
         VL_RegisterAddrsandKey.
       </t>
+        <t>There are two tracks for registering a file server as being
+          rxgk-enabled; one for file servers with the cell-wide key, and
+          another for file servers with per-server keys.</t>
+        <section title="File Servers With the Cell-Wide Key">
+          <t>When a file
+            server which will use the cell-wide key is registered as
+            rxgk-capable, there is no need to register a new key for that
+            server (and in fact it would be actively harmful!), so there is
+            no need to use VL_RegisterAddrsAndKey.  In this case,
+            VL_RegisterAddrs is sufficient, and using a printed token for
+            the rxgk connection for VL_RegisterAddrs indicates that the
+            file server possesses the cell-wide key.  Since the file server
+            has the cell-wide shared key, it will need get its key updated
+            when the cell-wide key is updated, and does not need to update
+            its own key separately.  As such, it will never need to call
+            VL_RegisterAddrsAndKey.</t>
+        </section>
+        <section title="File Servers With Per-Server Keys">
+          <t>Since the goal is to
+            establish a per-server key, VL_RegisterAddrsAndKey is necessary
+            for the first call.  However, best practices require that the
+            file server change its long-term key periodically, so it must
+            retain the ability to perform subsequent VL_RegisterAddrsAndKey
+            calls in the future, to register those new keys in the vldb.
+            For this reason, a printed token is not a useful choice for
+            performing the initial call to VL_RegisterAddrsAndKey, since
+            only a printed token would be able to perform a subsequent
+            call.  The printed token would require the cell-wide shared
+            key, eliminating any benefit from having a server-specific key.
+            As such, a regular (non-printed) token is required for the
+            initial call to VL_RegisterAddrsAndKey.  A cell administrator's
+            token could be used, but it is advantageous to allow file servers
+            with per-server keys to operate without intervention by the
+            central cell administrators (thus, these file servers could
+            be run solely by a local administrator without need for central
+            administrator intervention).  Thus, is is expected that a
+            file server with a per-server key will have a dedicated GSS
+            identity and credentials that it will use for registering
+            with the vldb (VL_RegisterAddrsAndKey) and that will also
+            be used for securing the file server's regular connections
+            to the database servers during normal operation.  The vlserver
+            will store in the vldb what GSS identity is used to perform
+            VL_RegisterAddrsAndKey for a given file server UUID, and
+            allow that identity to perform successor calls to
+            VL_RegisterAddrsAndKey for that UUID.
+          </t>
+          <t>Is is RECOMMENDED that GSS identities created solely for use
+            on file servers with per-server keys be of the form
+            afs3-fileserver@&lt;hostname&gt; of name type
+            GSS_C_NT_HOSTBASED_SERVICE.
+          </t>
+        </section>
         <!-- XXX - we need to define a VL_ RPC which can be used to remove
                   the rxgk capable marking -->
       </section>
