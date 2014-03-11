@@ -520,6 +520,8 @@
           a database server token with suitable values.
           The lists of identities in such a token
           MUST be empty. It can then encrypt this token using the pre-shared key,
+          place it in an RXGK_TokenContainer describing the key used to
+          perform the encryption,
           and use it in the same way as a normal rxgk token. The receiving server
           can identify it is a printed token by the empty identity list.</t>
         <t>The session key within a printed database server token
