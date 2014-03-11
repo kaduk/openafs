@@ -821,8 +821,7 @@
       <t>This document requrests that the AFS-3 registry allocate code
       points for the new RPCs AFSCombineTokens (for the RXGK service),
       RegisterAddrsAndKey (for the VL service), and SetCallBackKey (for the
-      RXAFS service).  It also requests the allocation of a value for
-      the PRAUTHTYPE_EMPTY kind of PrAuthName.</t>
+      RXAFS service).</t>
     </section>
     <section title="Security Considerations">
       <section title="Downgrade attacks">
