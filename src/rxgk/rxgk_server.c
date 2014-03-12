@@ -233,6 +233,34 @@ rxgk_NewEphemeralService_SecObj(u_short port, struct rx_service **service_out,
 }
 
 /*
+ * Grab the getkey service-specific data for this connection, and use
+ * its getkey function to get a key with which to encrypt a token.
+ * In principle, we could have hooks to allow the idea of an "active kvno",
+ * so that a higher kvno than is used could be present in the database
+ * to allow transparent rekeying when keys must be distributed amongst
+ * multiple hosts.
+ * For now, though, just use the highest kvno.
+ *
+ * Returns RX errors.
+ */
+afs_int32
+rxgk_service_get_long_term_key(struct rx_call *acall, rxgk_key *key,
+                               afs_int32 *kvno, afs_int32 *enctype)
+{
+    struct rx_connection *conn;
+    struct rx_service *svc;
+    struct rxgk_getkey_sspecific_data *gk;
+
+    conn = rx_ConnectionOf(acall);
+    svc = rx_ServiceOf(conn);
+    gk = rx_GetServiceSpecific(svc, RXGK_NEG_SSPECIFIC_GETKEY);
+
+    if (gk == NULL || gk->getkey == NULL)
+	return RXGK_INCONSISTENCY;
+    return (*gk->getkey)(gk->rock, kvno, enctype, key);
+}
+
+/*
  * Helper to release the resources of a security object.
  * Could be called from Close or DestroyConnection.
  */

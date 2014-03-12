@@ -80,6 +80,8 @@ afs_int32 rxgk_NewEphemeralService_SecObj(u_short port,
 					  char *serviceName,
 					  struct rx_securityClass **secObjs,
 					  int nsecObjs);
+afs_int32 rxgk_service_get_long_term_key(struct rx_call *acall, rxgk_key *key,
+					 afs_int32 *kvno, afs_int32 *enctype);
 afs_int32 rxgk_GetServerInfo(struct rx_connection *conn, RXGK_Level *level,
 			     rxgkTime *expiry, struct rx_identity **identity);
 /* rxgk_client.c */

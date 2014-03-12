@@ -858,34 +858,6 @@ make_single_identity(afs_uint32 *minor, PrAuthName **identity, gss_name_t name)
 }
 
 /*
- * Grab the getkey service-specific data for this connection, and use
- * its getkey function to get a key with which to encrypt a token.
- * In principle, we could have hooks to allow the idea of an "active kvno",
- * so that a higher kvno than is used could be present in the database
- * to allow transparent rekeying when keys must be distributed amongst
- * multiple hosts.
- * For now, though, just use the highest kvno.
- *
- * Returns RX errors.
- */
-static afs_int32
-get_long_term_key(struct rx_call *acall, rxgk_key *key, afs_int32 *kvno,
-		  afs_int32 *enctype)
-{
-    struct rx_connection *conn;
-    struct rx_service *svc;
-    struct rxgk_getkey_sspecific_data *gk;
-
-    conn = rx_ConnectionOf(acall);
-    svc = rx_ServiceOf(conn);
-    gk = rx_GetServiceSpecific(svc, RXGK_NEG_SSPECIFIC_GETKEY);
-
-    if (gk == NULL || gk->getkey == NULL)
-	return RXGK_INCONSISTENCY;
-    return (*gk->getkey)(gk->rock, kvno, enctype, key);
-}
-
-/*
  * Returns true if the acceptor (stored in the rx service-specific
  * data) name and initiator name (client_name) are the same; false
  * otherwise.
@@ -1047,7 +1019,7 @@ SGSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
     if (info.errorcode != 0)
 	goto out;
     /* Get a key to encrypt the token in. */
-    ret = get_long_term_key(z_call, &key, &kvno, &enctype);
+    ret = rxgk_service_get_long_term_key(z_call, &key, &kvno, &enctype);
     if (ret != 0)
 	goto out;
     /* Alias the gss buffer into an rx type. */
