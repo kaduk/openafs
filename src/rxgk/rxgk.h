@@ -126,6 +126,8 @@ afs_int32 rxgk_print_token(struct rx_opaque *out, RXGK_TokenInfo *input_info,
 afs_int32 rxgk_print_token_and_key(struct rx_opaque *out, RXGK_Level level,
 				   rxgk_key key, afs_int32 kvno,
 				   afs_int32 enctype, rxgk_key *k0_out);
+afs_int32 rxgk_extract_token(RXGK_Data *tc, RXGK_Token *out,
+                             rxgk_getkey_func getkey, void *rock);
 
 /* rxgk_gss.c */
 #ifndef KERNEL

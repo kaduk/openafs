@@ -30,7 +30,7 @@
  */
 
 /*
- * Routines to generate, encode, and encrypt rxgk tokens.
+ * Routines to generate, encode, encrypt, decode, and decrypt rxgk tokens.
  */
 
 
@@ -283,4 +283,101 @@ rxgk_print_token_and_key(struct rx_opaque *out, RXGK_Level level, rxgk_key key,
     }
     *k0_out = k0;
     return 0;
+}
+
+/*
+ * Helper functions for rxgk_extract_token.
+ */
+static int
+unpack_container(RXGK_TokenContainer *container, RXGK_Data *in)
+{
+    XDR xdrs;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+
+    xdrmem_create(&xdrs, in->val, in->len, XDR_DECODE);
+    if (!xdr_RXGK_TokenContainer(&xdrs, container)) {
+	xdr_destroy(&xdrs);
+	return RXGEN_SS_UNMARSHAL;
+    }
+    xdr_destroy(&xdrs);
+    return 0;
+}
+
+static int
+decrypt_token(RXGK_Data *out, struct rx_opaque *encopaque, afs_int32 kvno,
+	      afs_int32 enctype, rxgk_getkey_func getkey, void *rock)
+{
+    rxgk_key service_key;
+    struct rx_opaque enctoken = RX_EMPTY_OPAQUE;
+    afs_int32 ret;
+
+    service_key = NULL;
+
+    if (kvno <= 0 || enctype <= 0)
+	return RXGK_BAD_TOKEN;
+
+    ret = getkey(rock, &kvno, &enctype, &service_key);
+    if (ret != 0)
+	goto cleanup;
+    /* Must alias for type compliance */
+    enctoken.val = encopaque->val;
+    enctoken.len = encopaque->len;
+    ret = rxgk_decrypt_in_key(service_key, RXGK_SERVER_ENC_TOKEN, &enctoken,
+			      out);
+    if (ret != 0)
+	goto cleanup;
+
+cleanup:
+    rxgk_release_key(&service_key);
+    return ret;
+}
+
+static int
+unpack_token(RXGK_Token *token, RXGK_Data *in)
+{
+    XDR xdrs;
+
+    memset(&xdrs, 0, sizeof(xdrs));
+
+    xdrmem_create(&xdrs, in->val, in->len, XDR_DECODE);
+    if (!xdr_RXGK_Token(&xdrs, token)) {
+	xdr_destroy(&xdrs);
+	return RXGEN_SS_UNMARSHAL;
+    }
+    xdr_destroy(&xdrs);
+    return 0;
+}
+
+/*
+ * Given an XDR-encoded RXGK_TokenContainer, extract/decrypt the contents
+ * into an RXGK_Token.
+ *
+ * The caller must free the returned token with xdr_free.
+ */
+afs_int32
+rxgk_extract_token(RXGK_Data *tc, RXGK_Token *out, rxgk_getkey_func getkey,
+		   void *rock)
+{
+    RXGK_TokenContainer container;
+    struct rx_opaque packed_token = RX_EMPTY_OPAQUE;
+    afs_int32 ret;
+
+    memset(&container, 0, sizeof(container));
+
+    ret = unpack_container(&container, tc);
+    if (ret != 0)
+	goto cleanup;
+    ret = decrypt_token(&packed_token, &container.encrypted_token,
+			container.kvno, container.enctype, getkey, rock);
+    if (ret != 0)
+	goto cleanup;
+    ret = unpack_token(out, &packed_token);
+    if (ret != 0)
+	goto cleanup;
+
+cleanup:
+    xdr_free((xdrproc_t)xdr_RXGK_TokenContainer, &container);
+    xdr_free((xdrproc_t)xdr_RXGK_Data, &packed_token);
+    return ret;
 }

@@ -425,67 +425,6 @@ cleanup:
  * Helper functions for CheckResponse.
  */
 
-static int
-unpack_container(RXGK_TokenContainer *container, RXGK_Data *in)
-{
-    XDR xdrs;
-
-    memset(&xdrs, 0, sizeof(xdrs));
-
-    xdrmem_create(&xdrs, in->val, in->len, XDR_DECODE);
-    if (!xdr_RXGK_TokenContainer(&xdrs, container)) {
-	xdr_destroy(&xdrs);
-	return RXGEN_SS_UNMARSHAL;
-    }
-    xdr_destroy(&xdrs);
-    return 0;
-}
-
-static int
-decrypt_token(RXGK_Data *out, struct rx_opaque *encopaque, afs_int32 kvno,
-	      afs_int32 enctype, rxgk_getkey_func getkey, void *rock)
-{
-    rxgk_key service_key;
-    struct rx_opaque enctoken = RX_EMPTY_OPAQUE;
-    afs_int32 ret;
-
-    service_key = NULL;
-
-    if (kvno <= 0 || enctype <= 0)
-	return RXGK_BAD_TOKEN;
-
-    ret = getkey(rock, &kvno, &enctype, &service_key);
-    if (ret != 0)
-	goto cleanup;
-    /* Must alias for type compliance */
-    enctoken.val = encopaque->val;
-    enctoken.len = encopaque->len;
-    ret = rxgk_decrypt_in_key(service_key, RXGK_SERVER_ENC_TOKEN, &enctoken,
-			      out);
-    if (ret != 0)
-	goto cleanup;
-
-cleanup:
-    rxgk_release_key(&service_key);
-    return ret;
-}
-
-static int
-unpack_token(RXGK_Token *token, RXGK_Data *in)
-{
-    XDR xdrs;
-
-    memset(&xdrs, 0, sizeof(xdrs));
-
-    xdrmem_create(&xdrs, in->val, in->len, XDR_DECODE);
-    if (!xdr_RXGK_Token(&xdrs, token)) {
-	xdr_destroy(&xdrs);
-	return RXGEN_SS_UNMARSHAL;
-    }
-    xdr_destroy(&xdrs);
-    return 0;
-}
-
 /*
  * The XDR token format uses the XDR PrAuthName type to store identities.
  * However, there is an existing rx_identity type used in libauth, so
@@ -524,39 +463,6 @@ prnames_to_identity(PrAuthName *namelist, size_t nnames)
 }
 
 /*
- * Given an XDR-encoded RXGK_TokenContainer, extract/decrypt the contents
- * into an RXGK_Token.
- *
- * The caller must free the returned token with xdr_free.
- */
-afs_int32
-rxgk_extract_token(RXGK_Data *tc, RXGK_Token *out, rxgk_getkey_func getkey,
-		   void *rock)
-{
-    RXGK_TokenContainer container;
-    struct rx_opaque packed_token = RX_EMPTY_OPAQUE;
-    afs_int32 ret;
-
-    memset(&container, 0, sizeof(container));
-
-    ret = unpack_container(&container, tc);
-    if (ret != 0)
-	goto cleanup;
-    ret = decrypt_token(&packed_token, &container.encrypted_token,
-			container.kvno, container.enctype, getkey, rock);
-    if (ret != 0)
-	goto cleanup;
-    ret = unpack_token(&token, &packed_token);
-    if (ret != 0)
-	goto cleanup;
-
-cleanup:
-    xdr_free((xdrproc_t)xdr_RXGK_TokenContainer, &container);
-    xdr_free((xdrproc_t)xdr_RXGK_Data, &packed_token);
-    return ret;
-}
-
-/*
  * Unpack, decrypt, and extract information from a token.
  * Store the relevant bits in the connection security data.
  */
@@ -568,7 +474,7 @@ process_token(RXGK_Data *tc, struct rxgk_sprivate *sp, struct rxgk_sconn *sc)
 
     memset(&token, 0, sizeof(token));
 
-    ret = extract_token(tc, &token, sp->getkey, sp->rock);
+    ret = rxgk_extract_token(tc, &token, sp->getkey, sp->rock);
     if (ret != 0)
 	goto cleanup;
 
