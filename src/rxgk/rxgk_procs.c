@@ -61,13 +61,49 @@ SRXGK_GSSNegotiate(struct rx_call *z_call, RXGK_StartParams *client_start,
 #endif
 }
 
-
 afs_int32
 SRXGK_CombineTokens(struct rx_call *z_call, RXGK_Data *token0,
 		    RXGK_Data *token1, RXGK_CombineOptions *options,
 		    RXGK_Data *new_token, RXGK_TokenInfo *info)
 {
-    return RXGEN_OPCODE;
+    RXGK_Token t0, t1;
+    struct rx_connection *conn;
+    struct rx_securityClass *aobj;
+    struct rxgk_sprivate *sp;
+    struct PrAuthName *user_ids = NULL;
+    rxgk_key encrypt_key = NULL;
+    afs_int32 ret, kvno = 0, enctype = 0;
+    int nuid = -1;
+
+    memset(&t0, 0, sizeof(t0));
+    memset(&t1, 0, sizeof(t1));
+
+    conn = rx_ConnectionOf(z_call);
+    aobj = rx_SecurityObjectOf(conn);
+    sp = aobj->privateData;
+
+    ret = rxgk_extract_token(token0, &t0, sp->getkey, sp->rock);
+    if (ret != 0)
+	goto cleanup;
+    ret = rxgk_extract_token(token1, &t1, sp->getkey, sp->rock);
+    if (ret != 0)
+	goto cleanup;
+    ret = join_ids(t0.identities.val, t0.identities.len, t1.identities.val,
+		   t1.identities.len, &user_ids, &nuid);
+    if (ret != 0)
+	goto cleanup;
+    ret = rxgk_service_get_long_term_key(z_call, &encrypt_key, &kvno, &enctype);
+    if (ret != 0)
+	goto cleanup;
+
+    ret = rxgk_combinetokens_common(z_call, &t0, &t1, options, new_token,
+				    info, user_ids, nuid, encrypt_key, kvno,
+				    enctype);
+cleanup:
+    xdr_free((xdrproc_t)xdr_RXGK_Token, &t0);
+    xdr_free((xdrproc_t)xdr_RXGK_Token, &t1);
+    /* user_ids is consumed by rxgk_combinetokens_common. */
+    return ret;
 }
 
 afs_int32
