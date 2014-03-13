@@ -116,6 +116,11 @@ afs_int32 rxgk_derive_tk(rxgk_key *tk, rxgk_key k0, afs_uint32 epoch,
 			 afs_uint32 key_number);
 afs_int32 rxgk_cipher_expansion(rxgk_key k0, int *len_out);
 afs_int32 rxgk_nonce(struct rx_opaque *nonce, int len);
+afs_int32 rxgk_combine_keys(rxgk_key k0, rxgk_key k1, afs_int32 enctype,
+			    rxgk_key *kn);
+afs_int32 rxgk_combine_keys_data(RXGK_Data *k0_data, afs_int32 e0,
+				 RXGK_Data *k1_data, afs_int32 e1,
+				 RXGK_Data *kn_data, afs_int32 en);
 
 /* rxgk_token.c */
 afs_int32 rxgk_make_token(struct rx_opaque *out, RXGK_TokenInfo *info,

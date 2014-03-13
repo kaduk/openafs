@@ -216,6 +216,8 @@ rxgk_make_token(struct rx_opaque *out, RXGK_TokenInfo *info,
     ret = rx_opaque_populate(&token.K0, k0->val, k0->len);
     if (ret != 0)
 	return ret;
+    if (nids < 0)
+	return RXGK_INCONSISTENCY;
     token.identities.len = nids;
     token.identities.val = identities;
     ret = pack_wrap_token(key, kvno, enctype, &token, out);

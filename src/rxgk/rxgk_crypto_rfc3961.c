@@ -46,6 +46,8 @@
 #include <afs/param.h>
 #include <afs/stds.h>
 
+#include <errno.h>
+
 #include <rx/rx.h>
 #include <rx/rxgk.h>
 #include <afs/rfc3961.h>
@@ -656,4 +658,87 @@ rxgk_nonce(struct rx_opaque *nonce, int len)
 
     krb5_generate_random_block(nonce->val, len);
     return 0;
+}
+
+afs_int32
+rxgk_combine_keys(rxgk_key k0, rxgk_key k1, afs_int32 enctype, rxgk_key *kn)
+{
+    krb5_context ctx;
+    krb5_crypto c0 = NULL, c1 = NULL;
+    krb5_data pepper0, pepper1;
+    krb5_enctype e0, e1;
+    krb5_keyblock *kb0 = k0, *kb1 = k1, *kbn = NULL;
+    afs_int32 ret;
+
+    *kn = NULL;
+    memset(&pepper0, 0, sizeof(pepper0));
+    memset(&pepper1, 0, sizeof(pepper1));
+
+    e0 = deref_keyblock_enctype(kb0);
+    e1 = deref_keyblock_enctype(kb1);
+    ret = krb5_init_context(&ctx);
+    if (ret != 0)
+	return ktor(ret);
+    ret = krb5_crypto_init(ctx, kb0, e0, &c0);
+    if (ret != 0)
+	goto cleanup;
+    ret = krb5_crypto_init(ctx, kb1, e1, &c1);
+    if (ret != 0)
+	goto cleanup;
+    kbn = rxi_Alloc(sizeof(*kbn));
+    if (kbn == NULL) {
+	ret = ENOMEM;
+	goto cleanup;
+    }
+    pepper0.data = "AFS";
+    pepper0.length = 3;
+    pepper1.data = "rxgk";
+    pepper1.length = 4;
+    ret = krb5_crypto_fx_cf2(ctx, c0, c1, &pepper0, &pepper1, enctype, kbn);
+    if (ret != 0)
+	goto cleanup;
+    *kn = kbn;
+
+cleanup:
+    krb5_crypto_destroy(ctx, c0);
+    krb5_crypto_destroy(ctx, c1);
+    krb5_free_context(ctx);
+    return ret;
+}
+
+/*
+ * Take the raw key data from k[01]_data, for keys of enctypes e[01],
+ * and perform the KRB-FX-CF2 combination algorithm to yield the new
+ * key with raw key data in kn of enctype en.
+ * The caller must free the storage in *kn_data.
+ *
+ * Returns rxgk error codes.
+ */
+afs_int32
+rxgk_combine_keys_data(RXGK_Data *k0_data, afs_int32 e0, RXGK_Data *k1_data,
+		       afs_int32 e1, RXGK_Data *kn_data, afs_int32 en)
+{
+    krb5_keyblock *kbn;
+    rxgk_key k0 = NULL, k1 = NULL, kn = NULL;
+    afs_int32 ret;
+
+    memset(kn_data, 0, sizeof(*kn_data));
+
+    ret = rxgk_make_key(&k0, k0_data->val, k0_data->len, e0);
+    if (ret != 0)
+	goto cleanup;
+    ret = rxgk_make_key(&k1, k1_data->val, k1_data->len, e1);
+    if (ret != 0)
+	goto cleanup;
+    ret = rxgk_combine_keys(k0, k1, en, kn);
+    if (ret != 0)
+	goto cleanup;
+    kbn = kn;
+    ret = rx_opaque_populate(kn_data, kbn->keyvalue.data, kbn->keyvalue.length);
+
+cleanup:
+    rxgk_release_key(&k0);
+    rxgk_release_key(&k1);
+    rxgk_release_key(&kn);
+    return ret;
 }
