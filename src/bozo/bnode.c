@@ -1186,6 +1186,7 @@ bnode_Init(void)
     sigaddset(&mask, SIGQUIT);
     sigaddset(&mask, SIGFPE);
     opr_Verify(pthread_sigmask(SIG_BLOCK, &mask, NULL) == 0);
+    code = 0;
 #else
     memset(&newaction, 0, sizeof(newaction));
     newaction.sa_handler = bozo_insecureme;
