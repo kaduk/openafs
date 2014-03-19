@@ -12,6 +12,10 @@ LT_objs = rxgk_client.lo rxgk_server.lo rxgk_errs.lo rxgk_int.cs.lo \
 	rxgk_int.xdr.lo rxgk_int.ss.lo rxgk_procs.lo rxgk_token.lo \
 	rxgk_gss.lo rxgk_util.lo rxgk_packet.lo rxgk_crypto_rfc3961.lo
 
+test_objs = rxgk_client.lo rxgk_server.lo rxgk_errs.lo rxgk_int.cs.lo \
+	rxgk_int.xdr.lo rxgk_int.ss.lo rxgk_procs.lo rxgk_token.lo \
+	rxgk_gss.lo rxgk_util.lo rxgk_packet.lo prfplus-test.lo
+
 LT_deps =   $(top_builddir)/src/opr/liboafs_opr.la \
 	    $(top_builddir)/src/comerr/liboafs_comerr.la \
 	    $(top_builddir)/src/rx/liboafs_rx.la \
@@ -20,7 +24,7 @@ LT_deps =   $(top_builddir)/src/opr/liboafs_opr.la \
 LT_libs =   $(LIB_gssapi)
 
 all: depinstall rxgk_int.cs.c rxgk_int.ss.c rxgk_int.xdr.c rxgk_int.h \
-	${LT_objs} liboafs_rxgk.la libafsrpc_rxgk.la
+	${LT_objs} liboafs_rxgk.la libafsrpc_rxgk.la prfplus-test
 
 generated: \
 	rxgk_errs.h rxgk_errs.c rxgk_int.h rxgk_int.cs.c rxgk_int.xdr.c \
@@ -72,6 +76,9 @@ rxgk_errs.h: rxgk_errs.c
 rxgk_errs.c: rxgk_errs.et
 	$(RM) -f rxgk_errs.h rxgk_errs.c
 	${COMPILE_ET} -p ${srcdir} rxgk_errs
+
+prfplus-test: $(test_objs) $(LT_deps)
+	$(LT_LDLIB_static) $(test_objs) $(LT_deps) $(LT_libs)
 
 #
 # Installation targets
