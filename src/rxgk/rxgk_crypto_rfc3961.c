@@ -545,6 +545,7 @@ PRFplus(krb5_data *out, krb5_enctype enctype, rxgk_key k0,
 	memcpy(pre_key + (nn - 1) * block_len, prf_out.data, block_len);
     }
     memcpy(out->data, pre_key, desired_len);
+    out->length = desired_len;
 
 cleanup:
     krb5_crypto_destroy(ctx, crypto);
