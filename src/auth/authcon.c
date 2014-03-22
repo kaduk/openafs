@@ -24,6 +24,10 @@
 #include <rx/rxkad.h>
 #include <rx/rx.h>
 
+#ifdef ENABLE_RXGK
+#include <rx/rxgk.h>
+#endif
+
 #include <afs/pthread_glock.h>
 
 #include "cellconfig.h"
@@ -329,6 +333,31 @@ afsconf_BuildServerSecurityObjects(void *rock,
 	(*classes)[3] = NULL;
     (*classes)[4] = NULL;
 
+}
+
+/*
+ * Build a set of security classes suitable, including rxgk (if configured
+ * to do so), for a ubik server accepting incoming connections on the
+ * ubik services DISK_ and VOTE_.  This set of security classes is not
+ * suitable for use on other services, such as public-facing database
+ * servers or file server services, as it does not provide the RXGK_
+ * service and therefore the only functional tokens for the rxgk security
+ * object will be printed tokens.
+ */
+void
+afsconf_BuildUbikServerSecurityObjects(void *rock,
+				       struct rx_securityClass ***classes,
+				       afs_int32 *numClasses)
+{
+    struct afsconf_dir *dir = rock;
+
+    /* Get everything but rxgk. */
+    afsconf_BuildServerSecurityObjects(dir, classes, numClasses);
+# if defined(ENABLE_RXGK)
+    /* rxgk */
+    (*classes)[RX_SECIDX_GK] =
+	rxgk_NewServerSecurityObject(rock, afsconf_GetRXGKKey);
+# endif /* ENABLE_RXGK */
 }
 #endif
 
