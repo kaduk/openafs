@@ -237,6 +237,9 @@ extern void afsconf_SetSecurityFlags(struct afsconf_dir *dir,
 extern void afsconf_BuildServerSecurityObjects(void *,
 					       struct rx_securityClass ***,
 					       afs_int32 *);
+extern void afsconf_BuildUbikServerSecurityObjects(void *,
+					       struct rx_securityClass ***,
+					       afs_int32 *);
 
 /* writeconfig.c */
 int afsconf_SetExtendedCellInfo(struct afsconf_dir *adir, const char *apath,
