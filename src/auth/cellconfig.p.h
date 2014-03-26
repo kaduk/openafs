@@ -40,6 +40,12 @@ Creation date:
 #include <rx/rx_opaque.h>
 #include <opr/queue.h>
 
+/* Probably don't need to pull in all of rxgk.h here */
+#ifndef RXGK_KEY_DECLARED__
+#define RXGK_KEY_DECLARED__
+typedef void * rxgk_key;
+#endif
+
 #define	MAXCELLCHARS	64
 #define	MAXHOSTCHARS	64
 #define MAXHOSTSPERCELL  8
@@ -136,8 +142,13 @@ struct ktc_encryptionKey;
 extern afs_int32 afsconf_GetLatestKey(struct afsconf_dir *adir,
 				      afs_int32 * avno,
 				      struct ktc_encryptionKey *akey);
+extern afs_int32 afsconf_GetLatestRXGKKey(struct afsconf_dir *adir,
+					  afs_int32 *kvno, afs_int32 *enctype,
+					  rxgk_key *key);
 extern int afsconf_GetKey(void *rock, int avno,
 			  struct ktc_encryptionKey *akey);
+extern int afsconf_GetRXGKKey(void *rock, afs_int32 *vno, afs_int32 *enctype,
+			      rxgk_key *key);
 extern int afsconf_AddKey(struct afsconf_dir *adir, afs_int32 akvno,
 			  char akey[8], afs_int32 overwrite);
 extern int afsconf_DeleteKey(struct afsconf_dir *adir, afs_int32 akvno);

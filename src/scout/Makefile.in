@@ -30,6 +30,7 @@ LIBS=${TOP_LIBDIR}/libgtx.a \
 	${TOP_LIBDIR}/libkauth.a \
 	${TOP_LIBDIR}/libauth.a \
 	${TOP_LIBDIR}/librxkad.a \
+	@RXGK_LIBS_STATIC@ \
 	${TOP_LIBDIR}/libcmd.a \
 	${TOP_LIBDIR}/vlib.a \
 	${TOP_LIBDIR}/libacl.a \
