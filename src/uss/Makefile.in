@@ -22,6 +22,7 @@ LIBS=${TOP_LIBDIR}/libvolser.a \
 	${TOP_LIBDIR}/libubik.a \
 	${TOP_LIBDIR}/libauth.a \
 	${TOP_LIBDIR}/librxkad.a \
+	@RXGK_LIBS_STATIC@ \
 	${TOP_LIBDIR}/libsys.a \
 	${TOP_LIBDIR}/librx.a \
 	${TOP_LIBDIR}/libsys.a \

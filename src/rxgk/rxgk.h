@@ -67,7 +67,10 @@ static_inline time_t rxgkTimeToSeconds(rxgkTime time) {
 
 /* rxgk_key is an opaque type to wrap our RFC3961 implementation's concept
  * of a key.  It has (at least) the keyblock and length, and enctype. */
+#ifndef RXGK_KEY_DECLARED__
+#define RXGK_KEY_DECLARED__
 typedef void * rxgk_key;
+#endif
 
 typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 *kvno,
 				      afs_int32 *enctype, rxgk_key *key);

@@ -40,6 +40,7 @@ SAMPLELIBS =\
 	${TOP_LIBDIR}/libvosadmin.a \
 	${TOP_LIBDIR}/libbosadmin.a \
 	${TOP_LIBDIR}/libafsauthent.a \
+	@RXGK_LIBS_STATIC@ \
 	${TOP_LIBDIR}/libafsrpc.a \
 	$(top_builddir)/src/util/liboafs_util.la \
 	$(top_builddir)/src/opr/liboafs_opr.la \

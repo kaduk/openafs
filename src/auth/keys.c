@@ -32,6 +32,9 @@
 /* Need rx/rx.h to get working assert(), used by LOCK_GLOBAL_MUTEX */
 #include <rx/rx.h>
 #include <rx/rx_atomic.h>
+#ifdef ENABLE_RXGK
+#include <rx/rxgk.h>
+#endif
 
 #include <afs/stds.h>
 #include <afs/pthread_glock.h>
@@ -766,6 +769,153 @@ afsconf_GetKey(void *rock, int kvno, struct ktc_encryptionKey *key)
     afsconf_typedKey_put(&typedKey);
 
     return 0;
+}
+
+#if defined(ENABLE_RXGK) && !defined(UKERNEL)
+/*
+ * Impose a full order on the standardized symmetric key enctypes.
+ * This table returns the ordinal of an enctype, or -1 for "error".
+ * This puts things as:
+ * arcfour-hmac-exp < des-cbc-md4 < des-cbc-md5 < des-cbc-crc <
+ * arcfour-hmac < des3-cbc-sha1-kd < camellia128 < aes128 <
+ * camellia256 < aes256
+ */
+#define MAX_ENCTYPE_IDX 27
+static const int etos[MAX_ENCTYPE_IDX] = {
+    -1,  3,  1,  2, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1,  5,  7,  9, -1,
+    -1, -1, -1,  4,  0,  6,  8
+};
+/* returns true if the enctype (subtype) of new is "stronger" than the
+ * enctype of old. */
+static int
+isBetterEnctype(struct afsconf_typedKey *old, struct afsconf_typedKey *new)
+{
+    int e1, e2;
+
+    e1 = old->subType;
+    e2 = new->subType;
+
+    /* Negative enctypes are reserved for local use. */
+    if (e2 < 0) return 1;
+    if (e1 < 0) return 0;
+
+    /* Bounds check before dereferencing etos[] */
+    if (e2 >= MAX_ENCTYPE_IDX) return 0;
+    if (e1 >= MAX_ENCTYPE_IDX) return 1;
+
+    /* etos[] is an ordering on enctypes.  Anything we know about will be
+     * better than the -1 "error" return. */
+    return (etos[e1] < etos[e2]);
+}
+#endif
+
+static int
+_afsconf_GetLatestRXGKKey(afsconf_keyType type, struct afsconf_dir *rock,
+			  afs_int32 *kvno, afs_int32 *enctype, rxgk_key *key)
+{
+#if defined(ENABLE_RXGK) && !defined(KERNEL)
+    struct afsconf_typedKeyList *list;
+    struct afsconf_typedKey *typedKey = NULL;
+    afs_int32 code;
+    int i;
+
+    code = afsconf_GetLatestKeysByType(rock, type, &list);
+    if (code != 0)
+	return code;
+
+    for(i = 0; i < list->nkeys; ++i) {
+	if (typedKey == NULL)
+	    typedKey = list->keys[i];
+	else if (isBetterEnctype(typedKey, list->keys[i]))
+	    typedKey = list->keys[i];
+    }
+
+    /* We picked a key; copy to the output parameters */
+    code = rxgk_make_key(key, typedKey->key.val, typedKey->key.len,
+			 typedKey->subType);
+    if (code != 0)
+	goto cleanup;
+    if (kvno != NULL)
+	*kvno = typedKey->kvno;
+    if (enctype != NULL)
+	*enctype = typedKey->subType;
+
+cleanup:
+    afsconf_PutTypedKeyList(&list);
+    return code;
+#else	/* ENABLE_RXGK && !KERNEL */
+    return AFSCONF_NOTFOUND;
+#endif
+}
+
+/**
+ * Obtain the "best" rxgk key from KeyFileExt
+ *
+ * Return the key and its enctype and kvno, for use encrypting outgoing
+ * tokens.
+ *
+ * @param[in] rock	The configuration directory to be used.
+ * @param[out] kvno	The key version number of key.
+ * @param[out] enctype	The RFC 3961 enctype of key.
+ * @param[out] key	The returned rxgk key.
+ */
+int
+afsconf_GetLatestRXGKKey(struct afsconf_dir *rock, afs_int32 *kvno,
+			 afs_int32 *enctype, rxgk_key *key)
+{
+    return _afsconf_GetLatestRXGKKey(afsconf_rxgk, rock, kvno, enctype, key);
+}
+
+static int
+_afsconf_GetRXGKKey(afsconf_keyType type, void *rock, afs_int32 *kvno,
+		    afs_int32 *enctype, rxgk_key *key)
+{
+#if defined(ENABLE_RXGK) && !defined(KERNEL)
+    struct afsconf_dir *dir = rock;
+    struct afsconf_typedKey *typedKey;
+    afs_int32 code;
+
+    /* No information at all means "pick the best/newest one". */
+    if (*kvno == 0 && *enctype == 0)
+	return _afsconf_GetLatestRXGKKey(type, dir, kvno, enctype, key);
+
+    code = afsconf_GetKeyByTypes(dir, type, *kvno, *enctype, &typedKey);
+    if (code != 0)
+	return code;
+
+    code = rxgk_make_key(key, typedKey->key.val, typedKey->key.len,
+			 typedKey->subType);
+    afsconf_typedKey_put(&typedKey);
+
+    return code;
+#else	/* ENABLE_RXGK && !KERNEL */
+    return AFSCONF_NOTFOUND;
+#endif
+}
+
+/**
+ * Obtain a particular RXGK key from KeyFileExt
+ *
+ * Use the specified kvno and enctype to fetch an rxgk key from KeyFileExt
+ * and return it as an rxgk_key.  Specifying the kvno/enctype pair as both
+ * zeros causes the "best" rxgk key to be returned, and the kvno/enctype
+ * of that key returned to the caller.
+ *
+ * @param[in] rock	An afsconf_dir* for the configuration directory.
+ * @param[inout] kvno	The requested kvno (if non-zero), or zero to request
+ *			the latest key and have its kvno returned in this
+ *			parameter.
+ * @param[inout] enctype	The requested enctype (if non-zero), or zero
+ *				to request the latest key and have its
+ *				enctype returned in this parameter.
+ * @param[out] key	The returned rxgk key.
+ */
+int
+afsconf_GetRXGKKey(void *rock, afs_int32 *kvno,
+		   afs_int32 *enctype, rxgk_key *key)
+{
+    return _afsconf_GetRXGKKey(afsconf_rxgk, rock, kvno, enctype, key);
 }
 
 int

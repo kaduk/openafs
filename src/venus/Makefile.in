@@ -36,6 +36,7 @@ FSLIBS=${TOP_LIBDIR}/libsys.a \
 	 ${TOP_LIBDIR}/vlib.a \
 	 ${TOP_LIBDIR}/libauth.a \
 	 ${TOP_LIBDIR}/librxkad.a \
+	 @RXGK_LIBS_STATIC@ \
 	 ${TOP_LIBDIR}/libafscom_err.a \
 	 ${TOP_LIBDIR}/libcmd.a \
 	 ${TOP_LIBDIR}/libkauth.a \
