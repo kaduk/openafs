@@ -216,6 +216,24 @@ afsconf_ClientAuthSecure(void *arock,
     return rc;
 }
 
+/* Build a fake ticket for 'afs' using keys from adir, returning an
+ * appropriate security class and index.  This one, unlike the above,
+ * tells rxkad to apply integrity protection to the data.
+ */
+afs_int32
+afsconf_ClientAuthInteg(void *arock,
+			struct rx_securityClass **astr,
+			afs_int32 *aindex)
+{
+    struct afsconf_dir *adir = (struct afsconf_dir *) arock;
+    afs_int32 rc;
+
+    LOCK_GLOBAL_MUTEX;
+    rc = GenericAuth(adir, astr, aindex, rxkad_auth);
+    UNLOCK_GLOBAL_MUTEX;
+    return rc;
+}
+
 /*!
  * Build a security class from the user's current tokens
  *
