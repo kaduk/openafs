@@ -86,6 +86,7 @@ struct afsconf_aliasentry {
 #define AFSCONF_SECOPTS_LOCALAUTH     0x2
 #define AFSCONF_SECOPTS_ALWAYSENCRYPT 0x4
 #define AFSCONF_SECOPTS_FALLBACK_NULL 0x8
+#define AFSCONF_SECOPTS_REQUIREINTEG  0x10
 typedef afs_uint32 afsconf_secflags;
 
 struct afsconf_dir {

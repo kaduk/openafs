@@ -246,9 +246,9 @@ afsconf_ClientAuthInteg(void *arock,
  * @param[out] scIndex  The index of the selected class
  * @parma[out] expires  The expiry time of the tokens used to build the class
  *
- * Only the AFSCONF_SECOPTS_ALWAYSENCRYPT flag will modify the behaviour of
- * this function - it determines whether a cleartext, or encrypting, security
- * class is provided.
+ * Only the AFSCONF_SECOPTS_ALWAYSENCRYPT and AFSCONF_SECOPTS_REQUIREINTEG
+ * flags will modify the behaviour of this function - it determines whether a
+ * cleartext, or encrypting, or integrity-checking security class is provided.
  *
  * @return
  *     0 on success, non-zero on failure. An error code of
@@ -285,6 +285,8 @@ afsconf_ClientAuthToken(struct afsconf_cell *info,
 	}
 	if (flags & AFSCONF_SECOPTS_ALWAYSENCRYPT)
 	    encryptLevel = rxkad_crypt;
+	else if (flags & AFSCONF_SECOPTS_REQUIREINTEG)
+	    encryptLevel = rxkad_auth;
 	else
 	    encryptLevel = rxkad_clear;
 	*sc = rxkad_NewClientSecurityObject(encryptLevel,
@@ -367,6 +369,8 @@ afsconf_BuildServerSecurityObjects(void *rock,
  * 		material available.
  * 	- AFSCONF_SECOPTS_ALWAYSENCRYPT - use classes in encrypting, rather
  * 	 	than authentication or integrity modes.
+ *	- AFSCONF_SECOPTS_REQUIREINTEG - require that the class provides
+ *		integrity protection (perhaps as part of encryption).
  * 	- AFSCONF_SECOPTS_FALLBACK_NULL - if no suitable class can be found,
  * 		then fallback to the rxnull security class.
  * @param[in] info
@@ -407,6 +411,8 @@ afsconf_PickClientSecObj(struct afsconf_dir *dir, afsconf_secflags flags,
 	if (flags & AFSCONF_SECOPTS_LOCALAUTH) {
 	    if (flags & AFSCONF_SECOPTS_ALWAYSENCRYPT)
 		code = afsconf_ClientAuthSecure(dir, sc, scIndex);
+	    else if (flags & AFSCONF_SECOPTS_REQUIREINTEG)
+		code = afsconf_ClientAuthInteg(dir, sc, scIndex);
 	    else
 		code = afsconf_ClientAuth(dir, sc, scIndex);
 
