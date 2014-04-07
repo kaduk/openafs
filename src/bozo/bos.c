@@ -112,6 +112,9 @@ GetConn(struct cmd_syndesc *as, afs_uint32 flags)
     else
 	secFlags = AFSCONF_SECOPTS_FALLBACK_NULL;
 
+    if (as->parms[ADDPARMOFFSET + 3].items) { /* -encrypt */
+	secFlags |= AFSCONF_SECOPTS_ALWAYSENCRYPT;
+    }
 
     if (as->parms[ADDPARMOFFSET + 2].items) { /* -localauth */
 	secFlags |= AFSCONF_SECOPTS_LOCALAUTH;
@@ -1672,6 +1675,8 @@ add_std_args(struct cmd_syndesc *ts)
 			  "don't authenticate");
     /* + 2 */ cmd_AddParm(ts, "-localauth", CMD_FLAG, CMD_OPTIONAL,
 			  "create tickets from KeyFile");
+    /* + 3 */ cmd_AddParm(ts, "-encrypt", CMD_FLAG, CMD_OPTIONAL,
+			  "always encrypt the connection");
 }
 
 #include "AFS_component_version_number.c"
