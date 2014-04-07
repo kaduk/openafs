@@ -78,11 +78,14 @@ DateOf(time_t atime)
 }
 
 
-/* use the syntax descr to get a connection, authenticated appropriately.
- * aencrypt is set if we want to encrypt the data on the wire.
+/*
+ * use the syntax descr to get a connection, authenticated appropriately.
+ * Flags are AFSCONF_SECOPTS_*; we use ALWAYSENCRYPT and REQUIREINTEG
+ * for RPCS that involve key data and require the caller to be a superuser,
+ * respectively.  If 0, allow fallback to rxnull.
  */
 static struct rx_connection *
-GetConn(struct cmd_syndesc *as, int aencrypt)
+GetConn(struct cmd_syndesc *as, afs_uint32 flags)
 {
     struct hostent *th;
     char *hostname;
@@ -104,8 +107,8 @@ GetConn(struct cmd_syndesc *as, int aencrypt)
     }
     memcpy(&addr, th->h_addr, sizeof(afs_int32));
 
-    if (aencrypt)
-	secFlags = AFSCONF_SECOPTS_ALWAYSENCRYPT;
+    if (flags != 0)
+	secFlags = flags;
     else
 	secFlags = AFSCONF_SECOPTS_FALLBACK_NULL;
 
@@ -161,7 +164,7 @@ SetAuth(struct cmd_syndesc *as, void *arock)
     afs_int32 flag;
     char *tp;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     tp = as->parms[1].items->data;
     if (strcmp(tp, "on") == 0)
 	flag = 0;		/* auth req.: noauthflag is false */
@@ -226,7 +229,7 @@ Prune(struct cmd_syndesc *as, void *arock)
     struct rx_connection *tconn;
     afs_int32 flags;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     flags = 0;
     if (as->parms[1].items)
 	flags |= BOZO_PRUNEBAK;
@@ -248,7 +251,7 @@ Exec(struct cmd_syndesc *as, void *arock)
     struct rx_connection *tconn;
     afs_int32 code;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     code = BOZO_Exec(tconn, as->parms[1].items->data);
     if (code)
 	printf("bos: failed to execute command (%s)\n", em(code));
@@ -314,7 +317,7 @@ UnInstall(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
     struct rx_connection *tconn;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     if (!as->parms[1].items) {
 	printf("bos: no files to uninstall\n");
 	return 1;
@@ -373,7 +376,7 @@ Install(struct cmd_syndesc *as, void *arock)
     struct rx_call *tcall;
     char destDir[256];
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     if (!as->parms[1].items) {
 	printf("bos: no files to install\n");
 	return 1;
@@ -425,7 +428,7 @@ Shutdown(struct cmd_syndesc *as, void *arock)
     afs_int32 code;
     struct cmd_item *ti;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     if (as->parms[1].items == 0) {
 	code = BOZO_ShutdownAll(tconn);
 	if (code)
@@ -500,7 +503,7 @@ SetRestartCmd(struct cmd_syndesc *as, void *arock)
     struct rx_connection *tconn;
 
     count = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     if (as->parms[2].items) {
 	count++;
 	type = 1;
@@ -537,7 +540,7 @@ Startup(struct cmd_syndesc *as, void *arock)
     afs_int32 code;
     struct cmd_item *ti;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     if (as->parms[1].items == 0) {
 	code = BOZO_StartupAll(tconn);
 	if (code)
@@ -560,7 +563,7 @@ Restart(struct cmd_syndesc *as, void *arock)
     afs_int32 code;
     struct cmd_item *ti;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     if (as->parms[2].items) {
 	/* this is really a rebozo command */
 	if (as->parms[1].items) {
@@ -604,7 +607,7 @@ SetCellName(struct cmd_syndesc *as, void *arock)
     struct rx_connection *tconn;
     afs_int32 code;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     code = BOZO_SetCellName(tconn, as->parms[1].items->data);
     if (code)
 	printf("bos: failed to set cell (%s)\n", em(code));
@@ -619,7 +622,7 @@ AddHost(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
     char name[MAXHOSTCHARS];
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	if (as->parms[2].items) {
 	    if (strlen(ti->data) > MAXHOSTCHARS - 3) {
@@ -645,7 +648,7 @@ RemoveHost(struct cmd_syndesc *as, void *arock)
     afs_int32 code;
     struct cmd_item *ti;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_DeleteCellHost(tconn, ti->data);
 	if (code)
@@ -694,7 +697,7 @@ AddKey(struct cmd_syndesc *as, void *arock)
     afs_int32 temp;
     char buf[BUFSIZ], ver[BUFSIZ];
 
-    tconn = GetConn(as, 1);
+    tconn = GetConn(as, AFSCONF_SECOPTS_ALWAYSENCRYPT);
     memset(&tkey, 0, sizeof(struct ktc_encryptionKey));
 
     if (as->parms[1].items) {
@@ -769,7 +772,7 @@ RemoveKey(struct cmd_syndesc *as, void *arock)
     afs_int32 temp;
     struct cmd_item *ti;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	temp = atoi(ti->data);
 	code = BOZO_DeleteKey(tconn, temp);
@@ -792,7 +795,7 @@ ListKeys(struct cmd_syndesc *as, void *arock)
     int everWorked;
     afs_int32 i;
 
-    tconn = GetConn(as, 1);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     everWorked = 0;
     for (i = 0;; i++) {
 	code = BOZO_ListKeys(tconn, i, &kvno, ktc_to_bozoptr(&tkey), &keyInfo);
@@ -831,7 +834,7 @@ AddSUser(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
 
     failed = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_AddSUser(tconn, ti->data);
 	if (code) {
@@ -851,7 +854,7 @@ RemoveSUser(struct cmd_syndesc *as, void *arock)
     int failed;
 
     failed = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_DeleteSUser(tconn, ti->data);
 	if (code) {
@@ -950,7 +953,7 @@ CreateServer(struct cmd_syndesc *as, void *arock)
     int i;
     char *type, *name, *notifier = NONOTIFIER;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     for (i = 0; i < 6; i++)
 	parms[i] = "";
     for (i = 0, ti = as->parms[3].items; (ti && i < 6); ti = ti->next, i++) {
@@ -980,7 +983,7 @@ DeleteServer(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
 
     code = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_DeleteBnode(tconn, ti->data);
 	if (code) {
@@ -1002,7 +1005,7 @@ StartServer(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
 
     code = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_SetStatus(tconn, ti->data, BSTAT_NORMAL);
 	if (code)
@@ -1020,7 +1023,7 @@ StopServer(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
 
     code = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_SetStatus(tconn, ti->data, BSTAT_SHUTDOWN);
 	if (code)
@@ -1239,7 +1242,7 @@ GetLogCmd(struct cmd_syndesc *as, void *arock)
     int error;
 
     printf("Fetching log file '%s'...\n", as->parms[1].items->data);
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     tcall = rx_NewCall(tconn);
     code = StartBOZO_GetLog(tcall, as->parms[1].items->data);
     if (code) {
@@ -1313,7 +1316,7 @@ SalvageCmd(struct cmd_syndesc *as, void *arock)
     char * serviceName;
 
     /* parm 0 is machine name, 1 is partition, 2 is volume, 3 is -all flag */
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
 
     /* find out whether fileserver is running demand attach fs */
     if (IsDAFS(tconn)) {
@@ -1652,7 +1655,7 @@ SetRestrict(struct cmd_syndesc *as, void *arock)
     struct rx_connection *tconn;
     afs_int32 code, val;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, AFSCONF_SECOPTS_REQUIREINTEG);
     util_GetInt32(as->parms[1].items->data, &val);
     code = BOZO_SetRestrictedMode(tconn, val);
     if (code)
