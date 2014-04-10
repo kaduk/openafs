@@ -291,7 +291,6 @@
         afs_int32 enctype;
         opaque K0&lt;&gt;;
         RXGK_Level level;
-        rxgkTime start_time;
         afs_int32 lifetime;
         afs_int32 bytelife;
         rxgkTime expirationtime;
@@ -307,10 +306,6 @@
           <t hangText="level:">The security level, as defined in 
 	    <xref target="I-D.wilkinson-afs3-rxgk"/>, that MUST be used for this
             connection.</t>
-          <t hangText="start_time:">The time at which the token's validity begins.
-            Servers MUST reject attempts to
-            use tokens with a start_time value later than the current time.
-            At token creation, this field should be set to the current time.</t>
           <t hangText="lifetime:">The maximum number of seconds that a 
 	    key derived from K0 may be used for, before the connection is rekeyed.
 	    If 0, keys have no time-based limit.</t>
