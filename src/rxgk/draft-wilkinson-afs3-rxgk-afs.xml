@@ -124,16 +124,11 @@
           This document provides a mechanism to establish a key and token
           that can be used to provide a secure callback channel.  Though
           the format of that token is flexible and not specified in this
-          document, the format of the token used on the AFS-3 connection
-          that causes a callback to be established (that is, the token
-          format specified in <xref target="tokens" />) is tied to the
-          establishment of a callback key.  Callbacks are given to a
-          cache manager, but the data requests that cause them to be
-          created are made on behalf of a user, using that user's credentials.
-          The AFS-3 token format must provide a relationship between the
-          data request and the key used for the callback channel; the
-          token format in <xref target="tokens" /> makes a provision for
-          this relationship.
+          document, this document does need to specify a mechanism by which
+          a callback key can be established between the two parties.
+          This is done by means of the authenticator's appdata field, binding
+          a callback key to an rx connection, so that all callbacks generated
+          by that connection will use the indicated callback key.
         </t>
       </section>
       <section title="Requirements Language">
@@ -155,12 +150,33 @@
       <t>The appdata opaque within the RXGK_Authenticator structure used
         in the rx challenge/response authentication exchange
         contains the results of XDR encoding the RXGK_Authenticator_AFSAppData
-        structure. The uuid field contains the UUID of the client.
+        structure.
       <figure><artwork>
     struct RXGK_Authenticator_AFSAppData {
-        afsUUID uuid;
+        afsUUID client_uuid;
+        RXGK_Data cb_tok;
+        RXGK_Data cb_key;
+        afs_int32 enctype;
+        afsUUID target_uuid;
     };
         </artwork></figure>
+        <list style="hanging" hangIndent="6">
+          <t hangText="client_uuid">the UUID of the client.</t>
+          <t hangText="cb_tok">the rxgk token to be used for secure callbacks
+            created by RPCs over this connection.  In some implementations
+            this token may be empty (zero-length).</t>
+          <t hangText="cb_key">the raw key material (k0) to which cb_tok
+            corresponds, to be used as the master key for the secure callback
+            connections created by RPCs over this connection.</t>
+          <t hangText="enctype">the RFC 3961 enctype of the cb_key key
+            material.</t>
+          <t hangText="target_uuid">the UUID of the server being authenticated
+            to (if applicable).  Database servers do not have UUIDs; when
+            authenticating to database servers, this field should be set to
+            all zero bits.  File server UUIDs may be obtained from the VLDB
+            in the same call that returns their addresses.
+          </t>
+        </list>
       </t>
     </section>
     <section title="Application-Specific Constant">
@@ -217,8 +233,8 @@
       <t>
         This section defines the format of rxgk tokens for use with the
         AFS-3 protocol.  The same layout is used for database server
-        tokens and file server tokens, but one field is left unused
-        (zero-length) for database server tokens.
+        tokens and file server tokens, but file server tokens may be
+        encrypted in a different key than database server tokens.
       </t>
       <section title="Container" anchor="container">
         <t>rxgk tokens for AFS take the form of some key management data,
@@ -280,7 +296,6 @@
         afs_int32 bytelife;
         rxgkTime expirationtime;
         struct PrAuthName identities&lt;&gt;;
-        struct PrAuthName cb_id&lt;&gt;;
     };
         </artwork></figure>
         <list style="hanging" hangIndent="6">
@@ -312,25 +327,9 @@
             only used for printed tokens.</t>
           <t hangText="identities:">A list of identities represented by this
             token. struct PrAuthName is the identity structure defined in 
-            <xref target="I-D.brashear-afs3-pts-extended-names"/>.</t>
-          <t hangText="cb_id:">A list of identities to be matched when
-            issuing callbacks for data received on connections using this
-            token.  In a sense, this is the "Cache Manager's identity".
-            struct PrAuthName is the identity structure defined in 
-            <xref target="I-D.brashear-afs3-pts-extended-names"/>.</t></list>
-          The above token structure is used for both database server tokens
-          and file server tokens; however, there is a distinction
-          between the two.  In database server tokens, the 'cb_id' field
-          is always empty (zero-length).  In file server tokens, that
-          field may be empty, but if it is present, it corresponds to
-          the identity of the cache manager making the request on behalf
-          of the user.  (See <xref target="client-tokens" /> for further
-          discussion.)  If callbacks are to be established as a result
-          of a request using this token, a key registered to that cache
-          manager identity may be used to secure the callback channel.
-          (No other keys may be used to secure that callback channel;
-          if there are no matching callback keys, secured callbacks
-          MUST NOT be used.)
+            <xref target="I-D.brashear-afs3-pts-extended-names"/>.
+          </t>
+        </list>
         </t>
       </section>
     </section>
@@ -390,18 +389,12 @@
     <section title="Combining Tokens" anchor="CombineTokens">
       <t>This section describes the server-side behavior of the
         RXGK_CombineTokens operation for the AFS-3 protocol.</t>
-      <t>The only application-specific data field in struct RXGK_Token is
-        the start_time.  Since servers MUST reject attempts to use tokens
-        whose start_time is later than the current time, any attempt to
-        use such tokens as arguments to RXGK_CombineTokens must fail.
-        Therefore, the server performing the CombineTokens operation will
-        set the start_time for the output token to be the current time
-        when it performs the combination.</t>
+      <t>There are no application-specific fields in RXGK_Token, so only
+        the behavior for combination of identity information remains to
+        be specified.</t>
       <t>The identity lists in the 'identities' fields of the two tokens
         are combined via order-preserving concatenation and placed in the
         'identities' field of the output token.</t>
-      <t>The 'cb_id' field MUST be empty in both input tokens, and is
-        left empty (zero-length) in the output token.</t>
       <t>Printed tokens (<xref target="printing" />) cannot be combined
         with any other token, and servers MUST reject attempts to do so,
         whether via CombineTokens, AFSCombineTokens, or any other
@@ -439,7 +432,7 @@
             a list of enctypes acceptable to the client and a list of
             security levels acceptable to the client.</t>
           <t hangText="destination:">The UUID of the server new_token is
-            intended for. Fileserver UUIDs may be obtained from the VLDB
+            intended for. File server UUIDs may be obtained from the VLDB
             in the same call that returns their addresses.</t>
           <t hangText="new_token:">The output rxgk token, or empty
             (zero-length).</t>
@@ -478,7 +471,7 @@
 	  choice of security layer in any other situation.</t>
       <t>The 'identities' list from user_tok is copied to the 'identities'
           field of the new_token.  The 'identities' list from cm_tok
-          is copied to the 'cb_id' field of the new_token.</t>
+          is discarded unused.</t>
       <t>Other aspects of the operation of AFSCombineTokens, including the
           combination of keys and tokens, are largely the same as
           the CombineTokens RPC, documented in
@@ -518,7 +511,7 @@
         <t>A server with access to the cell-wide pre-shared key may print its
           own tokens for server-to-server access. To do so, it should construct
           a database server token with suitable values.
-          The lists of identities in such a token
+          The list of identities in such a token
           MUST be empty. It can then encrypt this token using the pre-shared key,
           place it in an RXGK_TokenContainer describing the key used to
           perform the encryption,
@@ -735,107 +728,36 @@
        breaks and, critically, data updates, are protected. This requires
        that there is a strong connection between the key material used
        initially to perform the RPC, and that which is used to protect
-       any resulting callback. We achieve this using the cache manager
-       token discussed in <xref target="cm-keying"/>,
-       which is required in order for a client to
-       accept secure callbacks.  Additionally, a new RPC is added for
-       cache managers to register keys with fileservers that will be
-       used to secure the connections used to update callback promises
-       generated as a result of requests from those cache managers.
+       any resulting callback.  We achieve this by binding the key used to
+       secure the callback connection into the authenticator used to create
+       the original rxgk connection.  Callbacks created as a result of RPCs
+       performed on that rxgk connection will use the callback key given in
+       the authenticator.
      </t>
-      <section title="The SetCallBackKey operation">
-        <t>A cache manager may set a key for secure callbacks by issuing
-       the following RPC (in the RXAFS service):
-      <figure><artwork>
-     RXAFS_SetCallBackKey(afs_int32 securityIndex,
-                          opaque mech_data&lt;&gt;) = XXX;
-</artwork></figure>
-      <list style="hanging" hangIndent="6">
-        <t hangText="securityIndex:">The security index of the mechanism for
-         which this key is being set.</t>
-        <t hangText="mech_data:">This contains the security object specific
-         data. In rxgk's case this is an XDR encoded RXGK_CallBackKeyData
-         structure.</t></list>
-      <figure><artwork>
-    struct RXGK_CallBackKeyData {
-        afs_int32 enctype;
-        opaque K0&lt;16384&gt;;
-        RXGK_Level level;
-        /* no rxgkTime start_time */
-        afs_int32 lifetime;
-        afs_int32 bytelife;
-        /* no rxgkTime expirationtime */
-        RXGK_Data token;
-        /* no identities needed */
-    };
-</artwork></figure>
-       <list style="hanging" hangIndent="6">
-         <t hangText="enctype">The encryption type of K0.</t>
-         <t hangText="K0">The raw key data for the callback connection's
-           connection master key.</t>
-         <t hangText="level">The security level to be used for the
-           callback connection.</t>
-         <t hangText="lifetime">The maximum number of seconds that a 
-	   key derived from K0 may be used for, before the connection is rekeyed.
-	   If 0, keys have no time-based limit.</t>
-         <t hangText="bytelife:">The maximum amount of data (expressed as
-           the log base 2 of the number of bytes) that may be transferred
-           using a key derived from K0
-           before the connection is rekeyed. If 0, there is no data-based limit on
-           key usage.</t>
-         <t hangText="token">An opaque token that permits the client to
-           identify the key and connection parameters used for the
-           callback connection.  This token behaves as a generic rxgk token,
-           as described in section 5 of <xref target="I-D.wilkinson-afs3-rxgk"/>,
-           and its contents and encoding are implementation-defined.
-           In particular, a client implementation might be able to leave this
-           token empty and store the key and connection parameters in an
-           internal per-fileserver storage location.  A client implementation
-           might also reuse wholesale the token format defined in this document,
-           filling the token field with an XDR-encoded RXGK_TokenContainer
-           containing an encrypted encoded RXGK_Token, with a per-cache manager
-           secret key.</t></list>
-       No expiration or start time need be transferred in this RPC (as are
-       included in an RXGK_Token and RXGK_ClientInfo), because the callback
-       connection is implicitly authorized to continue for as long as the
-       client is interested in data from the fileserver.</t>
-      </section>
       <section title="Lifetime and scope of the callback channel">
-        <t>The RXAFS_SetCallBackKey RPC MUST be performed over a secure
-         channel that provides confidentiality protection.
-         When used to set callback keys for rxgk, this means that
-         the RPC must be performed over an rxgk protected connection of
-         security level RXGK_LEVEL_CRYPT.  Additionally, the connection
-         MUST have been established using solely the cache manager's token.</t>
-        <t>The callback channel key is inherently tied to the identity of the
-         cache manager token used to establish it.  A fileserver which is
-         providing secure callbacks MUST store the cache manager identity used to
-         establish each callback connection key and associate that identity
-         with the cache manager UUID.  In the abstract, the fileserver is
-         storing triples of (UUID, identity, key).
-         A cache manager may make multiple
-         calls to RXAFS_SetCallBackKey, and the fileserver MAY store
-         multiple cache manager identity/callback connection key pairs for
-         a given cache manager UUID.  If a fileserver receives an
-         RXAFS_SetCallBackKey call which will cause it to stop storing
-         an identity/key pair (whether because the fileserver only stores one
-         such pair for a given cache manager, or some larger fixed limit
-         is reached), it MUST break all secure callbacks held by that client
-         that are using the old key before the RPC terminates.</t>
+        <t>The RXGK_Authenticator_AFSAppData structure contains a key and
+          enctype, but no key version number field.  This restricts the
+          connection to only ever having one key to secure callbacks created
+          as a result of calls on that connection, even if there are multiple
+          Rx challenge/response exchanges where a new authenticator could be
+          constructed.  This is acceptable, because if the client needs to
+          rotate the key used for secure callbacks to it, the client can
+          initiate a new connection to the server, with a new callback key.</t>
+        <t>It may be reasonable for a cache manager to only ever use one
+          key for secure callbacks (until the cache manager is restarted),
+          such as in a cell where all fileservers have the cell-wide shared
+          key or where all fileservers are equally trusted.  Alternately,
+          a cache manager may use just one callback key per fileserver.
+          In either case, which key to use for incoming callback connections
+          is known just from the context of the connection, so there is no
+          need to provide a callback token in the authenticator.</t>
+        <t>In all cases, both cache manager and file server must retain the
+          callback key until all callbacks using that key are expired.  The
+          key should be cached in the server's per-connection private data,
+          to ensure that the callback key is only used for callbacks created
+          as a result of calls on the connection to which the key is bound.</t>
         <t>Only RPCs issued over an rxgk protected connection should receive rxgk
-         protected callbacks.</t>
-        <t>Since the callback connection key is tied to the
-         cache manager identity,
-         it should only be used to protect callbacks relating
-         to data accessed using that identity.  This is easily achieved
-         by using the 'cb_id' field of the token, which gives the
-         fileserver the identity of the cache manager acting
-         on the user's behalf.  The fileserver MUST only send rxgk-protected
-         callbacks using the callback key registered to the cb_id identity
-         and the cache manager UUID making the request, at the
-         time of the request.  If the UUID in the request does not match
-         the stored UUID, or there is no key associated with the cache manager
-         identity, extended callbacks MUST NOT be generated for that request.
+         protected callbacks.
         </t>
       </section>
     </section>
@@ -844,9 +766,8 @@
     </section>
     <section anchor="AFSReg" title="AFS-3 Registry Considerations">
       <t>This document requrests that the AFS-3 registry allocate code
-      points for the new RPCs AFSCombineTokens (for the RXGK service),
-      RegisterAddrsAndKey (for the VL service), and SetCallBackKey (for the
-      RXAFS service).</t>
+      points for the new RPCs AFSCombineTokens (for the RXGK service) and
+      RegisterAddrsAndKey (for the VL service).</t>
     </section>
     <section title="Security Considerations">
       <section title="Downgrade attacks">
@@ -872,23 +793,6 @@
          keys produced through the combine tokens operation, unless those keys
 	 will not be used by the cache manger itself.
        </t>
-      </section>
-      <section title="Setting Callback Keys">
-        <t>The presence of the RXAFS_SetCallBackKey RPC presents a new
-          avenue for a denial-of-service attack on a file server and the
-          clients it is serving.  Any authenticated user is able to
-          perform this call, supplying key/token pairs that may never be
-          used.  The attacker is able to claim an arbitrary UUID for its
-          "cache manager UUID", since that value is not authenticated and
-          is only supplied as the appdata portion of the rxgk authenticator.
-          Thus, the attacker could cause a large number of SetCallBackKey
-          requests for any particular UUID.  However, the attacker must
-          be authenticated to do so, so so limiting a given identity to
-          a fixed number of (UUID, identity, key) triples should mitigate
-          the attack.  In particular, it is advisable for file servers
-          to retain multiple (UUID, identity, key) triples for any single
-          UUID, to aid the retention of legitimate callback keys.
-        </t>
       </section>
     </section>
   </middle>
