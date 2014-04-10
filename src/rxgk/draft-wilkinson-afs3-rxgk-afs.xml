@@ -857,6 +857,14 @@
           by setting fake callback keys.</t>
         <t>Add a clarifying note for the RFC 4402 PRF+ implementation.</t>
       </section>
+      <section title="Since 05">
+        <t>Remove start_time from the token format.</t>
+        <t>Remove the SetCallBackKey RPC, in favor of putting a callback
+          key in the authenticator appdata.  This provides a simpler solution
+          to the problem of establishing a secure callback channel.</t>
+        <t>While here, add the server UUID into the appdata as well as the
+          client UUID, to prevent some possible routes to data corruption.</t>
+      </section>
     </section>
   </back>
 </rfc>
