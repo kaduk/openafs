@@ -67,9 +67,12 @@ typedef void * rxgk_key;
 
 typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 *kvno,
 				      afs_int32 *enctype, rxgk_key *key);
+#ifndef RXGK_GETFSKEY_DECLARED__
+#define RXGK_GETFSKEY_DECLARED__
 typedef afs_int32 (*rxgk_getfskey_func)(afsUUID destination, void *rock,
 				        afs_int32 *kvno, afs_int32 *enctype,
 				        rxgk_key *key);
+#endif
 
 /* The rx service ID for the RXGK_ RPCs. */
 #define RXGK_SERVICE_ID	34567
