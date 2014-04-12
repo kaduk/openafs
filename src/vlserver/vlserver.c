@@ -486,7 +486,7 @@ main(int argc, char **argv)
 
     ubik_nBuffers = 512;
     ubik_SetClientSecurityProcs(afsconf_ClientAuth, afsconf_UpToDate, tdir);
-    ubik_SetServerSecurityProcs(afsconf_BuildServerSecurityObjects,
+    ubik_SetServerSecurityProcs(afsconf_BuildUbikServerSecurityObjects,
 				afsconf_CheckAuth, tdir);
 
     ubik_SyncWriterCacheProc = vlsynccache;

@@ -513,7 +513,7 @@ main(int argc, char **argv)
 
     /* initialize ubik */
     ubik_SetClientSecurityProcs(afsconf_ClientAuth, afsconf_UpToDate, prdir);
-    ubik_SetServerSecurityProcs(afsconf_BuildServerSecurityObjects,
+    ubik_SetServerSecurityProcs(afsconf_BuildUbikServerSecurityObjects,
 				afsconf_CheckAuth, prdir);
 
     /* The max needed is when deleting an entry.  A full CoEntry deletion
