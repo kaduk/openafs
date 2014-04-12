@@ -45,6 +45,12 @@ Creation date:
 #define RXGK_KEY_DECLARED__
 typedef void * rxgk_key;
 #endif
+#ifndef RXGK_GETFSKEY_DECLARED__
+#define RXGK_GETFSKEY_DECLARED__
+typedef afs_int32 (*rxgk_getfskey_func)(afsUUID destination, void *rock,
+				        afs_int32 *kvno, afs_int32 *enctype,
+				        rxgk_key *key);
+#endif
 
 #define	MAXCELLCHARS	64
 #define	MAXHOSTCHARS	64
@@ -240,6 +246,9 @@ extern void afsconf_BuildServerSecurityObjects(void *,
 extern void afsconf_BuildUbikServerSecurityObjects(void *,
 					       struct rx_securityClass ***,
 					       afs_int32 *);
+extern void afsconf_BuildDbServerSecurityObjects(void *, rxgk_getfskey_func,
+						 struct rx_securityClass ***,
+						 afs_int32 *);
 
 /* writeconfig.c */
 int afsconf_SetExtendedCellInfo(struct afsconf_dir *adir, const char *apath,
