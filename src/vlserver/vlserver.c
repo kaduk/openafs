@@ -502,7 +502,8 @@ main(int argc, char **argv)
     memset(wr_HostAddress, 0, sizeof(wr_HostAddress));
     initialize_dstats();
 
-    afsconf_BuildServerSecurityObjects(tdir, &securityClasses, &numClasses);
+    afsconf_BuildDbServerSecurityObjects(tdir, NULL, &securityClasses,
+					 &numClasses);
 
     tservice =
 	rx_NewServiceHost(host, 0, USER_SERVICE_ID, "Vldb server",

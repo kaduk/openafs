@@ -571,7 +571,8 @@ main(int argc, char **argv)
     pt_hook_write();
 #endif
 
-    afsconf_BuildServerSecurityObjects(prdir, &securityClasses, &numClasses);
+    afsconf_BuildDbServerSecurityObjects(prdir, NULL, &securityClasses,
+					 &numClasses);
 
     tservice =
 	rx_NewServiceHost(host, 0, PRSRV, "Protection Server", securityClasses,
