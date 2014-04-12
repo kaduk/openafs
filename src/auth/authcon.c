@@ -12,6 +12,7 @@
 #include <afs/stds.h>
 
 #include <roken.h>
+#include <afs/opr.h>
 
 #ifdef IGNORE_SOME_GCC_WARNINGS
 # pragma GCC diagnostic warning "-Wdeprecated-declarations"
@@ -349,6 +350,43 @@ afsconf_BuildUbikServerSecurityObjects(void *rock,
     /* rxgk */
     (*classes)[RX_SECIDX_GK] =
 	rxgk_NewServerSecurityObject(rock, afsconf_GetRXGKKey);
+# endif /* ENABLE_RXGK */
+}
+
+/**
+ * Build server security classes for a database server (including rxgk)
+ *
+ * Build a set of security classes suitable, including rxgk (if configured
+ * to do so), for a database server accepting incoming connections on its
+ * normal user service.  Also register the RXGK service to allow token
+ * negotiation to occur.
+ */
+void
+afsconf_BuildDbServerSecurityObjects(void *rock, rxgk_getfskey_func getkey,
+				     struct rx_securityClass ***classes,
+				     afs_int32 *numClasses)
+{
+    struct afsconf_dir *dir = rock;
+# if defined(ENABLE_RXGK)
+    struct rx_service *service;
+    char *instance = NULL;
+    char tbuffer[64];
+# endif
+
+    /* Get everything but rxgk. */
+    afsconf_BuildServerSecurityObjects(dir, classes, numClasses);
+# if defined(ENABLE_RXGK)
+    /* rxgk */
+    opr_Verify(rxgk_NewService_SecObj(0, &service, "RXGK", *classes,
+				      *numClasses, afsconf_GetRXGKKey, rock)
+	       == 0);
+    opr_Verify(afsconf_GetLocalCell(dir, tbuffer, sizeof(tbuffer)) == 0);
+    opr_Verify(asprintf(&instance, "%s.%s", "_afs", tbuffer) > 0);
+    /* DB servers always use the specified identity for the GSS acceptor.
+     * We don't currently have a way to specify a keytab path, so use NULL. */
+    opr_Verify(rxgk_set_gss_specific(service, "afs-rxgk", instance, NULL) == 0);
+    opr_Verify(rxgk_set_uuid_specific(service, getkey, rock) == 0);
+    free(instance);
 # endif /* ENABLE_RXGK */
 }
 
