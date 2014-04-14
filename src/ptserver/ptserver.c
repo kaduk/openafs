@@ -234,7 +234,8 @@ enum optionsList {
     OPT_rxbind,
     OPT_rxmaxmtu,
     OPT_dotted,
-    OPT_transarc_logs
+    OPT_transarc_logs,
+    OPT_rxgk
 };
 
 int
@@ -247,7 +248,7 @@ main(int argc, char **argv)
     struct rx_service *tservice;
     struct rx_securityClass **securityClasses;
     afs_int32 numClasses;
-    int lwps = 3;
+    int lwps = 3, rxgk = 0;
     char clones[MAXHOSTSPERCELL];
     afs_uint32 host = htonl(INADDR_ANY);
     struct cmd_syndesc *opts;
@@ -363,6 +364,10 @@ main(int argc, char **argv)
 		        CMD_FLAG, CMD_OPTIONAL,
 		        "permit Kerberos 5 principals with dots");
 
+    /* rxgk options */
+    cmd_AddParmAtOffset(opts, OPT_rxgk, "-rxgk", CMD_FLAG, CMD_OPTIONAL,
+			"use rxgk for ubik server-to-server connections");
+
     code = cmd_Parse(argc, argv, &opts);
     if (code == CMD_HELP) {
 	PT_EXIT(0);
@@ -459,6 +464,9 @@ main(int argc, char **argv)
     /* rxkad options */
     cmd_OptionAsFlag(opts, OPT_dotted, &rxkadDisableDotCheck);
 
+    /* rxgk options */
+    cmd_OptionAsFlag(opts, OPT_rxgk, &rxgk);
+
     cmd_FreeOptions(&opts);
 
     if (auditFileName) {
@@ -512,7 +520,13 @@ main(int argc, char **argv)
     osi_audit_set_user_check(prdir, pr_IsLocalRealmMatch);
 
     /* initialize ubik */
-    ubik_SetClientSecurityProcs(afsconf_ClientAuth, afsconf_UpToDate, prdir);
+    if (rxgk) {
+	ubik_SetClientSecurityProcs(afsconf_ClientAuthRXGK, afsconf_UpToDate,
+				    prdir);
+    } else {
+	ubik_SetClientSecurityProcs(afsconf_ClientAuth, afsconf_UpToDate,
+				    prdir);
+    }
     ubik_SetServerSecurityProcs(afsconf_BuildUbikServerSecurityObjects,
 				afsconf_CheckAuth, prdir);
 

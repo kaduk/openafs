@@ -158,7 +158,8 @@ enum optionsList {
     OPT_trace,
     OPT_dotted,
     OPT_restricted_query,
-    OPT_transarc_logs
+    OPT_transarc_logs,
+    OPT_rxgk
 };
 
 int
@@ -174,7 +175,7 @@ main(int argc, char **argv)
     struct afsconf_cell info;
     struct hostent *th;
     char hostname[VL_MAXNAMELEN];
-    int noAuth = 0;
+    int noAuth = 0, rxgk = 0;
     char clones[MAXHOSTSPERCELL];
     afs_uint32 host = ntohl(INADDR_ANY);
     struct cmd_syndesc *opts;
@@ -278,6 +279,10 @@ main(int argc, char **argv)
     cmd_AddParmAtOffset(opts, OPT_dotted, "-allow-dotted-principals",
 		        CMD_FLAG, CMD_OPTIONAL,
 		        "permit Kerberos 5 principals with dots");
+
+    /* rxgk options */
+    cmd_AddParmAtOffset(opts, OPT_rxgk, "-rxgk", CMD_FLAG, CMD_OPTIONAL,
+			"use rxgk for ubik server-to-server connections");
 
     code = cmd_Parse(argc, argv, &opts);
     if (code == CMD_HELP) {
@@ -386,6 +391,9 @@ main(int argc, char **argv)
 	free(restricted_query_parameter);
     }
 
+    /* rxgk options */
+    cmd_OptionAsFlag(opts, OPT_rxgk, &rxgk);
+
     if (auditFileName) {
 	osi_audit_file(auditFileName);
     }
@@ -485,7 +493,12 @@ main(int argc, char **argv)
     rx_SetRxDeadTime(50);
 
     ubik_nBuffers = 512;
-    ubik_SetClientSecurityProcs(afsconf_ClientAuth, afsconf_UpToDate, tdir);
+    if (rxgk) {
+	ubik_SetClientSecurityProcs(afsconf_ClientAuthRXGK, afsconf_UpToDate,
+				    tdir);
+    } else {
+	ubik_SetClientSecurityProcs(afsconf_ClientAuth, afsconf_UpToDate, tdir);
+    }
     ubik_SetServerSecurityProcs(afsconf_BuildUbikServerSecurityObjects,
 				afsconf_CheckAuth, tdir);
 
