@@ -7,6 +7,7 @@ afsconf_CellApply
 afsconf_CheckAuth
 afsconf_CheckRestrictedQuery
 afsconf_ClientAuth
+afsconf_ClientAuthRXGK
 afsconf_ClientAuthSecure
 afsconf_ClientAuthToken
 afsconf_Close
