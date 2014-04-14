@@ -220,6 +220,9 @@ extern afs_int32 afsconf_ClientAuth(void *arock,
 extern afs_int32 afsconf_ClientAuthSecure(void *arock,
 				          struct rx_securityClass **astr,
 				          afs_int32 * aindex);
+extern afs_int32 afsconf_ClientAuthRXGK(void *arock,
+					struct rx_securityClass **aclass,
+					afs_int32 *aindex);
 
 
 extern afs_int32 afsconf_ClientAuthToken(struct afsconf_cell *info,
