@@ -221,6 +221,51 @@ afsconf_ClientAuthSecure(void *arock,
     return rc;
 }
 
+/**
+ * Print an rxgk token and make a security class with it
+ *
+ * Print an rxgk token and build a security class from it, returning the
+ * correct index along with the class.  Default to encrypted these days.
+ *
+ * As with the other ClientAuth variants, fall back to rxnull on errors.
+ * The caller can check the returned aindex if necessary.
+ */
+afs_int32
+afsconf_ClientAuthRXGK(void *arock, struct rx_securityClass **aclass,
+		       afs_int32 *aindex)
+{
+#ifdef ENABLE_RXGK
+    struct rx_securityClass *tclass;
+    struct rx_opaque token = RX_EMPTY_OPAQUE;
+    rxgk_key cell_key = NULL, k0 = NULL;
+    afs_int32 code, kvno, enctype;
+
+    code = afsconf_GetLatestRXGKKey(arock, &kvno, &enctype, &cell_key);
+    if (code != 0)
+	return QuickAuth(aclass, aindex);
+    code = rxgk_print_token_and_key(&token, RXGK_LEVEL_CRYPT, cell_key,
+				    kvno, enctype, &k0);
+    if (code != 0)
+	goto cleanup;
+    /* This printed token is a db server token; no target UUID needed. */
+    tclass = rxgk_NewClientSecurityObject(RXGK_LEVEL_CRYPT, enctype, k0,
+					  &token, NULL, NULL);
+    if (tclass == NULL)
+	code = RXGK_INCONSISTENCY;
+cleanup:
+    rxgk_release_key(&cell_key);
+    rxgk_release_key(&k0);
+    rx_opaque_freeContents(&token);
+    if (code != 0)
+	return QuickAuth(aclass, aindex);
+    *aclass = tclass;
+    *aindex = RX_SECIDX_GK;
+    return code;
+#else	/* ENABLE_RXGK */
+    return QuickAuth(aclass, aindex);
+#endif	/* ENABLE_RXGK */
+}
+
 /*!
  * Build a security class from the user's current tokens
  *
