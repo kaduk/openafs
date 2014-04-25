@@ -291,8 +291,8 @@
         afs_int32 enctype;
         opaque K0&lt;&gt;;
         RXGK_Level level;
-        afs_int32 lifetime;
-        afs_int32 bytelife;
+        afs_uint32 lifetime;
+        afs_uint32 bytelife;
         rxgkTime expirationtime;
         struct PrAuthName identities&lt;&gt;;
     };
