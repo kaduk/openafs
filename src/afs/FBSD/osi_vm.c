@@ -93,15 +93,17 @@ osi_VM_FlushVCache(struct vcache *avc, int *slept)
 
     if (!VI_TRYLOCK(vp))
 	return EBUSY;
+
+    /* vgone is already queued; no need to do it here. */
+    if ((vp->v_iflag & VI_DOOMED) != 0) {
+	VI_UNLOCK(vp);
+	return 0;
+    }
+
     code = osi_fbsd_checkinuse(avc);
     if (code) {
 	VI_UNLOCK(vp);
 	return code;
-    }
-
-    if ((vp->v_iflag & VI_DOOMED) != 0) {
-	VI_UNLOCK(vp);
-	return 0;
     }
 
     /* must hold the vnode before calling vgone()
