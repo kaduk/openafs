@@ -867,6 +867,13 @@ afsconf_GetLatestRXGKKey(struct afsconf_dir *rock, afs_int32 *kvno,
     return _afsconf_GetLatestRXGKKey(afsconf_rxgk, rock, kvno, enctype, key);
 }
 
+int
+afsconf_GetLatestRXGKFSKey(struct afsconf_dir *rock, afs_int32 *kvno,
+			 afs_int32 *enctype, rxgk_key *key)
+{
+    return _afsconf_GetLatestRXGKKey(afsconf_rxgk_fs, rock, kvno, enctype, key);
+}
+
 static int
 _afsconf_GetRXGKKey(afsconf_keyType type, void *rock, afs_int32 *kvno,
 		    afs_int32 *enctype, rxgk_key *key)
@@ -916,6 +923,13 @@ afsconf_GetRXGKKey(void *rock, afs_int32 *kvno,
 		   afs_int32 *enctype, rxgk_key *key)
 {
     return _afsconf_GetRXGKKey(afsconf_rxgk, rock, kvno, enctype, key);
+}
+
+int
+afsconf_GetRXGKFSKey(void *rock, afs_int32 *kvno,
+		   afs_int32 *enctype, rxgk_key *key)
+{
+    return _afsconf_GetRXGKKey(afsconf_rxgk_fs, rock, kvno, enctype, key);
 }
 
 int
