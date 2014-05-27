@@ -529,7 +529,7 @@ main(int argc, char **argv)
     /* initialize audit user check */
     osi_audit_set_user_check(tdir, vol_IsLocalRealmMatch);
 
-    afsconf_BuildServerSecurityObjects(tdir, &securityClasses, &numClasses);
+    afsconf_BuildFileServerSecurityObjects(tdir, &securityClasses, &numClasses);
     if (securityClasses[0] == NULL)
 	Abort("rxnull_NewServerSecurityObject");
     service =
