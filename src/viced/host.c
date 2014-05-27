@@ -55,6 +55,7 @@ extern int AnonymousID;
 extern prlist AnonCPS;
 extern struct afsconf_dir *confDir;	/* config dir object */
 extern int lwps;		/* the max number of server threads */
+extern int use_rxgk;
 extern afsUUID FS_HostUUID;
 extern char *FS_configPath;
 
@@ -300,7 +301,12 @@ hpr_Initialize(struct ubik_client **uclient)
     /* Most callers use secLevel==1, however, the fileserver uses secLevel==2
      * to force use of the KeyFile.  secLevel == 0 implies -noauth was
      * specified. */
-    code = afsconf_ClientAuthSecure(tdir, &sc, &scIndex);
+    if (use_rxgk) {
+	code = afsconf_ClientAuthRXGK(tdir, &sc, &scIndex);
+	/* XXXBJK Should check for GSSAPI initiator credentials. */
+    } else {
+	code = afsconf_ClientAuthSecure(tdir, &sc, &scIndex);
+    }
     if (code) {
 	ViceLog(0, ("hpr_Initialize: clientauthsecure returns %d %s "
 		    "(so trying noauth)\n", code, afs_error_message(code)));
