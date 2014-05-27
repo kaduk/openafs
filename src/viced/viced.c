@@ -130,6 +130,7 @@ int rxJumbograms = 0;		/* default is to not send and receive jumbograms. */
 int rxBind = 0;		/* don't bind */
 int rxkadDisableDotCheck = 0;      /* disable check for dot in principal name */
 int rxMaxMTU = -1;
+int use_rxgk = 0;
 afs_int32 implicitAdminRights = PRSFS_LOOKUP;	/* The ADMINISTER right is
 						 * already implied */
 afs_int32 readonlyServer = 0;
@@ -1527,7 +1528,12 @@ vl_Initialize(struct afsconf_dir *dir)
     struct rx_connection *serverconns[MAXSERVERS];
 
     memset(serverconns, 0, sizeof(serverconns));
-    code = afsconf_ClientAuth(dir, &sc, &scIndex);
+    if (use_rxgk) {
+	code = afsconf_ClientAuthRXGK(dir, &sc, &scIndex);
+	/* XXXBJK Should check for GSSAPI initiator credentials. */
+    } else {
+	code = afsconf_ClientAuth(dir, &sc, &scIndex);
+    }
     if (code) {
 	ViceLog(0, ("Could not get security object for localAuth\n"));
 	exit(1);
@@ -1781,7 +1787,7 @@ SetupVL(void)
     return code;
 }
 
-afs_int32
+static afs_int32
 InitVL(struct afsconf_dir *dir)
 {
     afs_int32 code;
@@ -2024,7 +2030,12 @@ main(int argc, char *argv[])
     rx_GetIFInfo();
     rx_SetRxDeadTime(30);
     afsconf_SetSecurityFlags(confDir, AFSCONF_SECOPTS_ALWAYSENCRYPT);
-    afsconf_BuildServerSecurityObjects(confDir, &securityClasses, &numClasses);
+    afsconf_BuildFileServerSecurityObjects(confDir, &securityClasses,
+					   &numClasses);
+    /* XXX this is bogus, we could have a key but not be ready to use it
+     * for client connections. */
+    if (securityClasses[RX_SECIDX_GK] != NULL)
+	use_rxgk = 1;
 
     tservice = rx_NewServiceHost(rx_bindhost,  /* port */ 0, /* service id */
 				 1,	/*service name */
