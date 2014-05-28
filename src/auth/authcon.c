@@ -435,6 +435,46 @@ afsconf_BuildDbServerSecurityObjects(void *rock, rxgk_getfskey_func getkey,
 # endif /* ENABLE_RXGK */
 }
 
+/**
+ * Build server security classes for a file server(including rxgk)
+ *
+ * Build a set of security classes suitable, including rxgk, for a file
+ * server accepting incoming connections on its normal user service.
+ * If the cell-wide key is available, use it; otherwise, try to use
+ * a per-fileserver key.  If no usable rxgk keys are found, fall back to
+ * the standard BuildServerSecurityObjects output.
+ *
+ * Do not register the RXGK_ service.
+ */
+void
+afsconf_BuildFileServerSecurityObjects(void *rock,
+				       struct rx_securityClass ***classes,
+				       afs_int32 *numClasses)
+{
+    struct afsconf_dir *dir = rock;
+# if defined(ENABLE_RXGK)
+    struct afsconf_typedKeyList *keys;
+# endif
+
+    /* Get everything but rxgk. */
+    afsconf_BuildServerSecurityObjects(dir, classes, numClasses);
+    /* rxgk */
+   /* This pthread conditional is a bit odd and should probably go away. */
+# if defined(ENABLE_RXGK)
+    if (!afsconf_GetLatestKeysByType(dir, afsconf_rxgk, &keys) &&
+	keys != NULL) {
+	(*classes)[RX_SECIDX_GK] =
+	    rxgk_NewServerSecurityObject(rock, afsconf_GetRXGKKey);
+	afsconf_PutTypedKeyList(&keys);
+    } else if (!afsconf_GetLatestKeysByType(dir, afsconf_rxgk_fs, &keys) &&
+	keys != NULL) {
+	(*classes)[RX_SECIDX_GK] =
+	    rxgk_NewServerSecurityObject(rock, afsconf_GetRXGKFSKey);
+	afsconf_PutTypedKeyList(&keys);
+    }	/* else no rxgk for us */
+# endif /* AFS_PTHREAD_ENV */
+}
+
 /*!
  * Pick a security class to use for an outgoing connection
  *

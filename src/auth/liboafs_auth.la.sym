@@ -1,5 +1,6 @@
 afsconf_AddTypedKey
 afsconf_BuildDbServerSecurityObjects
+afsconf_BuildFileServerSecurityObjects
 afsconf_BuildServerSecurityObjects
 afsconf_BuildUbikServerSecurityObjects
 afsconf_CellAliasApply
