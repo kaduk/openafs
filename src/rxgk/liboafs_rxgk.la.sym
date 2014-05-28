@@ -23,3 +23,4 @@ rxgk_random_key
 rxgk_release_key
 rxgk_set_getkey_specific
 rxgk_set_gss_specific
+rxgk_set_uuid_specific
