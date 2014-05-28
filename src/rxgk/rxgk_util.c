@@ -213,6 +213,33 @@ rxgk_set_getkey_specific(struct rx_service *svc, rxgk_getkey_func getkey,
 }
 
 /**
+ * Store an rxgk uuid-getkey function and rock into service-specific data
+ *
+ * Set the service-specific data on the service to use the given
+ * uuid-specific getkey function an its rock.  This is needed so that
+ * the vlserver can provide a callback to look up a token-encrypting key
+ * for a given fileserver uuid.
+ *
+ * @param[in] svc		The rx service to which getkey will be attached.
+ * @param[in] getkey		The getkey function to use.
+ * @param[in] getkey_rock	Data to pass to getkey.
+ */
+afs_int32
+rxgk_set_uuid_specific(struct rx_service *svc, rxgk_getfskey_func getkey,
+		       void *getkey_rock)
+{
+    struct rxgk_uuid_sspecific_data *gk;
+
+    gk = rxi_Alloc(sizeof(*gk));
+    if (gk == NULL)
+	return ENOMEM;
+    gk->getkey = getkey;
+    gk->rock = getkey_rock;
+    rx_SetServiceSpecific(svc, RXGK_SSPECIFIC_UUID, gk);
+    return 0;
+}
+
+/**
  * Obtain a token-encrypting key for a token to be produced for this call
  *
  * Grab the getkey service-specific data for this connection, and use
@@ -244,5 +271,45 @@ rxgk_service_get_long_term_key(struct rx_call *acall, rxgk_key *key,
     if (gk == NULL || gk->getkey == NULL)
 	return RXGK_INCONSISTENCY;
     return (*gk->getkey)(gk->rock, kvno, enctype, key);
+}
+
+/**
+ * Obtain a token-encrypting key for a token to be produced for a fs uuid
+ *
+ * Grab the per-uuid service-specific data for this connection, and use
+ * its getkey function to get a key with which to encrypt a token.
+ * In principle, we could have hooks to allow the idea of an "active kvno",
+ * so that a higher kvno than is used could be present in the database
+ * to allow transparent rekeying when keys must be distributed amongst
+ * multiple hosts.
+ *
+ * For now, limit service to uuids which are colocated with dbservers,
+ * and use the cell-wide key.  We can't really do anything for
+ * file servers with server-specific keys, since the vldb format has
+ * not been updated to store that information.
+ *
+ * @param[in] acall	The call from which to obtain service-specific data.
+ * @param[out] key	The token-encrypting key.
+ * @param[out] kvno	The kvno of key.
+ * @param[out] enctype	The RFC 3961 enctype of key.
+ * @return rxgk error codes.
+ */
+afs_int32
+rxgk_service_get_uuid_key(struct rx_call *acall, afsUUID destination,
+			  rxgk_key *key, afs_int32 *kvno, afs_int32 *enctype)
+{
+    struct rx_connection *conn;
+    struct rx_service *svc;
+    struct rxgk_uuid_sspecific_data *gk;
+
+    conn = rx_ConnectionOf(acall);
+    svc = rx_ServiceOf(conn);
+    gk = rx_GetServiceSpecific(svc, RXGK_SSPECIFIC_UUID);
+
+    if (gk == NULL)
+	return RXGEN_OPCODE;
+    if (gk->getkey == NULL)
+	return RXGK_INCONSISTENCY;
+    return (*gk->getkey)(destination, gk->rock, kvno, enctype, key);
 }
 #endif	/* KERNEL */

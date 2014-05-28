@@ -64,6 +64,9 @@ typedef void * rxgk_key;
 
 typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 *kvno,
 				      afs_int32 *enctype, rxgk_key *key);
+typedef afs_int32 (*rxgk_getfskey_func)(afsUUID destination, void *rock,
+				        afs_int32 *kvno, afs_int32 *enctype,
+				        rxgk_key *key);
 
 /* The rx service ID for the RXGK_ RPCs. */
 #define RXGK_SERVICE_ID	34567
@@ -71,6 +74,7 @@ typedef afs_int32 (*rxgk_getkey_func)(void *rock, afs_int32 *kvno,
 /* Indices for the service-specific data we attach to the rxgk service. */
 #define RXGK_NEG_SSPECIFIC_GETKEY	0
 #define RXGK_NEG_SSPECIFIC_GSS		1
+#define RXGK_SSPECIFIC_UUID		2
 
 /* rxgk_server.c */
 struct rx_securityClass * rxgk_NewServerSecurityObject(void *getkey_rock,
@@ -150,6 +154,8 @@ afs_int32 rxgk_print_token_and_key(struct rx_opaque *out, RXGK_Level level,
 #ifndef KERNEL
 afs_int32 rxgk_set_getkey_specific(struct rx_service *svc,
 				   rxgk_getkey_func getkey, void *getkey_rock);
+afs_int32 rxgk_set_uuid_specific(struct rx_service *svc,
+				 rxgk_getfskey_func getkey, void *getkey_rock);
 #endif
 
 #endif /* OPENAFS_RXGK_H */
