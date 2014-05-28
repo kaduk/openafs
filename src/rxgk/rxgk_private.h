@@ -81,6 +81,19 @@ struct rxgk_getkey_sspecific_data {
     void *rock;
 };
 /**
+ * Service-specific data needed for SRXGK_AFSCombineTokens
+ *
+ * That routine needs to be able to look up a token-encrypting key to
+ * use for a given fileserver UUID, which is a layering violation.
+ * Make the higher level provide a callback to do the lookup, to avoid
+ * the layering violation and leave the rxgk code as generic.  The
+ * callback and its rock are stored in this service-specific data.
+ */
+struct rxgk_uuid_sspecific_data {
+    rxgk_getfskey_func getkey;
+    void *rock;
+};
+/**
  * Per-connection security data for the server.
  *
  * Security level, authentication state, expiration, the current challenge
@@ -176,6 +189,9 @@ void rxgk_update_kvno(struct rx_connection *aconn, afs_uint32 kvno);
 #ifndef KERNEL
 afs_int32 rxgk_service_get_long_term_key(struct rx_call *acall, rxgk_key *key,
 					 afs_int32 *kvno, afs_int32 *enctype);
+afs_int32 rxgk_service_get_uuid_key(struct rx_call *acall, afsUUID destination,
+				    rxgk_key *key, afs_int32 *kvno,
+				    afs_int32 *enctype);
 #endif
 
 /* rxgk_packet.c */
