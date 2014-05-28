@@ -257,6 +257,9 @@ extern void afsconf_BuildUbikServerSecurityObjects(void *,
 extern void afsconf_BuildDbServerSecurityObjects(void *, rxgk_getfskey_func,
 						 struct rx_securityClass ***,
 						 afs_int32 *);
+void afsconf_BuildFileServerSecurityObjects(void *rock,
+					    struct rx_securityClass ***classes,
+					    afs_int32 *numClasses);
 
 /* writeconfig.c */
 int afsconf_SetExtendedCellInfo(struct afsconf_dir *adir, const char *apath,
