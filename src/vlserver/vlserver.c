@@ -39,6 +39,10 @@
 #include <ubik.h>
 #include <afs/afsutil.h>
 
+#ifdef ENABLE_RXGK
+#include <rx/rxgk.h>
+#endif
+
 #include "vlserver.h"
 #include "vlserver_internal.h"
 
@@ -91,6 +95,46 @@ CheckSignal(void *unused)
     }
     return ((void *)(intptr_t)ubik_EndTrans(ctx.trans));
 }				/*CheckSignal */
+
+static afs_int32
+getfskey(afsUUID destination, void *rock, afs_int32 *kvno, afs_int32 *enctype,
+	 rxgk_key *key)
+{
+#ifdef ENABLE_RXGK
+    struct afsconf_dir *dir = rock;
+    struct extentaddr *exp;
+    struct afsconf_cell cellinfo;
+    struct vl_ctx ctx;
+    afs_uint32 addr;
+    afs_int32 code, base, isdb = 0;
+    int i;
+
+    code = Init_VLdbase(&ctx, LOCKREAD, 24729);
+    if (code != 0)
+	return code;
+    code = FindExtentBlock(&ctx, &destination, 0, -1, &exp, &base);
+    if (code != 0)
+	return code;
+    /* XXX servers can have more than one address. */
+    addr = exp->ex_addrs[0];
+    code = ubik_EndTrans(ctx.trans);
+    /* Done scrounging around in the VLDB. */
+    code = afsconf_GetCellInfo(dir, NULL, NULL, &cellinfo);
+    for(i = 0; i < cellinfo.numServers; ++i) {
+	if (cellinfo.hostAddr[i].sin_addr.s_addr == addr) {
+	    isdb = 1;
+	    break;
+	}
+    }
+    /* Fileservers colocated with dbservers can handle the cell-wide key. */
+    if (isdb)
+	return afsconf_GetRXGKKey(rock, kvno, enctype, key);
+    else
+	return AFSCONF_NOTFOUND;
+#else
+    return AFSCONF_NOTFOUND;
+#endif	/* ENABLE_RXGK */
+}
 
 
 /* Initialize the stats for the opcodes */
@@ -515,7 +559,7 @@ main(int argc, char **argv)
     memset(wr_HostAddress, 0, sizeof(wr_HostAddress));
     initialize_dstats();
 
-    afsconf_BuildDbServerSecurityObjects(tdir, NULL, &securityClasses,
+    afsconf_BuildDbServerSecurityObjects(tdir, &getfskey, &securityClasses,
 					 &numClasses);
 
     tservice =
