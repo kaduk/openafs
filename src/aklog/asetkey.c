@@ -289,6 +289,8 @@ listKey(struct afsconf_dir *dir, int argc, char **argv)
 		printKey(keyMaterial);
 	    }
 	    break;
+	  case afsconf_rxgk:
+	  case afsconf_rxgk_fs:
 	  default:
 	    printf("unknown(%d)\tkvno %4d subtype %d; key is: ", type,
 	           kvno, minorType);
