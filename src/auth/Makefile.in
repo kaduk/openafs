@@ -144,13 +144,13 @@ token.lo: auth.h
 userok.lo: auth.h
 
 Ktoken.xdr.c: token.xg
-	$(RXGEN) -A -x -k -c -o $@ $(srcdir)/token.xg
+	$(RXGEN) -A -x -I../config -k -c -o $@ $(srcdir)/token.xg
 
 token.xdr.c: token.xg
-	$(RXGEN) -A -x -c -o $@ ${srcdir}/token.xg
+	$(RXGEN) -A -x -I../config -c -o $@ ${srcdir}/token.xg
 
 token.h : token.xg
-	$(RXGEN) -A -x -h -o $@ ${srcdir}/token.xg
+	$(RXGEN) -A -x -I../config -h -o $@ ${srcdir}/token.xg
 
 #
 # Install targets
