@@ -135,6 +135,7 @@ RXGK_LIBS_STATIC=""
 RXGK_CFLAGS=""
 RXGK_GSSAPI_LIBS=""
 rxgk_GetServerInfo=""
+GKLOG_TARGET=""
 dnl Now that we know about GSSAPI, we can check if rxgk is buildable
 if test "$enable_rxgk" = yes; then
 	if test "$BUILD_GSSAPI" = yes; then
@@ -145,6 +146,7 @@ if test "$enable_rxgk" = yes; then
 		RXGK_LIBS_STATIC="\${TOP_LIBDIR}/librxgk.a"
 		RXGK_CFLAGS="\$(CPPFLAGS_gssapi)"
 		RXGK_GSSAPI_LIBS="\$(LIB_gssapi)"
+		GKLOG_TARGET="gklog"
 dnl We need an embedded newline here to avoid empty lines in .la.sym files.
 dnl libtool chokes on blank lines in such files.
 		rxgk_GetServerInfo="rxgk_GetServerInfo
@@ -170,6 +172,7 @@ AC_SUBST(RXGK_LIBS_STATIC)
 AC_SUBST(RXGK_CFLAGS)
 AC_SUBST(RXGK_GSSAPI_LIBS)
 AC_SUBST(rxgk_GetServerInfo)
+AC_SUBST(GKLOG_TARGET)
 
 dnl Checks for summary
 OPENAFS_SUMMARY_CHECK_NAMEI
@@ -210,6 +213,7 @@ AC_OUTPUT([
     src/afsmonitor/Makefile
     src/afsweb/Makefile
     src/aklog/Makefile
+    src/gklog/Makefile
     src/audit/Makefile
     src/auth/Makefile
     src/auth/test/Makefile
