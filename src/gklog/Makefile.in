@@ -1,0 +1,44 @@
+#
+# This Makefile in in the public domain
+#
+
+srcdir=@srcdir@
+include @TOP_OBJDIR@/src/config/Makefile.config
+include @TOP_OBJDIR@/src/config/Makefile.pthread
+
+
+MODULE_CFLAGS=${CPPFLAGS_gssapi}
+
+AFSLIBS= ${TOP_LIBDIR}/libafshcrypto.a \
+	 $(top_builddir)/src/cmd/liboafs_cmd.la \
+	 $(top_builddir)/src/opr/liboafs_opr.la \
+         $(top_builddir)/src/util/liboafs_util.la \
+         $(top_builddir)/src/auth/liboafs_auth.la
+
+SRCS=	klog.c
+OBJS=   gklog.o
+
+all: gklog
+
+gklog:	${OBJS} ${AFSLIBS}
+	$(LT_LDRULE_static) ${OBJS} ${AFSLIBS} $(RXGK_GSSAPI_LIBS) ${MT_LIBS}
+
+#
+# Installation targets
+#
+install: gklog
+	${INSTALL} -d ${DESTDIR}${bindir}
+	${LT_INSTALL_PROGRAM} gklog ${DESTDIR}${bindir}/gklog
+
+dest: gklog
+	${INSTALL} -d ${DEST}/bin
+	${INSTALL_PROGRAM} gklog ${DEST}/bin/aklog
+
+#
+# Misc. targets
+#
+clean:
+	$(LT_CLEAN)
+	$(RM) -f *.o ${OBJS} gklog
+
+include ../config/Makefile.version
