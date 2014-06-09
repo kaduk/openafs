@@ -15,6 +15,10 @@
 #include <rx/xdr.h>
 #include <afs/auth.h>
 #include <afs/ktc.h>
+#ifdef ENABLE_RXGK
+#include <afs/token.h>
+#include <rx/rxgk.h>
+#endif
 
 #define VIRTUE
 #define VICE
@@ -41,6 +45,10 @@ main(int argc, char **argv)
     struct ktc_principal clientName;	/* service name for ticket */
     struct ktc_token token;	/* the token we're printing */
     struct ktc_setTokenData *tokenSet;
+#ifdef ENABLE_RXGK
+    struct ktc_tokenUnion tokenU;
+    token_rxgk *rxgkToken;
+#endif
 
 #ifdef	AFS_AIX32_ENV
     /*
@@ -111,6 +119,23 @@ main(int argc, char **argv)
 		    printf("[Expires %s]\n", expireString);
 	        }
 	    }
+#ifdef ENABLE_RXGK
+	    rc = token_findByType(tokenSet, AFSTOKEN_UNION_GK, &tokenU);
+	    if (rc == 0) {
+		rxgkToken = &tokenU.ktc_tokenUnion_u.at_gk;
+		if (rxgkToken->gk_viceid != 0)
+		    printf("rxgk token for pts id %lli",
+			   rxgkToken->gk_viceid);
+		else
+		    printf("rxgk token");
+		printf(" for cell %s ", cellName);
+		if (rxgkToken->gk_expiration < RXGK_NOW())
+		    printf("[>> Expired <<]\n");
+		else
+		    printf("[Expires at rxgkTime %lli]\n",
+			   rxgkToken->gk_expiration);
+	    }
+#endif
 	    token_FreeSet(&tokenSet);
 	}
     }
