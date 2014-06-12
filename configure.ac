@@ -302,7 +302,30 @@ AC_OUTPUT([
     tests/rx/Makefile
     tests/tap/Makefile
     tests/util/Makefile
-    tests/volser/Makefile],
+    tests/volser/Makefile
+    src/audit/liboafs_audit.la.sym
+    src/auth/liboafs_auth.la.sym
+    src/cmd/liboafs_cmd.la.sym
+    src/comerr/liboafs_comerr.la.sym
+    src/crypto/rfc3961/liboafs_rfc3961.la.sym
+    src/fsint/liboafs_fsint.la.sym
+    src/kauth/liboafs_kauth.la.sym
+    src/libacl/liboafs_acl.la.sym
+    src/libafsauthent/libafsauthent.la.sym
+    src/libafsrpc/libafsrpc.la.sym
+    src/lwp/liboafs_lwpcompat.la.sym
+    src/opr/liboafs_opr.la.sym
+    src/ptserver/liboafs_prot.la.sym
+    src/rx/liboafs_rx.la.sym
+    src/rxgk/liboafs_rxgk.la.sym
+    src/rxkad/liboafs_rxkad.la.sym
+    src/rxstat/liboafs_rxstat.la.sym
+    src/sys/liboafs_sys.la.sym
+    src/ubik/liboafs_ubik.la.sym
+    src/usd/liboafs_usd.la.sym
+    src/util/liboafs_util.la.sym
+    src/vlserver/liboafs_vldb.la.sym
+    src/volser/liboafs_volser.la.sym],
 [chmod a+x src/config/shlib-build
  chmod a+x src/config/shlib-install])
 

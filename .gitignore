@@ -18,6 +18,7 @@
 *.lo
 *.a
 *.la
+*.la.sym
 *.so
 *.sl
 *.so.*
