@@ -244,3 +244,59 @@ ListSuperGroups(
   OUT afs_int32 *over
 ) = 530;
 /* #endif */
+
+/* RPC-L from draft-brashear-afs3-pts-extended-names-09 */
+%#define      ANONYMOUSID     32766
+
+typedef afs_int64 nidlist<>;
+
+%#define AUTHDATAMAX 2048
+%#define AUTHPRINTABLEMAX 2048
+struct PRAuthName {
+    afs_int32 kind;
+    opaque data<AUTHDATAMAX>;
+    opaque display<AUTHPRINTABLEMAX>; };
+
+typedef struct PRAuthName authnamelist<>;
+
+%#define PRAUTHTYPE_KRB4 1
+%#define PRAUTHTYPE_GSS 2
+
+const PTSCAPABILITIESMAX = 196;
+typedef afs_uint32 PrCapabilities<PTSCAPABILITIESMAX>;
+
+const PTS_CAPABILITY_AUTHNAMEMAPPING       = 1;
+
+GetCapabilities(
+  PrCapabilities *prcapabilities
+) multi = 65536;
+
+AuthNameToID(
+  IN authnamelist *alist,
+  OUT nidlist *ilist
+) = 65537;
+
+AuthNameToIDFallback(
+  IN authnamelist *alist,
+  OUT nidlist *ilist
+) = 65538;
+
+ListAuthNames(
+  IN afs_int64 id,
+  OUT authnamelist *alist
+) = 65539;
+
+WhoAmI(
+  OUT afs_int64 *id,
+  OUT struct PRAuthName *alist
+) = 65540;
+
+AddAuthName(
+  IN afs_int64 id,
+  IN PRAuthName *aname
+) = 65541;
+
+RemoveAuthName(
+  IN PRAuthName *aname
+) = 65542;
+
