@@ -1289,6 +1289,8 @@ VolForward(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
     TSetRxCall(tt, NULL, "Forward");
 
     /* get auth info for the this connection (uses afs from ticket file) */
+    /* XXX For rxgk we need more magic than this.  We can only make it work
+     * if this server has the cell-wide key. */
     code = afsconf_ClientAuth(tdir, &securityObject, &securityIndex);
     if (code) {
 	TRELE(tt);
@@ -1401,6 +1403,8 @@ SAFSVolForwardMultiple(struct rx_call *acid, afs_int32 fromTrans, afs_int32
     }
 
     /* get auth info for this connection (uses afs from ticket file) */
+    /* XXX For rxgk we need more magic than this.  We can only make it work
+     * if this server has the cell-wide key. */
     code = afsconf_ClientAuth(tdir, &securityObject, &securityIndex);
     if (code) {
 	goto fail;		/* in order to audit each failure */
