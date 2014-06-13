@@ -1285,6 +1285,8 @@ MakeClient(struct rx_call *acid, struct rx_securityClass **securityObject,
 	opr_Assert(0 && "doCrypt corrupt?");
     }
     if (docrypt)
+      /* XXX For rxgk we need more magic than this.  We can only make it work
+       * if this server has the cell-wide key. */
 	code = afsconf_ClientAuthSecure(tdir, securityObject, securityIndex);
     else
 	code = afsconf_ClientAuth(tdir, securityObject, securityIndex);
