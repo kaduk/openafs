@@ -31,11 +31,16 @@
 #include <afs/acl.h>
 #include <afs/ptclient.h>
 #include <afs/ptuser.h>
+#include <afs/ptint.h>
 #include <afs/prs_fs.h>
 #include <afs/auth.h>
 #include <afs/afsutil.h>
 #include <afs/com_err.h>
 #include <rx/rx.h>
+#include <rx/rx_identity.h>
+#ifdef ENABLE_RXGK
+# include <rx/rxgk.h>
+#endif
 #include <afs/cellconfig.h>
 #include "viced_prototypes.h"
 #include "viced.h"
@@ -408,6 +413,39 @@ hpr_NameToId(namelist *names, idlist *ids)
         stolower(names->namelist_val[i]);
     code = ubik_PR_NameToID(uclient, 0, names, ids);
     return code;
+}
+
+/* XXX this API is dumb; the generation of the list should be done
+ * inside this routine, not outside of it. */
+int
+hpr_AuthNameToId(authnamelist *names, nidlist *ids)
+{
+    PrCapabilities caps;
+    afs_int32 code;
+    struct ubik_client *uclient;
+
+    memset(&caps, 0, sizeof(caps));
+
+    code = getThreadClient(&uclient);
+    if (code)
+	return code;
+
+#if 0
+    code = ubik_PR_GetCapabilities(uclient, 0, &caps);
+    if (code != 0)
+	return code;
+    if (!(caps.PrCapabilities_val[0] & PTS_CAPABILITY_AUTHNAMEMAPPING)) {
+	ViceLog(0, ("ptserver lacks authname mapping capability\n"));
+	return -1;
+    }
+
+    code = ubik_PR_AuthNameToID(uclient, 0, names, ids);
+    /* The RPC is allowed to return ANONYMOUSID if it doesn't have an
+     * authoritative mapping; try the fallback if it does. */
+    if (code == 0 && ids->nidlist_val[0] != ANONYMOUSID)
+	return 0;
+#endif
+    return ubik_PR_AuthNameToIDFallback(uclient, 0, names, ids);
 }
 
 int
@@ -2466,8 +2504,55 @@ MapName_r(char *uname, afs_int32 * aval)
     return code;
 }
 
-/*MapName*/
+#ifdef ENABLE_RXGK
+static afs_int32
+MapId(struct rx_identity *id, afs_int64 *viceid)
+{
+    PRAuthName name;
+    authnamelist lnames;
+    nidlist lids;
+    afs_int32 code;
 
+    *viceid = 0;
+
+    memset(&lids, 0, sizeof(lids));
+    lnames.authnamelist_len = 1;
+    lnames.authnamelist_val = &name;
+    if (id->kind == RX_ID_SUPERUSER) {
+	*viceid = SYSADMINID;
+	return 0;
+    } else if (id->kind == RX_ID_KRB4) {
+	/* XXX I'm feeling lazy. */
+	return -1;
+    } else if (id->kind == RX_ID_GSS) {
+	name.kind = PRAUTHTYPE_GSS;
+	name.data.data_val = id->exportedName.val;
+	name.data.data_len = id->exportedName.len;
+	name.display.display_val = id->displayName;
+	name.display.display_len = strlen(id->displayName);
+    }
+    H_UNLOCK;
+    code = hpr_AuthNameToId(&lnames, &lids);
+    H_LOCK;
+    if (code == 0) {
+	if (lids.nidlist_val != NULL) {
+	    *viceid = lids.nidlist_val[0];
+	    if (*viceid == AnonymousID) {
+		ViceLog(2,
+			("MapName: NameToId on %s returns anonymousID\n",
+			 id->displayName));
+	    }
+	    xdr_free((xdrproc_t)xdr_nidlist, &lids);
+	} else {
+	    ViceLog(0,
+		    ("MapId: AuthNameToId on '%s' is unknown\n",
+		     id->displayName));
+	    code = -1;
+	}
+    }
+    return code;
+}
+#endif	/* ENABLE_RXGK */
 
 static int
 PerHost_EnumerateClient(struct host *host, void *arock)
@@ -2603,6 +2688,38 @@ getPeerDetails(struct rx_connection *conn,
 
 	return 0;
     }
+
+#ifdef ENABLE_RXGK
+    if (authClass == RX_SECIDX_GK) {
+	struct rx_identity *identity;
+	rxgkTime expiry;
+	afs_int64 lviceid;
+	code = rxgk_GetServerInfo(conn, NULL, &expiry, &identity);
+	if (code) {
+	    ViceLog(1, ("Failed to get rxgk token info\n"));
+	    return 0;
+	}
+	ViceLog(5, ("FindClient: rxgk conn: name=%s,exp=%lld\n",
+		    identity->displayName, expiry));
+
+	/* translate the name to a vice id */
+	code = MapId(identity, &lviceid);
+	if (code) {
+	    ViceLog(1, ("failed to map identity %s -> code=%d\n",
+			identity->displayName, code));
+	    return code; /* Actually flag this is a failure */
+	}
+	if (lviceid > 0x7fffffff || lviceid < (afs_int64)INT32_MIN) {
+	    ViceLog(0, ("Mapped identity to unrepresentable viceid %lld\n",
+			lviceid));
+	    return -ERANGE;
+	}
+	*viceid = (afs_int32)lviceid;
+	*expTime = (afs_int32)(expiry / 10000000);
+
+	return 0;
+    }
+#endif	/* ENABLE_RXGK */
 
     return 0;
 }
