@@ -2055,3 +2055,46 @@ WhoIsThisWithName(struct rx_call *acall, struct ubik_trans *at, afs_int32 *aid,
 	return -1;
     return 0;
 }
+
+afs_int32
+SPR_GetCapabilities(struct rx_call *z_call, PrCapabilities *prcapabilities)
+{
+    return RXGEN_OPCODE;
+}
+
+afs_int32
+SPR_AuthNameToID(struct rx_call *z_call, authnamelist *alist, nidlist *ilist)
+{
+    return RXGEN_OPCODE;
+}
+
+afs_int32
+SPR_AuthNameToIDFallback(struct rx_call *z_call, authnamelist *alist,
+			 nidlist *ilist)
+{
+    return RXGEN_OPCODE;
+}
+
+afs_int32
+SPR_ListAuthNames(struct rx_call *z_call, afs_int64 id, authnamelist *alist)
+{
+    return RXGEN_OPCODE;
+}
+
+afs_int32
+SPR_WhoAmI(struct rx_call *z_call, afs_int64 id, struct PRAuthName *alist)
+{
+    return RXGEN_OPCODE;
+}
+
+afs_int32
+SPR_AddAuthName(struct rx_call *z_call, afs_int64 id, PRAuthName *aname)
+{
+    return RXGEN_OPCODE;
+}
+
+afs_int32
+SPR_RemoveAuthName(struct rx_call *z_call, PRAuthName *aname)
+{
+    return RXGEN_OPCODE;
+}
