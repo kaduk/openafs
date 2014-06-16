@@ -61,7 +61,11 @@
 #include <ubik.h>
 #include <rx/xdr.h>
 #include <rx/rx.h>
+#include <rx/rx_identity.h>
 #include <rx/rxkad.h>
+#ifdef ENABLE_RXGK
+#include <rx/rxgk.h>
+#endif
 #include <afs/auth.h>
 #include <afs/cellconfig.h>
 
@@ -2009,6 +2013,132 @@ addWildCards(struct ubik_trans *tt, prlist *alist, afs_uint32 host)
     return 0;
 }
 
+/*
+ * aname is assumed to be a fixed-length array, PR_MAXNAMELEN, if present.
+ * Failure is indicated by storing ANONYMOUSID to *aid.
+ * *aname (if non-NULL) is only populated for non-ANONYMOUSID *aid returns.
+ */
+static void
+PrAuthNameToID(struct ubik_trans *at, PRAuthName *prn, afs_int64 *aid,
+	       char *aname)
+{
+    char c[PR_MAXNAMELEN];
+    char *p;
+    afs_int32 tmpid, code;
+    afs_uint32 len;
+    int iskrb5, islocal;
+
+    if (aname != NULL)
+	*aname = '\0';
+
+    if (prn->kind == PRAUTHTYPE_KRB4) {
+	/* This is a legacy krb4 name, for which NameToID works great. */
+	if (prn->data.data_len >= 63) {
+	    *aid = ANONYMOUSID;
+	    return;
+	}
+	memcpy(c, prn->data.data_val, prn->data.data_len);
+	c[prn->data.data_len] = '\0';
+	code = NameToID(at, c, &tmpid);
+	if (code == 0)
+	    *aid = tmpid;
+	else
+	    *aid = ANONYMOUSID;
+	if (code == 0 && aname != NULL)
+	    strncpy(aname, c, PR_MAXNAMELEN);
+    } else if (prn->kind == PRAUTHTYPE_GSS) {
+	/* This code only understands the implicit krb5 mapping. */
+	if (prn->data.data_len <= 19) {
+	    /* Couldn't be a krb5 name.  We don't know how to handle it. */
+	    *aid = ANONYMOUSID;
+	    return;
+	}
+	/* The name starts with the mech OID; check it against the krb5 OID. */
+	iskrb5 = (memcmp(prn->data.data_val,
+		    "\x04\x01\x00\x0b\x06\x09\x2a\x86\x48\x86\xf7\x12\x01\x02\x02",
+			15) == 0);
+	if (!iskrb5) {
+	    *aid = ANONYMOUSID;
+	    return;
+	}
+	/* After the OID is the length of the principal name (big-endian). */
+	memcpy(&len, prn->data.data_val + 15, 4);
+	len = ntohl(len);
+	if (prn->data.data_len != len + 19) {
+	    /* Internally inconsistent krb5 name; bail. */
+	    *aid = ANONYMOUSID;
+	    return;
+	}
+	/* nameToID can only handle krb5 principal names that fit in its
+	 * buffer, which is 64 characters. */
+	if (len >= 63) {
+	    *aid = ANONYMOUSID;
+	    return;
+	}
+	/* Extract the krb5 principal name. */
+	memcpy(c, prn->data.data_val + 19, len);
+	c[len] = '\0';
+	/* Do some minimal 524 translations.  host --> rcmd, here. */
+	if (strcmp(c, "host") == 0)
+	    memcpy(c, "rcmd", 4);
+	/* Now, change the component separator from '/' to '.'. */
+	p = c;
+	while ((p = strchr(p, '/')) != NULL)
+	    *p = '.';
+	/* Check if the principal's realm is a local cell. */
+	p = strchr(c, '@');
+	if (p != NULL) {
+	    *p = '\0';
+	    /* This is cheating, since we merged 'inst' into 'name.  But
+	     * it should work just fine. */
+	    code = afsconf_IsLocalRealmMatch(prdir, &islocal, c, NULL, p + 1);
+	    if (!islocal)
+		*p = '@';
+	}
+	code = NameToID(at, c, &tmpid);
+	if (code == 0)
+	    *aid = tmpid;
+	else
+	    *aid = ANONYMOUSID;
+	if (code == 0 && aname != NULL)
+	    strncpy(aname, c, PR_MAXNAMELEN);
+    } else {
+	*aid = ANONYMOUSID;
+    }
+}
+
+#ifdef ENABLE_RXGK
+static void
+rxidToName(struct ubik_trans *at, struct rx_identity *id,
+	   afs_int64 *aid, char *aname)
+{
+    PRAuthName prname;
+    memset(&prname, 0, sizeof(prname));
+
+    if (id->kind == RX_ID_KRB4) {
+	prname.kind = PRAUTHTYPE_KRB4;
+    } else if (id->kind == RX_ID_GSS) {
+	prname.kind = PRAUTHTYPE_GSS;
+    } else if (id->kind == RX_ID_SUPERUSER) {
+	/* An easy translation; do it ourselves. */
+	*aid = SYSADMINID;
+	if (aname != NULL)
+	    strncpy(aname, "system:administrators", PR_MAXNAMELEN);
+	return;
+    } else {
+	/* Error; we cannot represent this as a PrAuthName */
+	*aid = 0;
+	*aname = '\0';
+	return;
+    }
+    prname.data.data_val = id->exportedName.val;
+    prname.data.data_len = id->exportedName.len;
+    prname.display.display_val = id->displayName;
+    prname.display.display_len = strlen(id->displayName);
+    PrAuthNameToID(at, &prname, aid, aname);
+}
+#endif	/* ENABLE_RXGK */
+
 static afs_int32
 WhoIsThisWithName(struct rx_call *acall, struct ubik_trans *at, afs_int32 *aid,
 		  char *aname)
@@ -2066,6 +2196,26 @@ WhoIsThisWithName(struct rx_call *acall, struct ubik_trans *at, afs_int32 *aid,
 	    lcstring(vname, vname, sizeof(vname));
 	    code = NameToID(at, vname, aid);
 	}
+#ifdef ENABLE_RXGK
+    } else if (code == RX_SECIDX_GK) {	/* gk class */
+	struct rx_identity *id;
+	code = rxgk_GetServerInfo(rx_ConnectionOf(acall), NULL, NULL, &id);
+	if (code)
+	    goto done;
+	if (id->kind == RX_ID_SUPERUSER) {
+	    *aid = SYSADMINID;
+	    if (aname != NULL)
+		strcpy(aname, "system:administrators");
+	} else if (id->kind == RX_ID_GSS) {
+	    afs_int64 tmpid;
+	    rxidToName(at, id, &tmpid, aname);
+	    /* XXX should have some nonlocal handling here */
+	    if (tmpid > INT32_MAX || tmpid < INT32_MIN)
+		return ERANGE;
+	    *aid = tmpid;
+	} else
+	    code = -1;
+#endif
     }
   done:
     if (code && !pr_noAuth)
@@ -2076,40 +2226,147 @@ WhoIsThisWithName(struct rx_call *acall, struct ubik_trans *at, afs_int32 *aid,
 afs_int32
 SPR_GetCapabilities(struct rx_call *z_call, PrCapabilities *prcapabilities)
 {
-    return RXGEN_OPCODE;
+    memset(prcapabilities, 0, sizeof(*prcapabilities));
+    prcapabilities->PrCapabilities_val = xdr_alloc(sizeof(afs_uint32));
+    if (prcapabilities->PrCapabilities_val == NULL)
+	return PRNOMEM;
+    prcapabilities->PrCapabilities_len = 1;
+    prcapabilities->PrCapabilities_val[0] = PTS_CAPABILITY_AUTHNAMEMAPPING;
+    return 0;
 }
 
+/* We do not store authnames anywhere yet, so any direct lookup will fail.
+ * The fallback mapping is likely to succeed, though. */
 afs_int32
 SPR_AuthNameToID(struct rx_call *z_call, authnamelist *alist, nidlist *ilist)
 {
-    return RXGEN_OPCODE;
+    u_int i;
+
+    memset(ilist, 0, sizeof(*ilist));
+    if (alist->authnamelist_len > (INT32_MAX >> 8))
+	return PRNOMEM;
+    ilist->nidlist_val = xdr_alloc(alist->authnamelist_len * sizeof(afs_int64));
+    if (ilist->nidlist_val == NULL)
+	return PRNOMEM;
+    ilist->nidlist_len = alist->authnamelist_len;
+    for(i = 0; i < ilist->nidlist_len; ++i)
+	ilist->nidlist_val[i] = ANONYMOUSID;
+    return 0;
 }
 
 afs_int32
 SPR_AuthNameToIDFallback(struct rx_call *z_call, authnamelist *alist,
 			 nidlist *ilist)
 {
-    return RXGEN_OPCODE;
+    PRAuthName *prn;
+    struct ubik_trans *at;
+    afs_int32 code;
+    u_int i;
+
+    memset(ilist, 0, sizeof(*ilist));
+    if (alist->authnamelist_len > (INT32_MAX >> 8))
+	return PRNOMEM;
+    ilist->nidlist_val = xdr_alloc(alist->authnamelist_len * sizeof(afs_int64));
+    if (ilist->nidlist_val == NULL)
+	return PRNOMEM;
+    ilist->nidlist_len = alist->authnamelist_len;
+
+    code = ReadPreamble(&at);
+    if (code)
+	return code;
+
+    for(i = 0; i < alist->authnamelist_len; ++i) {
+	prn = &alist->authnamelist_val[i];
+	PrAuthNameToID(at, prn, &ilist->nidlist_val[i], NULL);
+    }
+
+    code = ubik_EndTrans(at);
+    if (code)
+	return code;
+    return PRSUCCESS;
 }
 
 afs_int32
 SPR_ListAuthNames(struct rx_call *z_call, afs_int64 id, authnamelist *alist)
 {
+    /* A complying server SHOULD implement the ListAuthNames RPC.
+     * But, we have no database support, so we won't, yet. */
     return RXGEN_OPCODE;
+}
+
+static afs_int32
+AuthNameFromId(struct rx_identity *id, struct PRAuthName *aname)
+{
+    afs_int32 code;
+
+    if (id->kind == RX_ID_SUPERUSER) {
+	/* PrAuthNames do not represent superusers. */
+	return PRINTERNAL;
+    } else if (id->kind == RX_ID_KRB4) {
+	aname->kind = PRAUTHTYPE_KRB4;
+    } else if (id->kind == RX_ID_GSS) {
+	aname->kind = PRAUTHTYPE_GSS;
+    } else {
+	return PRINTERNAL;
+    }
+    code = rx_opaque_copy(&aname->data, &id->exportedName);
+    if (code != 0)
+	return code;
+    code = rx_opaque_populate(&aname->display, id->displayName,
+			      strlen(id->displayName));
+    if (code != 0)
+	rx_opaque_freeContents(&aname->data);
+    return code;
 }
 
 afs_int32
-SPR_WhoAmI(struct rx_call *z_call, afs_int64 id, struct PRAuthName *alist)
+SPR_WhoAmI(struct rx_call *z_call, afs_int64 *id, struct PRAuthName *alist)
 {
-    return RXGEN_OPCODE;
+    struct ubik_trans *at;
+    struct rx_connection *conn;
+    struct rx_identity *rxid = NULL;
+    afs_int32 code = PRINTERNAL;
+    int idx;
+
+    *id = ANONYMOUSID;
+    memset(alist, 0, sizeof(*alist));
+
+    conn = rx_ConnectionOf(z_call);
+    idx = rx_SecurityClassOf(conn);
+    switch(idx) {
+	case RX_SECIDX_KAD:
+	case 3:
+	    break;
+	case RX_SECIDX_GK:
+	    code = rxgk_GetServerInfo(conn, NULL, NULL, &rxid);
+	    if (code != 0)
+		break;
+	    code = AuthNameFromId(rxid, alist);
+	    if (code != 0)
+		break;
+	    code = ReadPreamble(&at);
+	    if (code != 0)
+		break;
+	    PrAuthNameToID(at, alist, id, NULL);
+	    code = ubik_EndTrans(at);
+	    break;
+	default:
+	    return PRPERM;
+    }
+    rx_identity_free(&rxid);
+    return code;;
 }
 
+/* A complying server MAY implement the AddAuthNameRPC.
+ * We don't hvae anything do do, so don't. */
 afs_int32
 SPR_AddAuthName(struct rx_call *z_call, afs_int64 id, PRAuthName *aname)
 {
     return RXGEN_OPCODE;
 }
 
+/* A complying server MAY implement the RemoveAuthNameRPC.
+ * We don't hvae anything do do, so don't. */
 afs_int32
 SPR_RemoveAuthName(struct rx_call *z_call, PRAuthName *aname)
 {
