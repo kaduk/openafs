@@ -211,6 +211,63 @@ release_conns_vector(struct sa_conn_vector *tcv)
 }        /* release_conns_vector */
 
 
+#ifndef UKERNEL
+static int
+call_afscombinetokens(struct rxgkToken *rxgk, struct cell *cell,
+		      afsUUID *target, struct rx_opaque *token_out,
+		      rxgk_key *k0_out, RXGK_TokenInfo *info_out)
+{
+    struct rx_securityClass *secobj;
+    struct rx_connection *conn;
+    struct rx_opaque dummy_tok = RX_EMPTY_OPAQUE, ret_tok = RX_EMPTY_OPAQUE;
+    rxgk_key k0;
+    RXGK_CombineOptions opts;
+    afs_int32 ret;
+
+    memset(&opts, 0, sizeof(opts));
+    memset(&k0, 0, sizeof(k0));
+
+    if (rxgk_make_key(&k0, rxgk->clearToken.k0.val,
+		      rxgk->clearToken.k0.len,
+		      rxgk->clearToken.enctype) != 0)
+	return 1;
+    secobj = rxgk_NewClientSecurityObject(rxgk->clearToken.level,
+					  rxgk->clearToken.enctype, k0,
+					  &rxgk->token, NULL, NULL);
+    rxgk_release_key(&k0);
+    if (secobj == NULL)
+	return 1;
+    /* XXX */
+    /* Look at me; I'm a hacky layering violation that only sort of works! */
+    /* Just make a single rx connection for this call and then throw it away. */
+    conn = rx_NewConnection(cell->cellHosts[0]->addr->sa_ip, cell->vlport,
+			    RXGK_SERVICE_ID, secobj, RX_SECIDX_GK);
+    if (conn == NULL)
+	goto cleanup;
+    opts.enctypes.len = 1;
+    opts.enctypes.val = xdr_alloc(sizeof(*opts.enctypes.val));
+    opts.levels.len = 1;
+    opts.levels.val = xdr_alloc(sizeof(*opts.levels.val));
+    opts.enctypes.val[0] = rxgk->clearToken.enctype;
+    opts.levels.val[0] = rxgk->clearToken.level;
+    /* XXX That NULL should really be a cache manager token. */
+    ret = RXGK_AFSCombineTokens(conn, &rxgk->token, &dummy_tok, &opts, *target,
+			        &ret_tok, info_out);
+    rx_DestroyConnection(conn);
+    if (ret != 0)
+	return 1;
+    rx_opaque_copy(token_out, &ret_tok);
+    if (token_out->len > 0) {
+	return rxgk_make_key(k0_out, rxgk->clearToken.k0.val,
+			     rxgk->clearToken.k0.len, rxgk->clearToken.enctype);
+    }
+    rx_DestroyConnection(conn);
+
+cleanup:
+    return 1;
+}
+#endif
+
 unsigned int VNOSERVERS = 0;
 
 /**
@@ -235,6 +292,44 @@ afs_pickSecurityObject(struct afs_conn *conn, int *secLevel)
 
     /* Do we have tokens ? */
     if (conn->parent->user->states & UHasTokens) {
+#ifndef UKERNEL
+	token = afs_FindToken(conn->parent->user->tokens, RX_SECIDX_GK);
+	if (token) {
+	    struct rxgkToken *rxgk = &token->rxgk;
+	    struct cell *cell;
+	    afsUUID *fsuuid;
+	    rxgk_key k0;
+	    struct rx_opaque fstoken = RX_EMPTY_OPAQUE;
+	    RXGK_TokenInfo info;
+
+	    if (conn->parent->srvr->server->flags & SRVR_MULTIHOMED) {
+		fsuuid = &conn->parent->srvr->server->sr_uuid;
+		afs_warn("found fileserver UUID for rxgk\n");
+	    } else  {
+		/* We don't have a UUID for this server.  Too bad.
+		   But!  The other branch of the union seems unused. */
+		afs_warn("did not find fileserver UUID for rxgk\n");
+		goto bail;
+	    }
+	    cell = conn->parent->srvr->server->cell;
+	    if (call_afscombinetokens(rxgk, cell, fsuuid, &fstoken, &k0, &info))
+		goto bail;
+	    if (fstoken.len > 0) {
+		secObj = rxgk_NewClientSecurityObject(info.level, info.enctype,
+						      k0, &fstoken,
+						      &afs_cb_interface.uuid,
+						      fsuuid);
+		if (secObj == NULL) {
+		    rxgk_release_key(&k0);
+		    rx_opaque_freeContents(&fstoken);
+		    /* RXGK_TokenInfo is entirely scalars. */
+		    goto bail;
+		}
+		*secLevel = RX_SECIDX_GK;
+		return secObj;
+	    }
+	}
+#endif
 	token = afs_FindToken(conn->parent->user->tokens, RX_SECIDX_KAD);
 	if (token) {
 	    *secLevel = RX_SECIDX_KAD;
@@ -249,6 +344,9 @@ afs_pickSecurityObject(struct afs_conn *conn, int *secLevel)
 	    conn->parent->user->viceId = token->rxkad.clearToken.ViceId;
 	}
      }
+#ifndef UKERNEL
+bail:
+#endif
      if (secObj == NULL) {
 	*secLevel = 0;
 	secObj = rxnull_NewClientSecurityObject();
