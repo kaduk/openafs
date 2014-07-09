@@ -518,7 +518,8 @@ libuafs_setup: config export
 	${CONFIGTOOL} src/libuafs/MakefileProto.${MKAFS_OSTYPE} src/libuafs/Makefile ${SYS_NAME}
 
 libuafs: libuafs_setup vlserver_depinstall tvlserver_depinstall rx_depinstall fsint_depinstall \
-		auth_depinstall dir_depinstall libacl_depinstall rxkad_depinstall \
+		auth_depinstall dir_depinstall libacl_depinstall \
+		rxkad_depinstall rxgk_depinstall \
 		ubik_depinstall afs_depinstall kauth_depinstall ptserver_depinstall \
 		rxstat_depinstall lwp_depinstall sys_depinstall cmd hcrypto
 	+set -x; \
