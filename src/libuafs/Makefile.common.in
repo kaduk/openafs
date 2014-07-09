@@ -51,6 +51,8 @@ COMMON_INCLUDE = -I. -I.. -I../nfs \
         -I${TOP_SRCDIR}/rx \
         -I${TOP_SRCDIR}/rx/UKERNEL \
         -I${TOP_SRCDIR}/rxkad \
+	-I${TOP_SRCDIR}/crypto/rfc3961 \
+	-I${TOP_SRCDIR}/crypto/hcrypto/kernel \
         -I${TOP_SRCDIR}/util \
         -I${TOP_OBJDIR}/src \
 	-I${TOP_OBJDIR}/src/afs \
