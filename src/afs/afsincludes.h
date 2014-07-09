@@ -50,6 +50,9 @@
 #include "afs/afs_chunkops.h"
 /*#include "afs/auxinode.h"	-- used only in afs_istuff.c */
 #include "rx/rxkad.h"
+#if 1
+# include "rx/rxgk.h"
+#endif
 #include "afs/prs_fs.h"
 #include "afs/dir.h"
 #include "afs/afs_axscache.h"
