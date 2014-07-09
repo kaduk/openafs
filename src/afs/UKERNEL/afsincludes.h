@@ -21,6 +21,9 @@
 #include "afs/afs.h"
 #include "afs/afs_chunkops.h"
 #include "rx/rxkad.h"
+#if 0
+# include "rx/rxgk.h"
+#endif
 #include "afs/prs_fs.h"
 #include "afs/dir.h"
 #include "afs/afs_axscache.h"
