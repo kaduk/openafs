@@ -117,6 +117,13 @@ LT_objs = \
 	afs_exporter.lo \
 	rxkad_client.lo \
 	rxkad_common.lo \
+	rxgk_client.lo \
+	rxgk_crypto_rfc3961.lo \
+	rxgk_gss.lo \
+	Krxgk_int.cs.lo \
+	Krxgk_int.xdr.lo \
+	rxgk_packet.lo \
+	rxgk_util.lo \
 	casestrcpy.lo \
 	dirpath.lo \
 	fileutil.lo \
@@ -159,6 +166,7 @@ LIBUAFS_BUILD_PERL = @LIBUAFS_BUILD_PERL@
 TOP_OBJ_AUTH = ${TOP_OBJDIR}/src/auth
 TOP_OBJ_FSINT = ${TOP_OBJDIR}/src/fsint
 TOP_OBJ_RXSTAT = ${TOP_OBJDIR}/src/rxstat
+TOP_OBJ_RXGK = ${TOP_OBJDIR}/src/rxgk
 TOP_OBJ_VLSERVER = ${TOP_OBJDIR}/src/vlserver
 
 TOP_SRC_AFS = ${TOP_SRCDIR}/afs
@@ -168,6 +176,7 @@ TOP_SRC_FSINT = ${TOP_SRCDIR}/fsint
 TOP_SRC_RX = ${TOP_SRCDIR}/rx
 TOP_SRC_VNOPS = ${TOP_SRCDIR}/afs/VNOPS
 TOP_SRC_RXKAD = ${TOP_SRCDIR}/rxkad
+TOP_SRC_RXGK = ${TOP_SRCDIR}/rxgk
 TOP_SRC_HEIMDAL = ${TOP_SRCDIR}/external/heimdal/krb5
 TOP_SRC_KRFC3961 = ${TOP_SRCDIR}/crypto/rfc3961/kernel
 TOP_SRC_RFC3961 = ${TOP_SRCDIR}/crypto/rfc3961
@@ -353,6 +362,20 @@ rxkad_client.lo: $(TOP_SRC_RXKAD)/rxkad_client.c
 	$(LT_CCRULE) $(TOP_SRC_RXKAD)/rxkad_client.c
 rxkad_common.lo: $(TOP_SRC_RXKAD)/rxkad_common.c
 	$(LT_CCRULE) $(TOP_SRC_RXKAD)/rxkad_common.c
+rxgk_client.lo: $(TOP_SRC_RXGK)/rxgk_client.c
+	$(LT_CCRULE) $(TOP_SRC_RXGK)/rxgk_client.c
+rxgk_crypto_rfc3961.lo: $(TOP_SRC_RXGK)/rxgk_crypto_rfc3961.c
+	$(LT_CCRULE) $(TOP_SRC_RXGK)/rxgk_crypto_rfc3961.c
+rxgk_gss.lo: $(TOP_SRC_RXGK)/rxgk_gss.c
+	$(LT_CCRULE) $(TOP_SRC_RXGK)/rxgk_gss.c
+Krxgk_int.cs.lo: $(TOP_SRC_RXGK)/Krxgk_int.cs.c
+	$(LT_CCRULE) $(TOP_SRC_RXGK)/Krxgk_int.cs.c
+Krxgk_int.xdr.lo: $(TOP_SRC_RXGK)/Krxgk_int.xdr.c
+	$(LT_CCRULE) $(TOP_SRC_RXGK)/Krxgk_int.xdr.c
+rxgk_packet.lo: $(TOP_SRC_RXGK)/rxgk_packet.c
+	$(LT_CCRULE) $(TOP_SRC_RXGK)/rxgk_packet.c
+rxgk_util.lo: $(TOP_SRC_RXGK)/rxgk_util.c
+	$(LT_CCRULE) $(TOP_SRC_RXGK)/rxgk_util.c
 afs_exporter.lo: $(TOP_SRCDIR)/afs/afs_exporter.c
 	$(LT_CCRULE) $(TOP_SRCDIR)/afs/afs_exporter.c
 afs_nfsclnt.lo: $(TOP_SRC_AFS)/afs_nfsclnt.c
