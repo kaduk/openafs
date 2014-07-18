@@ -28,7 +28,6 @@ LIBUAFS_BUILD_PERL = @LIBUAFS_BUILD_PERL@
 TOP_OBJ_AUTH = ${TOP_OBJDIR}/src/auth
 TOP_OBJ_FSINT = ${TOP_OBJDIR}/src/fsint
 TOP_OBJ_RXSTAT = ${TOP_OBJDIR}/src/rxstat
-TOP_OBJ_RXGK = ${TOP_OBJDIR}/src/rxgk
 TOP_OBJ_VLSERVER = ${TOP_OBJDIR}/src/vlserver
 
 TOP_SRC_AFS = ${TOP_SRCDIR}/afs
@@ -38,7 +37,6 @@ TOP_SRC_FSINT = ${TOP_SRCDIR}/fsint
 TOP_SRC_RX = ${TOP_SRCDIR}/rx
 TOP_SRC_VNOPS = ${TOP_SRCDIR}/afs/VNOPS
 TOP_SRC_RXKAD = ${TOP_SRCDIR}/rxkad
-TOP_SRC_RXGK = ${TOP_SRCDIR}/rxgk
 TOP_SRC_HEIMDAL = ${TOP_SRCDIR}/external/heimdal/krb5
 TOP_SRC_KRFC3961 = ${TOP_SRCDIR}/crypto/rfc3961/kernel
 TOP_SRC_RFC3961 = ${TOP_SRCDIR}/crypto/rfc3961
@@ -218,13 +216,6 @@ UAFSOBJ = \
 	$(UOBJ)/afs_exporter.o \
 	$(UOBJ)/rxkad_client.o \
 	$(UOBJ)/rxkad_common.o \
-	$(UOBJ)/rxgk_client.o \
-	$(UOBJ)/rxgk_crypto_rfc3961.o \
-	$(UOBJ)/rxgk_gss.o \
-	$(UOBJ)/Krxgk_int.cs.o \
-	$(UOBJ)/Krxgk_int.xdr.o \
-	$(UOBJ)/rxgk_packet.o \
-	$(UOBJ)/rxgk_util.o \
 	$(UOBJ)/casestrcpy.o \
 	$(UOBJ)/dirpath.o \
 	$(UOBJ)/fileutil.o \
@@ -358,13 +349,6 @@ PICUAFSOBJ = \
 	$(PICOBJ)/afs_exporter.o \
 	$(PICOBJ)/rxkad_client.o \
 	$(PICOBJ)/rxkad_common.o \
-	$(PICOBJ)/rxgk_client.o \
-	$(PICOBJ)/rxgk_crypto_rfc3961.o \
-	$(PICOBJ)/rxgk_gss.o \
-	$(PICOBJ)/Krxgk_int.cs.o \
-	$(PICOBJ)/Krxgk_int.xdr.o \
-	$(PICOBJ)/rxgk_packet.o \
-	$(PICOBJ)/rxgk_util.o \
 	$(PICOBJ)/casestrcpy.o \
 	$(PICOBJ)/dirpath.o \
 	$(PICOBJ)/fileutil.o \
@@ -498,13 +482,6 @@ AFSWEBOBJ = \
 	$(WEBOBJ)/afs_exporter.o \
 	$(WEBOBJ)/rxkad_client.o \
 	$(WEBOBJ)/rxkad_common.o \
-	$(WEBOBJ)/rxgk_client.o \
-	$(WEBOBJ)/rxgk_crypto_rfc3961.o \
-	$(WEBOBJ)/rxgk_gss.o \
-	$(WEBOBJ)/Krxgk_int.cs.o \
-	$(WEBOBJ)/Krxgk_int.xdr.o \
-	$(WEBOBJ)/rxgk_packet.o \
-	$(WEBOBJ)/rxgk_util.o \
 	$(WEBOBJ)/casestrcpy.o \
 	$(WEBOBJ)/dirpath.o \
 	$(WEBOBJ)/fileutil.o \
@@ -632,13 +609,6 @@ AFSWEBOBJKRB = \
 	$(WEBOBJ)/afs_exporter.o \
 	$(WEBOBJ)/rxkad_client.o \
 	$(WEBOBJ)/rxkad_common.o \
-	$(WEBOBJ)/rxgk_client.o \
-	$(WEBOBJ)/rxgk_crypto_rfc3961.o \
-	$(WEBOBJ)/rxgk_gss.o \
-	$(WEBOBJ)/Krxgk_int.cs.o \
-	$(WEBOBJ)/Krxgk_int.xdr.o \
-	$(WEBOBJ)/rxgk_packet.o \
-	$(WEBOBJ)/rxgk_util.o \
 	$(WEBOBJ)/casestrcpy.o \
 	$(WEBOBJ)/dirpath.o \
 	$(WEBOBJ)/fileutil.o \
@@ -771,13 +741,6 @@ JUAFSOBJ = \
 	$(JUAFS)/afs_exporter.o \
 	$(JUAFS)/rxkad_client.o \
 	$(JUAFS)/rxkad_common.o \
-	$(JUAFS)/rxgk_client.o \
-	$(JUAFS)/rxgk_crypto_rfc3961.o \
-	$(JUAFS)/rxgk_gss.o \
-	$(JUAFS)/Krxgk_int.cs.o \
-	$(JUAFS)/Krxgk_int.xdr.o \
-	$(JUAFS)/rxgk_packet.o \
-	$(JUAFS)/rxgk_util.o \
 	$(JUAFS)/casestrcpy.o \
 	$(JUAFS)/dirpath.o \
 	$(JUAFS)/fileutil.o \
@@ -922,20 +885,6 @@ $(UOBJ)/crypt_conn.o: $(TOP_SRC_RXKAD)/crypt_conn.c
 $(UOBJ)/rxkad_client.o: $(TOP_SRC_RXKAD)/rxkad_client.c
 	$(CRULE1)
 $(UOBJ)/rxkad_common.o: $(TOP_SRC_RXKAD)/rxkad_common.c
-	$(CRULE1)
-$(UOBJ)/rxgk_client.o: $(TOP_SRC_RXGK)/rxgk_client.c
-	$(CRULE1)
-$(UOBJ)/rxgk_crypto_rfc3961.o: $(TOP_SRC_RXGK)/rxgk_crypto_rfc3961.c
-	$(CRULE1)
-$(UOBJ)/rxgk_gss.o: $(TOP_SRC_RXGK)/rxgk_gss.c
-	$(CRULE1)
-$(UOBJ)/Krxgk_int.cs.o: $(TOP_OBJ_RXGK)/Krxgk_int.cs.c
-	$(CRULE1)
-$(UOBJ)/Krxgk_int.xdr.o: $(TOP_OBJ_RXGK)/Krxgk_int.xdr.c
-	$(CRULE1)
-$(UOBJ)/rxgk_packet.o: $(TOP_SRC_RXGK)/rxgk_packet.c
-	$(CRULE1)
-$(UOBJ)/rxgk_util.o: $(TOP_SRC_RXGK)/rxgk_util.c
 	$(CRULE1)
 $(UOBJ)/afs_exporter.o: $(TOP_SRCDIR)/afs/afs_exporter.c
 	$(CRULE1)
@@ -1207,20 +1156,6 @@ $(PICOBJ)/crypt_conn.o: $(TOP_SRC_RXKAD)/crypt_conn.c
 $(PICOBJ)/rxkad_client.o: $(TOP_SRC_RXKAD)/rxkad_client.c
 	$(CRULEPIC)
 $(PICOBJ)/rxkad_common.o: $(TOP_SRC_RXKAD)/rxkad_common.c
-	$(CRULEPIC)
-$(PICOBJ)/rxgk_client.o: $(TOP_SRC_RXGK)/rxgk_client.c
-	$(CRULEPIC)
-$(PICOBJ)/rxgk_crypto_rfc3961.o: $(TOP_SRC_RXGK)/rxgk_crypto_rfc3961.c
-	$(CRULEPIC)
-$(PICOBJ)/rxgk_gss.o: $(TOP_SRC_RXGK)/rxgk_gss.c
-	$(CRULEPIC)
-$(PICOBJ)/Krxgk_int.cs.o: $(TOP_OBJ_RXGK)/Krxgk_int.cs.c
-	$(CRULEPIC)
-$(PICOBJ)/Krxgk_int.xdr.o: $(TOP_OBJ_RXGK)/Krxgk_int.xdr.c
-	$(CRULEPIC)
-$(PICOBJ)/rxgk_packet.o: $(TOP_SRC_RXGK)/rxgk_packet.c
-	$(CRULEPIC)
-$(PICOBJ)/rxgk_util.o: $(TOP_SRC_RXGK)/rxgk_util.c
 	$(CRULEPIC)
 $(PICOBJ)/afs_exporter.o: $(TOP_SRCDIR)/afs/afs_exporter.c
 	$(CRULEPIC)
@@ -1494,20 +1429,6 @@ $(WEBOBJ)/crypt_conn.o: $(TOP_SRC_RXKAD)/crypt_conn.c
 $(WEBOBJ)/rxkad_client.o: $(TOP_SRC_RXKAD)/rxkad_client.c
 	$(CRULE2)
 $(WEBOBJ)/rxkad_common.o: $(TOP_SRC_RXKAD)/rxkad_common.c
-	$(CRULE2)
-$(WEBOBJ)/rxgk_client.o: $(TOP_SRC_RXGK)/rxgk_client.c
-	$(CRULE2)
-$(WEBOBJ)/rxgk_crypto_rfc3961.o: $(TOP_SRC_RXGK)/rxgk_crypto_rfc3961.c
-	$(CRULE2)
-$(WEBOBJ)/rxgk_gss.o: $(TOP_SRC_RXGK)/rxgk_gss.c
-	$(CRULE2)
-$(WEBOBJ)/Krxgk_int.cs.o: $(TOP_OBJ_RXGK)/Krxgk_int.cs.c
-	$(CRULE2)
-$(WEBOBJ)/Krxgk_int.xdr.o: $(TOP_OBJ_RXGK)/Krxgk_int.xdr.c
-	$(CRULE2)
-$(WEBOBJ)/rxgk_packet.o: $(TOP_SRC_RXGK)/rxgk_packet.c
-	$(CRULE2)
-$(WEBOBJ)/rxgk_util.o: $(TOP_SRC_RXGK)/rxgk_util.c
 	$(CRULE2)
 $(WEBOBJ)/afs_exporter.o: $(TOP_SRCDIR)/afs/afs_exporter.c
 	$(CRULE2)
@@ -1786,20 +1707,6 @@ $(JUAFS)/rxkad_client.o: $(TOP_SRC_RXKAD)/rxkad_client.c
 	$(CRULE1)
 $(JUAFS)/rxkad_common.o: $(TOP_SRC_RXKAD)/rxkad_common.c
 	$(CRULE1)
-$(JUAFS)/rxgk_client.o: $(TOP_SRC_RXGK)/rxgk_client.c
-	$(CRULE1)
-$(JUAFS)/rxgk_crypto_rfc3961.o: $(TOP_SRC_RXGK)/rxgk_crypto_rfc3961.c
-	$(CRULE1)
-$(JUAFS)/rxgk_gss.o: $(TOP_SRC_RXGK)/rxgk_gss.c
-	$(CRULE1)
-$(JUAFS)/Krxgk_int.cs.o: $(TOP_OBJ_RXGK)/Krxgk_int.cs.c
-	$(CRULE1)
-$(JUAFS)/Krxgk_int.xdr.o: $(TOP_OBJ_RXGK)/Krxgk_int.xdr.c
-	$(CRULE1)
-$(JUAFS)/rxgk_packet.o: $(TOP_SRC_RXGK)/rxgk_packet.c
-	$(CRULE1)
-$(JUAFS)/rxgk_util.o: $(TOP_SRC_RXGK)/rxgk_util.c
-	$(CRULEPIC)
 $(JUAFS)/afs_exporter.o: $(TOP_SRCDIR)/afs/afs_exporter.c
 	$(CRULE1)
 $(JUAFS)/afs_nfsclnt.o: $(TOP_SRC_AFS)/afs_nfsclnt.c
