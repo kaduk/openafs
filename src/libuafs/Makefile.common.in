@@ -37,9 +37,6 @@ TOP_SRC_FSINT = ${TOP_SRCDIR}/fsint
 TOP_SRC_RX = ${TOP_SRCDIR}/rx
 TOP_SRC_VNOPS = ${TOP_SRCDIR}/afs/VNOPS
 TOP_SRC_RXKAD = ${TOP_SRCDIR}/rxkad
-TOP_SRC_HEIMDAL = ${TOP_SRCDIR}/external/heimdal/krb5
-TOP_SRC_KRFC3961 = ${TOP_SRCDIR}/crypto/rfc3961/kernel
-TOP_SRC_RFC3961 = ${TOP_SRCDIR}/crypto/rfc3961
 
 COMMON_INCLUDE = -I. -I.. -I../nfs \
         -I${TOP_SRCDIR} \
@@ -222,16 +219,6 @@ UAFSOBJ = \
 	$(UOBJ)/netrestrict.o \
 	$(UOBJ)/cellconfig.o \
 	$(UOBJ)/keys.o \
-	$(UOBJ)/context.o \
-	$(UOBJ)/copy.o \
-	$(UOBJ)/crypto-aes.o \
-	$(UOBJ)/crypto-evp.o \
-	$(UOBJ)/algs.o \
-	$(UOBJ)/random.o \
-	$(UOBJ)/data.o \
-	$(UOBJ)/keyblock.o \
-	$(UOBJ)/n-fold.o \
-	$(UOBJ)/store-int.o \
 	$(UOBJ)/realms.o \
 	$(UOBJ)/ktc.o \
 	$(UOBJ)/Krxstat.ss.o \
@@ -355,16 +342,6 @@ PICUAFSOBJ = \
 	$(PICOBJ)/netrestrict.o \
 	$(PICOBJ)/cellconfig.o \
 	$(PICOBJ)/keys.o \
-	$(PICOBJ)/context.o \
-	$(PICOBJ)/copy.o \
-	$(PICOBJ)/crypto-aes.o \
-	$(PICOBJ)/crypto-evp.o \
-	$(PICOBJ)/algs.o \
-	$(PICOBJ)/random.o \
-	$(PICOBJ)/data.o \
-	$(PICOBJ)/keyblock.o \
-	$(PICOBJ)/n-fold.o \
-	$(PICOBJ)/store-int.o \
 	$(PICOBJ)/realms.o \
 	$(PICOBJ)/ktc.o \
 	$(PICOBJ)/Krxstat.ss.o \
@@ -488,16 +465,6 @@ AFSWEBOBJ = \
 	$(WEBOBJ)/netrestrict.o \
 	$(WEBOBJ)/cellconfig.o \
 	$(WEBOBJ)/keys.o \
-	$(WEBOBJ)/context.o \
-	$(WEBOBJ)/copy.o \
-	$(WEBOBJ)/crypto-aes.o \
-	$(WEBOBJ)/crypto-evp.o \
-	$(WEBOBJ)/algs.o \
-	$(WEBOBJ)/random.o \
-	$(WEBOBJ)/data.o \
-	$(WEBOBJ)/keyblock.o \
-	$(WEBOBJ)/n-fold.o \
-	$(WEBOBJ)/store-int.o \
 	$(WEBOBJ)/realms.o \
 	$(WEBOBJ)/ktc.o \
 	$(WEBOBJ)/securehash.o \
@@ -615,16 +582,6 @@ AFSWEBOBJKRB = \
 	$(WEBOBJ)/netrestrict.o \
 	$(WEBOBJ)/cellconfig.o \
 	$(WEBOBJ)/keys.o \
-	$(WEBOBJ)/context.o \
-	$(WEBOBJ)/copy.o \
-	$(WEBOBJ)/crypto-aes.o \
-	$(WEBOBJ)/crypto-evp.o \
-	$(WEBOBJ)/algs.o \
-	$(WEBOBJ)/random.o \
-	$(WEBOBJ)/data.o \
-	$(WEBOBJ)/keyblock.o \
-	$(WEBOBJ)/n-fold.o \
-	$(WEBOBJ)/store-int.o \
 	$(WEBOBJ)/realms.o \
 	$(WEBOBJ)/ktc.krb.o \
 	$(WEBOBJ)/securehash.o \
@@ -747,16 +704,6 @@ JUAFSOBJ = \
 	$(JUAFS)/netrestrict.o \
 	$(JUAFS)/cellconfig.o \
 	$(JUAFS)/keys.o \
-	$(JUAFS)/context.o \
-	$(JUAFS)/copy.o \
-	$(JUAFS)/crypto-aes.o \
-	$(JUAFS)/crypto-evp.o \
-	$(JUAFS)/algs.o \
-	$(JUAFS)/random.o \
-	$(JUAFS)/data.o \
-	$(JUAFS)/keyblock.o \
-	$(JUAFS)/n-fold.o \
-	$(JUAFS)/store-int.o \
 	$(JUAFS)/realms.o \
 	$(JUAFS)/ktc.o \
 	$(JUAFS)/Krxstat.ss.o \
@@ -995,26 +942,6 @@ $(UOBJ)/ktc.o: 	$(TOP_SRCDIR)/auth/ktc.c
 $(UOBJ)/cellconfig.o: $(TOP_SRCDIR)/auth/cellconfig.c
 	$(CRULE1)
 $(UOBJ)/keys.o: $(TOP_SRCDIR)/auth/keys.c
-	$(CRULE1)
-$(UOBJ)/context.o: $(TOP_SRC_RFC3961)/context.c
-	$(CRULE1)
-$(UOBJ)/copy.o: $(TOP_SRC_RFC3961)/copy.c
-	$(CRULE1)
-$(UOBJ)/crypto-aes.o: $(TOP_SRC_HEIMDAL)/crypto-aes.c
-	$(CRULE1)
-$(UOBJ)/crypto-evp.o: $(TOP_SRC_HEIMDAL)/crypto-evp.c
-	$(CRULE1)
-$(UOBJ)/data.o: $(TOP_SRC_HEIMDAL)/data.c
-	$(CRULE1)
-$(UOBJ)/keyblock.o: $(TOP_SRC_HEIMDAL)/keyblock.c
-	$(CRULE1)
-$(UOBJ)/n-fold.o: $(TOP_SRC_HEIMDAL)/n-fold.c
-	$(CRULE1)
-$(UOBJ)/store-int.o: $(TOP_SRC_HEIMDAL)/store-int.c
-	$(CRULE1)
-$(UOBJ)/algs.o: $(TOP_SRC_KRFC3961)/algs.c
-	$(CRULE1)
-$(UOBJ)/random.o: $(TOP_SRC_KRFC3961)/random.c
 	$(CRULE1)
 $(UOBJ)/casestrcpy.o: $(TOP_SRCDIR)/opr/casestrcpy.c
 	$(CRULE1)
@@ -1266,26 +1193,6 @@ $(PICOBJ)/ktc.o: 	$(TOP_SRCDIR)/auth/ktc.c
 $(PICOBJ)/cellconfig.o: $(TOP_SRCDIR)/auth/cellconfig.c
 	$(CRULEPIC)
 $(PICOBJ)/keys.o: $(TOP_SRCDIR)/auth/keys.c
-	$(CRULEPIC)
-$(PICOBJ)/context.o: $(TOP_SRC_RFC3961)/context.c
-	$(CRULEPIC)
-$(PICOBJ)/copy.o: $(TOP_SRC_RFC3961)/copy.c
-	$(CRULEPIC)
-$(PICOBJ)/crypto-aes.o: $(TOP_SRC_HEIMDAL)/crypto-aes.c
-	$(CRULEPIC)
-$(PICOBJ)/crypto-evp.o: $(TOP_SRC_HEIMDAL)/crypto-evp.c
-	$(CRULEPIC)
-$(PICOBJ)/data.o: $(TOP_SRC_HEIMDAL)/data.c
-	$(CRULEPIC)
-$(PICOBJ)/keyblock.o: $(TOP_SRC_HEIMDAL)/keyblock.c
-	$(CRULEPIC)
-$(PICOBJ)/n-fold.o: $(TOP_SRC_HEIMDAL)/n-fold.c
-	$(CRULEPIC)
-$(PICOBJ)/store-int.o: $(TOP_SRC_HEIMDAL)/store-int.c
-	$(CRULEPIC)
-$(PICOBJ)/algs.o: $(TOP_SRC_KRFC3961)/algs.c
-	$(CRULEPIC)
-$(PICOBJ)/random.o: $(TOP_SRC_KRFC3961)/random.c
 	$(CRULEPIC)
 $(PICOBJ)/casestrcpy.o: $(TOP_SRCDIR)/opr/casestrcpy.c
 	$(CRULEPIC)
@@ -1543,26 +1450,6 @@ $(WEBOBJ)/cellconfig.o: $(TOP_SRCDIR)/auth/cellconfig.c
 	$(CRULE2)
 $(WEBOBJ)/keys.o: $(TOP_SRCDIR)/auth/keys.c
 	$(CRULE2)
-$(WEBOBJ)/context.o: $(TOP_SRC_RFC3961)/context.c
-	$(CRULE2)
-$(WEBOBJ)/copy.o: $(TOP_SRC_RFC3961)/copy.c
-	$(CRULE2)
-$(WEBOBJ)/crypto-aes.o: $(TOP_SRC_HEIMDAL)/crypto-aes.c
-	$(CRULE2)
-$(WEBOBJ)/crypto-evp.o: $(TOP_SRC_HEIMDAL)/crypto-evp.c
-	$(CRULE2)
-$(WEBOBJ)/data.o: $(TOP_SRC_HEIMDAL)/data.c
-	$(CRULE2)
-$(WEBOBJ)/keyblock.o: $(TOP_SRC_HEIMDAL)/keyblock.c
-	$(CRULE2)
-$(WEBOBJ)/n-fold.o: $(TOP_SRC_HEIMDAL)/n-fold.c
-	$(CRULE2)
-$(WEBOBJ)/store-int.o: $(TOP_SRC_HEIMDAL)/store-int.c
-	$(CRULE2)
-$(WEBOBJ)/algs.o: $(TOP_SRC_KRFC3961)/algs.c
-	$(CRULE2)
-$(WEBOBJ)/random.o: $(TOP_SRC_KRFC3961)/random.c
-	$(CRULE2)
 $(WEBOBJ)/casestrcpy.o: $(TOP_SRCDIR)/opr/casestrcpy.c
 	$(CRULE1)
 $(WEBOBJ)/realms.o: $(TOP_SRCDIR)/auth/realms.c
@@ -1812,26 +1699,6 @@ $(JUAFS)/ktc.o: 	$(TOP_SRCDIR)/auth/ktc.c
 $(JUAFS)/cellconfig.o: $(TOP_SRCDIR)/auth/cellconfig.c
 	$(CRULE1)
 $(JUAFS)/keys.o: $(TOP_SRCDIR)/auth/keys.c
-	$(CRULE1)
-$(JUAFS)/context.o: $(TOP_SRC_RFC3961)/context.c
-	$(CRULE1)
-$(JUAFS)/copy.o: $(TOP_SRC_RFC3961)/copy.c
-	$(CRULE1)
-$(JUAFS)/crypto-aes.o: $(TOP_SRC_HEIMDAL)/crypto-aes.c
-	$(CRULE1)
-$(JUAFS)/crypto-evp.o: $(TOP_SRC_HEIMDAL)/crypto-evp.c
-	$(CRULE1)
-$(JUAFS)/data.o: $(TOP_SRC_HEIMDAL)/data.c
-	$(CRULE1)
-$(JUAFS)/keyblock.o: $(TOP_SRC_HEIMDAL)/keyblock.c
-	$(CRULE1)
-$(JUAFS)/n-fold.o: $(TOP_SRC_HEIMDAL)/n-fold.c
-	$(CRULE1)
-$(JUAFS)/store-int.o: $(TOP_SRC_HEIMDAL)/store-int.c
-	$(CRULE1)
-$(JUAFS)/algs.o: $(TOP_SRC_KRFC3961)/algs.c
-	$(CRULE1)
-$(JUAFS)/random.o: $(TOP_SRC_KRFC3961)/random.c
 	$(CRULE1)
 $(JUAFS)/casestrcpy.o: $(TOP_SRCDIR)/opr/casestrcpy.c
 	$(CRULE1)
