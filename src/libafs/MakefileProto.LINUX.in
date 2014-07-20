@@ -125,7 +125,8 @@ EXTRA_CFLAGS = -I$(LINUX_KERNEL_PATH)/arch/um/include -I$(LINUX_KERNEL_PATH)/arc
 
 <all>
 INCLUDES = -I. -I../ -I${TOP_OBJDIR}/src/config \
-  -I${TOP_SRCDIR}/rx -I${TOP_OBJDIR}/src/rxstat
+  -I${TOP_SRCDIR}/rx -I${TOP_OBJDIR}/src/rxstat \
+  -I${TOP_SRCDIR}/rxgk -I${TOP_OBJDIR}/src/rxgk
 
 CFLAGS = $(CCFLAGS) $(KERN_DBG) $(DEFINES) $(INCLUDES)
 
