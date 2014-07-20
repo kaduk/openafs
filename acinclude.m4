@@ -172,10 +172,10 @@ AC_ARG_ENABLE([kauth],
 
 dnl modern crypto
 AC_ARG_ENABLE([rxgk],
-    [AS_HELP_STRING([--enable-rxgk],
-        [Include experimental support for the RXGK security class (defaults to disabled)])],
+    [AS_HELP_STRING([--disable-rxgk],
+        [Include experimental support for the RXGK security class (defaults to enabled)])],
     ,
-    [enable_rxgk="no"])
+    [enable_rxgk="yes"])
 
 dnl Optimization and debugging flags.
 AC_ARG_ENABLE([strip-binaries],
