@@ -11,6 +11,7 @@ SHELL=/bin/sh
 INCLUDE= -I.  -I/usr/include -I${TOP_OBJDIR}/src/config
 
 TOP_OBJ_FSINT = ${TOP_OBJDIR}/src/fsint
+TOP_OBJ_RXGK = ${TOP_OBJDIR}/src/rxgk
 TOP_OBJ_RXSTAT = ${TOP_OBJDIR}/src/rxstat
 TOP_OBJ_SYS = ${TOP_OBJDIR}/src/sys
 TOP_OBJ_VLSERVER = ${TOP_OBJDIR}/src/vlserver
@@ -21,6 +22,7 @@ TOP_SRC_FSINT = ${TOP_SRCDIR}/fsint
 TOP_SRC_RX = ${TOP_SRCDIR}/rx
 TOP_SRC_OPR = $(TOP_SRCDIR)/opr
 TOP_SRC_VNOPS = ${TOP_SRCDIR}/afs/VNOPS
+TOP_SRC_RXGK = ${TOP_SRCDIR}/rxgk
 TOP_SRC_RXKAD = ${TOP_SRCDIR}/rxkad
 
 COMMON_INCLUDE = -I. -I.. -I../nfs \
@@ -167,6 +169,13 @@ AFSAOBJS = \
 	crypt_conn.o	\
 	AFS_component_version_number.o\
 	afs_exporter.o	\
+	rxgk_client.o	\
+	rxgk_crypto_rfc3961.o \
+	rxgk_gss.o	\
+	Krxgk_int.cs.o	\
+	Krxgk_int.xdr.o	\
+	rxgk_packet.o	\
+	rxgk_util.o	\
 	rxkad_client.o	\
 	rxkad_common.o	\
 	xdr_afsuuid.o	\
@@ -410,6 +419,21 @@ afs_stat.o: $(TOP_SRC_AFS)/afs_stat.c
 	$(CRULE_NOOPT) $(TOP_SRC_AFS)/afs_stat.c
 afs_syscall.o: $(TOP_SRC_AFS)/afs_syscall.c
 	$(CRULE_NOOPT) $(TOP_SRC_AFS)/afs_syscall.c
+rxgk_client.o: $(TOP_SRC_RXGK)/rxgk_client.c
+	$(CRULE_NOOPT) $(TOP_SRC_RXGK)/rxgk_client.c
+rxgk_crypto_rfc3961.o: $(TOP_SRC_RXGK)/rxgk_crypto_rfc3961.c
+	$(CRULE_NOOPT) $(TOP_SRC_RXGK)/rxgk_crypto_rfc3961.c
+rxgk_gss.o: $(TOP_SRC_RXGK)/rxgk_gss.c
+	$(CRULE_NOOPT) $(TOP_SRC_RXGK)/rxgk_gss.c
+Krxgk_int.cs.o: $(TOP_OBJ_RXGK)/Krxgk_int.cs.c
+	$(CRULE_NOOPT) $(TOP_OBJ_RXGK)/Krxgk_int.cs.c
+Krxgk_int.xdr.o: $(TOP_OBJ_RXGK)/Krxgk_int.xdr.c
+	$(CRULE_NOOPT) $(TOP_OBJ_RXGK)/Krxgk_int.xdr.c
+rxgk_packet.o: $(TOP_SRC_RXGK)/rxgk_packet.c
+	$(CRULE_NOOPT) $(TOP_SRC_RXGK)/rxgk_packet.c
+rxgk_util.o: $(TOP_SRC_RXGK)/rxgk_util.c
+	$(CRULE_NOOPT) $(TOP_SRC_RXGK)/rxgk_util.c
+
 fcrypt.o: 	$(TOP_SRC_RXKAD)/fcrypt.c
 	$(CRULE_NOOPT) $(TOP_SRC_RXKAD)/fcrypt.c
 crypt_conn.o: $(TOP_SRC_RXKAD)/crypt_conn.c
