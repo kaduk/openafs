@@ -30,6 +30,7 @@ _afscrypto_calloc(int num, size_t len)
     void *ptr;
 
     ptr = afs_osi_Alloc(num * len);
+    memset(ptr, 0, len);
 
     return ptr;
 }
