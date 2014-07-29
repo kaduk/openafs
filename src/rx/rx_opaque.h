@@ -26,7 +26,7 @@
 #define OPENAFS_RX_OPAQUE_H
 
 struct rx_opaque {
-    size_t len;
+    u_int len;
     void *val;
 };
 
