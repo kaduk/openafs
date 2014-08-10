@@ -109,6 +109,35 @@ cleanup:
     return ret;
 }
 
+static afs_int32
+make_fstoken(RXGK_Data *new_token, RXGK_Token *t0, RXGK_CombineOptions *options,
+	     PrAuthName *user_ids, int nuid, rxgk_key encrypt_key,
+	     afs_int32 kvno, afs_int32 enctype, RXGK_TokenInfo *info)
+{
+    RXGK_TokenInfo localinfo;
+    afs_int32 ret;
+
+    memset(&localinfo, 0, sizeof(localinfo));
+    /* XXX verify that the client will accept the existing enctype! */
+    localinfo.enctype = t0->enctype;
+    if (options->levels.len > 0) {
+	localinfo.level = options->levels.val[0];
+    } else {
+	return RXGK_BADLEVEL;
+    }
+    localinfo.lifetime = t0->lifetime;
+    localinfo.bytelife = t0->bytelife;
+    localinfo.expiration = t0->expirationtime;
+    ret = rxgk_make_token(new_token, &localinfo, &t0->K0, user_ids, nuid,
+			    encrypt_key, kvno, enctype);
+    info->level = localinfo.level;
+    info->enctype = localinfo.enctype;
+    info->lifetime = localinfo.lifetime;
+    info->bytelife = localinfo.bytelife;
+    info->expiration = localinfo.expiration;
+    return ret;
+}
+
 afs_int32
 SRXGK_AFSCombineTokens(struct rx_call *z_call, RXGK_Data *user_tok,
 		       RXGK_Data *cm_tok, RXGK_CombineOptions *options,
@@ -116,18 +145,16 @@ SRXGK_AFSCombineTokens(struct rx_call *z_call, RXGK_Data *user_tok,
 		       RXGK_TokenInfo *info)
 {
     RXGK_Token t0, t1;
-    RXGK_TokenInfo localinfo;
     struct rx_connection *conn;
     struct rx_securityClass *aobj;
     struct rxgk_sprivate *sp;
     struct PrAuthName *user_ids = NULL;
     rxgk_key encrypt_key = NULL;
     afs_int32 ret, kvno = 0, enctype = 0, idx;
-    int nuid = -1;
+    int i, nuid = -1;
 
     memset(&t0, 0, sizeof(t0));
     memset(&t1, 0, sizeof(t1));
-    memset(&localinfo, 0, sizeof(localinfo));
     memset(new_token, 0, sizeof(*new_token));
     memset(info, 0, sizeof(*info));
 
@@ -168,25 +195,8 @@ SRXGK_AFSCombineTokens(struct rx_call *z_call, RXGK_Data *user_tok,
 	    goto cleanup;
 	}
     } else {
-	/* Only one token; not much to do. */
-	/* XXX verify that the client will accept the existing enctype! */
-	localinfo.enctype = t0.enctype;
-	if (options->levels.len > 0) {
-	    localinfo.level = options->levels.val[0];
-	} else {
-	    ret = RXGK_BADLEVEL;
-	    goto cleanup;
-	}
-	localinfo.lifetime = t0.lifetime;
-	localinfo.bytelife = t0.bytelife;
-	localinfo.expiration = t0.expirationtime;
-	ret = rxgk_make_token(new_token, &localinfo, &t0.K0, user_ids, nuid,
-				encrypt_key, kvno, enctype);
-	info->level = localinfo.level;
-	info->enctype = localinfo.enctype;
-	info->lifetime = localinfo.lifetime;
-	info->bytelife = localinfo.bytelife;
-	info->expiration = localinfo.expiration;
+	ret = make_fstoken(new_token, &t0, options, user_ids, nuid,
+			   encrypt_key, kvno, enctype, info);
 	goto cleanup;
     }
 
@@ -194,8 +204,15 @@ SRXGK_AFSCombineTokens(struct rx_call *z_call, RXGK_Data *user_tok,
 				    info, user_ids, nuid, encrypt_key, kvno,
 				    enctype);
 cleanup:
+    rxgk_release_key(&encrypt_key);
     xdr_free((xdrproc_t)xdr_RXGK_Token, &t0);
     xdr_free((xdrproc_t)xdr_RXGK_Token, &t1);
-    /* user_ids is consumed by rxgk_combinetokens_common. */
+    /* user_ids is consumed by make_token on success. */
+    if (ret != 0) {
+	for(i = 0; i < nuid; ++i) {
+	    xdr_free((xdxrproc_t)xdr_PrAuthName, user_ids + i);
+	}
+	rxi_Free(user_ids, nid * sizeof(struct PrAuthName));
+    }
     return ret;
 }

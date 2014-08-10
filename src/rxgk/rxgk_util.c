@@ -283,11 +283,6 @@ rxgk_service_get_long_term_key(struct rx_call *acall, rxgk_key *key,
  * to allow transparent rekeying when keys must be distributed amongst
  * multiple hosts.
  *
- * For now, limit service to uuids which are colocated with dbservers,
- * and use the cell-wide key.  We can't really do anything for
- * file servers with server-specific keys, since the vldb format has
- * not been updated to store that information.
- *
  * @param[in] acall	The call from which to obtain service-specific data.
  * @param[out] key	The token-encrypting key.
  * @param[out] kvno	The kvno of key.
