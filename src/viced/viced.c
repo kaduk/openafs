@@ -2032,6 +2032,8 @@ main(int argc, char *argv[])
     afsconf_SetSecurityFlags(confDir, AFSCONF_SECOPTS_ALWAYSENCRYPT);
     afsconf_BuildFileServerSecurityObjects(confDir, &securityClasses,
 					   &numClasses);
+    /* XXX this is bogus, we could have a key but not be ready to use it
+     * for client connections. */
     if (securityClasses[RX_SECIDX_GK] != NULL)
 	use_rxgk = 1;
 
