@@ -102,6 +102,7 @@ SRXGK_CombineTokens(struct rx_call *z_call, RXGK_Data *token0,
 				    info, user_ids, nuid, encrypt_key, kvno,
 				    enctype);
 cleanup:
+    rxgk_release_key(&encrypt_key);
     xdr_free((xdrproc_t)xdr_RXGK_Token, &t0);
     xdr_free((xdrproc_t)xdr_RXGK_Token, &t1);
     /* user_ids is consumed by rxgk_combinetokens_common. */
