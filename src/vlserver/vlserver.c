@@ -112,6 +112,7 @@ getfskey(afsUUID destination, void *rock, afs_int32 *kvno, afs_int32 *enctype,
     code = FindExtentBlock(&ctx, &destination, 0, -1, &exp, &base);
     if (code != 0)
 	return code;
+    /* XXX servers can have more than one address. */
     addr = exp->ex_addrs[0];
     code = ubik_EndTrans(ctx.trans);
     /* Done scrounging around in the VLDB. */
