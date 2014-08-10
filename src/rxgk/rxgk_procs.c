@@ -210,9 +210,9 @@ cleanup:
     /* user_ids is consumed by make_token on success. */
     if (ret != 0) {
 	for(i = 0; i < nuid; ++i) {
-	    xdr_free((xdxrproc_t)xdr_PrAuthName, user_ids + i);
+	    xdr_free((xdrproc_t)xdr_PrAuthName, user_ids + i);
 	}
-	rxi_Free(user_ids, nid * sizeof(struct PrAuthName));
+	rxi_Free(user_ids, nuid * sizeof(struct PrAuthName));
     }
     return ret;
 }
