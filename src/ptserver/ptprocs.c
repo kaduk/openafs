@@ -2308,7 +2308,7 @@ SPR_WhoAmI(struct rx_call *z_call, afs_int64 *id, struct PRAuthName *alist)
 {
     struct ubik_trans *at;
     struct rx_connection *conn;
-    struct rx_identity rxid;
+    struct rx_identity *rxid = NULL;
     afs_int32 code = PRINTERNAL;
     int idx;
 
@@ -2325,7 +2325,7 @@ SPR_WhoAmI(struct rx_call *z_call, afs_int64 *id, struct PRAuthName *alist)
 	    code = rxgk_GetServerInfo(conn, NULL, NULL, &rxid);
 	    if (code != 0)
 		break;
-	    code = AuthNameFromId(&rxid, alist);
+	    code = AuthNameFromId(rxid, alist);
 	    if (code != 0)
 		break;
 	    code = ReadPreamble(&at);
@@ -2337,6 +2337,7 @@ SPR_WhoAmI(struct rx_call *z_call, afs_int64 *id, struct PRAuthName *alist)
 	default:
 	    return PRPERM;
     }
+    rx_identity_free(&rxid);
     return code;;
 }
 
