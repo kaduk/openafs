@@ -808,13 +808,13 @@ cleanup:
  * Take the raw key data from k[01]_data, for keys of enctypes e[01],
  * and perform the KRB-FX-CF2 combination algorithm to yield the new
  * key with raw key data in kn of enctype en.
- * The caller must free the storage in *kn_data.
+ * The caller must free the storage in *rkn_data.
  *
  * @param[in] k0_data	The raw bytes as input data for the first key.
  * @param[in] e0	The enctype of the first key to be combined.
  * @param[in] k1_data	The raw bytes as input data for the second key.
  * @param[in] e1	The enctype of the second key to be combined.
- * @param[out] kn_data	The raw bytes of the output key.
+ * @param[out] rkn_data	The raw bytes of the output key.
  * @param[in] en	The enctype of the output key.
  * @return rxgk error codes.
  */

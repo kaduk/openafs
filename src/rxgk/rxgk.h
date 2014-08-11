@@ -134,7 +134,7 @@ afs_int32 rxgk_combine_keys(rxgk_key k0, rxgk_key k1, afs_int32 enctype,
 			    rxgk_key *kn);
 afs_int32 rxgk_combine_keys_data(RXGK_Data *k0_data, afs_int32 e0,
 				 RXGK_Data *k1_data, afs_int32 e1,
-				 RXGK_Data * /* kn_data */, afs_int32 en);
+				 RXGK_Data *rkn_data, afs_int32 en);
 /* rxgk_gss.c */
 afs_int32 rxgk_get_token(char *sname, char *hostname, afs_uint32 addr,
 			 u_short port, RXGK_Level level,
