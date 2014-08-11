@@ -722,7 +722,7 @@ get_expiration(rxgkTime start, afs_uint32 gss_lifetime)
     rxgkTime now = RXGK_NOW();
 
     ret = start + secondsToRxgkTime(gss_lifetime);
-    if ((now - start) > (rxgkTime)600000000) {
+    if ((now - start) > secondsToRxgkTime(60)) {
 	/* We've been processing for 60 seconds?! */
 	/* five minutes only */
 	ret = start + secondsToRxgkTime(5 * 60);
