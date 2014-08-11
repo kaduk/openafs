@@ -549,7 +549,7 @@ nameToID(struct rx_call *call, namelist *aname, idlist *aid)
 {
     afs_int32 code;
     struct ubik_trans *tt;
-    afs_int32 i;
+    afs_uint32 i;
     int size;
     int count = 0;
 
@@ -641,7 +641,7 @@ idToName(struct rx_call *call, idlist *aid, namelist *aname, afs_int32 *cid)
 {
     afs_int32 code;
     struct ubik_trans *tt;
-    afs_int32 i;
+    afs_uint32 i;
     int size;
     int count = 0;
 
@@ -1968,7 +1968,8 @@ addWildCards(struct ubik_trans *tt, prlist *alist, afs_uint32 host)
     unsigned wild = htonl(0xffffff00);
     struct in_addr iaddr;
     afs_int32 hostid;
-    int size = 0, i, code;
+    int size = 0, code;
+    afs_uint32 i;
     int added = 0;
     char hoststr[16];
 
