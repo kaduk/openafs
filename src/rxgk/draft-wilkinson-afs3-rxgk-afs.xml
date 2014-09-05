@@ -455,15 +455,18 @@
            vlserver.</t>
       <t>Clients using a printed token (see <xref target="printing"/>) MUST
 	   provide that token as user_tok. cm_tok MUST be empty.</t>
-      <t>If the server is unable to perform the AFSCombineTokens operation
-          with the given arguments, a nonzero value is returned.
-          Clients MUST NOT use such an error as an indication to fall back to
-          to a different security class.</t>
-      <t>If the returned token is zero-length, then the destination does not
-          support rxgk, and the client MAY fall back to using a different
+      <t>The server uses a zero-length new_token to indicate that
+          the generation of rxgk tokens for the specified fileserver cannot
+          work at the present time.  Upon receipt of such a zero-length
+          new_token, the client MAY fall back to using a different
 	  authentication mechanism for that server. An rxgk capable client
 	  operating within an rxgk enabled cell MUST NOT downgrade its 
 	  choice of security layer in any other situation.</t>
+      <t>In other cases where the server is unable to perform the
+          AFSCombineTokens operation
+          with the given arguments, a nonzero value is returned.
+          Clients MUST NOT use such an error as an indication to fall back to
+          to a different security class.</t>
       <t>The 'identities' list from user_tok is copied to the 'identities'
           field of the new_token.  The 'identities' list from cm_tok
           is discarded unused.</t>
