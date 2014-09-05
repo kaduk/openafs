@@ -873,6 +873,10 @@
         <t>While here, add the server UUID into the appdata as well as the
           client UUID, to prevent some possible routes to data corruption.</t>
       </section>
+      <section title="Since 06">
+        <t>General edits for clarity.</t>
+        <t>Use afs_uint32 for token lifetimes, to match the core spec.</t>
+      </section>
     </section>
   </back>
 </rfc>
