@@ -476,6 +476,9 @@
           In this case, there is only one input token master key, so the
           KRB-FX-CF2() algorithm is not applicable; instead, the
           master key K0 from user_tok is reused unchanged for the output token.
+          The enctype of that K0 MUST be present in the 'enctypes' array of
+          the 'options' parameter; if it is absent, the server MUST fail
+          the AFSCombineTokens RPC.
       </t>
     </section>
     <section title="Server to Server Communication">
