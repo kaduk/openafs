@@ -689,7 +689,9 @@
         The vlserver MUST only permit
         subsequent calls to VL_RegisterAddrsAndKey for this UUID when they come
         over a connection authenticated with that same identity list,
-        an administrator's token, or a printed token.
+        an administrator's token, or a printed token.  Such subsequent calls
+        using an administrator's token or a printed token do not update
+        the identity list associated with this UUID's key.
         New fileserver UUIDs register themselves with
         the vldb in a "leap of faith", binding a GSSAPI identity to the
         fileserver UUID for future authenticated operations.
