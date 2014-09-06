@@ -164,9 +164,9 @@ override_dh_install-arch:
 	mv debian/openafs-client/usr/bin/up \
 	    debian/openafs-client/usr/bin/afs-up
 
-	install -m 644 -c debian/tmp/usr/lib/pam_afs.so.1 \
+	install -m 644 -c debian/tmp/usr/lib/pam_afs.so \
 	    debian/libpam-openafs-kaserver/lib/security/pam_afs.so
-	install -m 644 -c debian/tmp/usr/lib/pam_afs.krb.so.1 \
+	install -m 644 -c debian/tmp/usr/lib/pam_afs.krb.so \
 	    debian/libpam-openafs-kaserver/lib/security/pam_afs.krb.so
 
 	install -d debian/openafs-dbserver/usr/share/man/man8
