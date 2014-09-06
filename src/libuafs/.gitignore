@@ -5,7 +5,9 @@
 /Makefile.common
 /MakefileProto.*
 !/MakefileProto.*.in
+/PERLUAFS
 /UAFS
+/UAFS.pic
 /JUAFS
 /afs
 /afsd

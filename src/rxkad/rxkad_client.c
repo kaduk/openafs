@@ -12,15 +12,10 @@
  * make any use of DES. */
 
 #include <afsconfig.h>
-#ifdef KERNEL
-#include "afs/param.h"
-#else
 #include <afs/param.h>
-#endif
-
+#include <afs/stds.h>
 
 #ifdef KERNEL
-#include "afs/stds.h"
 #ifndef UKERNEL
 #include "h/types.h"
 #include "h/time.h"
@@ -36,30 +31,18 @@
 #else /* !UKERNEL */
 #include "afs/sysincludes.h"
 #endif /* !UKERNEL */
-#ifndef AFS_LINUX22_ENV
-#include "rpc/types.h"
-#include "rx/xdr.h"
-#endif
-#include "rx/rx.h"
 #else /* ! KERNEL */
-#include <afs/stds.h>
-#include <sys/types.h>
-#include <time.h>
-#include <string.h>
-#ifdef AFS_NT40_ENV
-#include <winsock2.h>
-#else
-#include <netinet/in.h>
-#include <unistd.h>
-#endif
-#include <rx/rx.h>
-#include <rx/xdr.h>
-#ifdef AFS_PTHREAD_ENV
-#include "rxkad.h"
-#endif /* AFS_PTHREAD_ENV */
+#include <roken.h>
+#include <afs/opr.h>
 #endif /* KERNEL */
 
-#include <des/stats.h>
+
+#include <rx/rx.h>
+#include <rx/xdr.h>
+#include <rx/rx_packet.h>
+
+#include "rxkad.h"
+#include "stats.h"
 #include "private_data.h"
 #define XPRT_RXKAD_CLIENT
 
@@ -154,8 +137,8 @@ rxkad_AllocCID(struct rx_securityClass *aobj, struct rx_connection *aconn)
 	UNLOCK_CUID;
 	return 0;
     }
-    aconn->epoch = Cuid[0];
-    aconn->cid = Cuid[1];
+    rx_SetConnectionEpoch(aconn, Cuid[0]);
+    rx_SetConnectionId(aconn, Cuid[1]);
     Cuid[1] += 1 << RX_CIDSHIFT;
     UNLOCK_CUID;
     return 0;
@@ -175,14 +158,16 @@ rxkad_NewClientSecurityObject(rxkad_level level,
     int code;
     int size, psize;
 
+    rxkad_Init();
+
     size = sizeof(struct rx_securityClass);
-    tsc = (struct rx_securityClass *)rxi_Alloc(size);
+    tsc = rxi_Alloc(size);
     memset((void *)tsc, 0, size);
     tsc->refCount = 1;		/* caller gets one for free */
     tsc->ops = &rxkad_client_ops;
 
     psize = PDATA_SIZE(ticketLen);
-    tcp = (struct rxkad_cprivate *)rxi_Alloc(psize);
+    tcp = rxi_Alloc(psize);
     memset((void *)tcp, 0, psize);
     tsc->privateData = (char *)tcp;
     tcp->type |= rxkad_client;

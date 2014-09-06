@@ -329,7 +329,7 @@ usr_crcopy(struct usr_ucred *credp)
 {
     struct usr_ucred *newcredp;
 
-    newcredp = (struct usr_ucred *)afs_osi_Alloc(sizeof(struct usr_ucred));
+    newcredp = afs_osi_Alloc(sizeof(struct usr_ucred));
     *newcredp = *credp;
     newcredp->cr_ref = 1;
     return newcredp;
@@ -340,7 +340,7 @@ usr_crget(void)
 {
     struct usr_ucred *newcredp;
 
-    newcredp = (struct usr_ucred *)afs_osi_Alloc(sizeof(struct usr_ucred));
+    newcredp = afs_osi_Alloc(sizeof(struct usr_ucred));
     newcredp->cr_ref = 1;
     return newcredp;
 }
@@ -391,9 +391,7 @@ uafs_InitThread(void)
      * allocate the data block, so pthread_finish can free the buffer
      * when this thread terminates.
      */
-    uptr =
-	(struct usr_user *)malloc(sizeof(struct usr_user) +
-				  sizeof(struct usr_ucred));
+    uptr = malloc(sizeof(struct usr_user) + sizeof(struct usr_ucred));
     usr_assert(uptr != NULL);
     uptr->u_error = 0;
     uptr->u_prio = 0;
@@ -414,11 +412,12 @@ get_user_struct(void)
 {
     struct usr_user *uptr;
     int st;
-    st = usr_getspecific(afs_global_u_key, (void **)&uptr);
+
+    st = usr_getspecific(afs_global_u_key, &uptr);
     usr_assert(st == 0);
     if (uptr == NULL) {
 	uafs_InitThread();
-	st = usr_getspecific(afs_global_u_key, (void **)&uptr);
+	st = usr_getspecific(afs_global_u_key, &uptr);
 	usr_assert(st == 0);
 	usr_assert(uptr != NULL);
     }
@@ -447,7 +446,7 @@ afs_osi_Sleep(void *x)
     }
     index = WAITHASH(x);
     if (osi_waithash_avail == NULL) {
-	waitp = (osi_wait_t *) afs_osi_Alloc(sizeof(osi_wait_t));
+	waitp = afs_osi_Alloc(sizeof(osi_wait_t));
 	usr_cond_init(&waitp->cond);
     } else {
 	waitp = osi_waithash_avail;
@@ -533,7 +532,7 @@ afs_osi_Wait(afs_int32 msec, struct afs_osi_WaitHandle *handle, int intok)
 	}
 	index = WAITHASH((caddr_t) handle);
 	if (osi_waithash_avail == NULL) {
-	    waitp = (osi_wait_t *) afs_osi_Alloc(sizeof(osi_wait_t));
+	    waitp = afs_osi_Alloc(sizeof(osi_wait_t));
 	    usr_cond_init(&waitp->cond);
 	} else {
 	    waitp = osi_waithash_avail;
@@ -660,7 +659,7 @@ osi_UFSOpen(afs_dcache_id_t *ino)
     AFS_ASSERT_GLOCK();
 
     AFS_GUNLOCK();
-    fp = (struct osi_file *)afs_osi_Alloc(sizeof(struct osi_file));
+    fp = afs_osi_Alloc(sizeof(struct osi_file));
     usr_assert(fp != NULL);
 
     usr_assert(ino->ufs);
@@ -1655,6 +1654,77 @@ uafs_RPCStatsClearPeer(void)
 }
 
 /*
+ * Lookup the target of a symbolic link
+ * Call VN_HOLD on the output vnode if successful.
+ * Returns zero on success, error code on failure.
+ * If provided, use a path for confirming we are not linked to ourself.
+ *
+ * Note: Caller must hold the AFS global lock.
+ */
+static int
+uafs_LookupLinkPath(struct usr_vnode *vp, struct usr_vnode *parentVp,
+		    char *ppathP, struct usr_vnode **vpp)
+{
+    int code;
+    int len;
+    char *pathP;
+    struct usr_vnode *linkVp;
+    struct usr_uio uio;
+    struct iovec iov[1];
+
+    AFS_ASSERT_GLOCK();
+
+    pathP = afs_osi_Alloc(MAX_OSI_PATH + 1);
+    usr_assert(pathP != NULL);
+
+    /*
+     * set up the uio buffer
+     */
+    iov[0].iov_base = pathP;
+    iov[0].iov_len = MAX_OSI_PATH + 1;
+    uio.uio_iov = &iov[0];
+    uio.uio_iovcnt = 1;
+    uio.uio_offset = 0;
+    uio.uio_segflg = 0;
+    uio.uio_fmode = FREAD;
+    uio.uio_resid = MAX_OSI_PATH + 1;
+
+    /*
+     * Read the link data
+     */
+    code = afs_readlink(VTOAFS(vp), &uio, get_user_struct()->u_cred);
+    if (code) {
+	afs_osi_Free(pathP, MAX_OSI_PATH + 1);
+	return code;
+    }
+    len = MAX_OSI_PATH + 1 - uio.uio_resid;
+    pathP[len] = '\0';
+
+    /* are we linked to ourname or ./ourname? ELOOP */
+    if (ppathP) {
+	if ((strcmp(pathP, ppathP) == 0) ||
+	    ((pathP[0] == '.') &&
+	     (pathP[1] == '/') &&
+	     (strcmp(&(pathP[2]), ppathP) == 0))) {
+	    return ELOOP;
+	}
+    }
+
+    /*
+     * Find the target of the symbolic link
+     */
+    code = uafs_LookupName(pathP, parentVp, &linkVp, 1, 0);
+    if (code) {
+	afs_osi_Free(pathP, MAX_OSI_PATH + 1);
+	return code;
+    }
+
+    afs_osi_Free(pathP, MAX_OSI_PATH + 1);
+    *vpp = linkVp;
+    return 0;
+}
+
+/*
  * Lookup a file or directory given its path.
  * Call VN_HOLD on the output vnode if successful.
  * Returns zero on success, error code on failure.
@@ -1770,7 +1840,7 @@ uafs_LookupName(char *path, struct usr_vnode *parentVp,
 		    afs_osi_Free(tmpPath, strlen(path) + 1);
 		    return code;
 		}
-		code = uafs_LookupLink(nextVp, vp, &linkVp);
+		code = uafs_LookupLinkPath(nextVp, vp, NULL, &linkVp);
 		if (code) {
 		    VN_RELE(vp);
 		    VN_RELE(nextVp);
@@ -1801,64 +1871,11 @@ uafs_LookupName(char *path, struct usr_vnode *parentVp,
     return 0;
 }
 
-/*
- * Lookup the target of a symbolic link
- * Call VN_HOLD on the output vnode if successful.
- * Returns zero on success, error code on failure.
- *
- * Note: Caller must hold the AFS global lock.
- */
 int
 uafs_LookupLink(struct usr_vnode *vp, struct usr_vnode *parentVp,
 		struct usr_vnode **vpp)
 {
-    int code;
-    int len;
-    char *pathP;
-    struct usr_vnode *linkVp;
-    struct usr_uio uio;
-    struct iovec iov[1];
-
-    AFS_ASSERT_GLOCK();
-
-    pathP = afs_osi_Alloc(MAX_OSI_PATH + 1);
-    usr_assert(pathP != NULL);
-
-    /*
-     * set up the uio buffer
-     */
-    iov[0].iov_base = pathP;
-    iov[0].iov_len = MAX_OSI_PATH + 1;
-    uio.uio_iov = &iov[0];
-    uio.uio_iovcnt = 1;
-    uio.uio_offset = 0;
-    uio.uio_segflg = 0;
-    uio.uio_fmode = FREAD;
-    uio.uio_resid = MAX_OSI_PATH + 1;
-
-    /*
-     * Read the link data
-     */
-    code = afs_readlink(VTOAFS(vp), &uio, get_user_struct()->u_cred);
-    if (code) {
-	afs_osi_Free(pathP, MAX_OSI_PATH + 1);
-	return code;
-    }
-    len = MAX_OSI_PATH + 1 - uio.uio_resid;
-    pathP[len] = '\0';
-
-    /*
-     * Find the target of the symbolic link
-     */
-    code = uafs_LookupName(pathP, parentVp, &linkVp, 1, 0);
-    if (code) {
-	afs_osi_Free(pathP, MAX_OSI_PATH + 1);
-	return code;
-    }
-
-    afs_osi_Free(pathP, MAX_OSI_PATH + 1);
-    *vpp = linkVp;
-    return 0;
+    return uafs_LookupLinkPath(vp, parentVp, NULL, vpp);
 }
 
 /*
@@ -2459,7 +2476,6 @@ uafs_pread_r(int fd, char *buf, int len, off_t offset)
     struct usr_uio uio;
     struct iovec iov[1];
     struct usr_vnode *fileP;
-    struct usr_buf *bufP;
 
     /*
      * Make sure this is an open file
@@ -2485,7 +2501,7 @@ uafs_pread_r(int fd, char *buf, int len, off_t offset)
     /*
      * do the read
      */
-    code = afs_read(VTOAFS(fileP), &uio, get_user_struct()->u_cred, 0, &bufP, 0);
+    code = afs_read(VTOAFS(fileP), &uio, get_user_struct()->u_cred, 0);
     if (code) {
 	errno = code;
 	return -1;
@@ -3401,9 +3417,8 @@ uafs_opendir_r(char *path)
     /*
      * Set up the directory structures
      */
-    dirp =
-	(usr_DIR *) afs_osi_Alloc(sizeof(usr_DIR) + USR_DIRSIZE +
-				  sizeof(struct usr_dirent));
+    dirp = afs_osi_Alloc(sizeof(usr_DIR) + USR_DIRSIZE +
+			 sizeof(struct usr_dirent));
     usr_assert(dirp != NULL);
     dirp->dd_buf = (char *)(dirp + 1);
     dirp->dd_fd = fd;
@@ -3601,34 +3616,6 @@ uafs_closedir_r(usr_DIR * dirp)
 }
 
 /*
- * Do AFS authentication
- */
-int
-uafs_klog(char *user, char *cell, char *passwd, char **reason)
-{
-    int code;
-    afs_int32 password_expires = -1;
-
-    usr_mutex_lock(&osi_authenticate_lock);
-    code =
-	ka_UserAuthenticateGeneral(KA_USERAUTH_VERSION +
-				   KA_USERAUTH_DOSETPAG2, user, NULL, cell,
-				   passwd, 0, &password_expires, 0, reason);
-    usr_mutex_unlock(&osi_authenticate_lock);
-    return code;
-}
-
-int
-uafs_klog_r(char *user, char *cell, char *passwd, char **reason)
-{
-    int retval;
-    AFS_GUNLOCK();
-    retval = uafs_klog(user, cell, passwd, reason);
-    AFS_GLOCK();
-    return retval;
-}
-
-/*
  * Destroy AFS credentials from the kernel cache
  */
 int
@@ -3692,25 +3679,6 @@ uafs_afsPathName(char *path)
 }
 
 /*
- * uafs_klog_nopag
- * klog but don't allocate a new pag
- */
-int
-uafs_klog_nopag(char *user, char *cell, char *passwd, char **reason)
-{
-    int code;
-    afs_int32 password_expires = -1;
-
-    usr_mutex_lock(&osi_authenticate_lock);
-    code = ka_UserAuthenticateGeneral(KA_USERAUTH_VERSION
-				      /*+KA_USERAUTH_DOSETPAG2 */ , user,
-				      NULL, cell, passwd, 0,
-				      &password_expires, 0, reason);
-    usr_mutex_unlock(&osi_authenticate_lock);
-    return code;
-}
-
-/*
  * uafs_getcellstatus
  * get the cell status
  */
@@ -3746,13 +3714,12 @@ uafs_getvolquota(char *path, afs_int32 * BlocksInUse, afs_int32 * MaxQuota)
 {
     int rc;
     struct afs_ioctl iob;
-    VolumeStatus *status;
-    char buf[1024];
+    VolumeStatus status;
 
     iob.in = 0;
     iob.in_size = 0;
-    iob.out = buf;
-    iob.out_size = 1024;
+    iob.out = (char *)&status;
+    iob.out_size = sizeof status;
 
     rc = call_syscall(AFSCALL_PIOCTL, (long)path, _VICEIOCTL(4), (long)&iob,
 		      0, 0);
@@ -3762,9 +3729,8 @@ uafs_getvolquota(char *path, afs_int32 * BlocksInUse, afs_int32 * MaxQuota)
 	return -1;
     }
 
-    status = (VolumeStatus *) buf;
-    *BlocksInUse = status->BlocksInUse;
-    *MaxQuota = status->MaxQuota;
+    *BlocksInUse = status.BlocksInUse;
+    *MaxQuota = status.MaxQuota;
     return 0;
 }
 
@@ -3777,18 +3743,15 @@ uafs_setvolquota(char *path, afs_int32 MaxQuota)
 {
     int rc;
     struct afs_ioctl iob;
-    VolumeStatus *status;
-    char buf[1024];
+    VolumeStatus status = { 0 };
 
-    iob.in = buf;
-    iob.in_size = 1024;
+    iob.in = (char *)&status;
+    iob.in_size = sizeof status;
     iob.out = 0;
     iob.out_size = 0;
 
-    memset(buf, 0, sizeof(VolumeStatus));
-    status = (VolumeStatus *) buf;
-    status->MaxQuota = MaxQuota;
-    status->MinQuota = -1;
+    status.MaxQuota = MaxQuota;
+    status.MinQuota = -1;
 
     rc = call_syscall(AFSCALL_PIOCTL, (long)path, _VICEIOCTL(5), (long)&iob,
 		      0, 0);

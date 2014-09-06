@@ -169,6 +169,7 @@ static int uu_show(struct seq_file *m, void *p)
 {
     struct cell *tc = 0;
     struct unixuser *tu = p;
+    union tokenUnion *token;
     char *cellname;
 
     if (p == (void *)1) {
@@ -182,6 +183,11 @@ static int uu_show(struct seq_file *m, void *p)
 	return 0;
     }
 
+    tu->refCount++;
+    ReleaseReadLock(&afs_xuser);
+
+    afs_LockUser(tu, READ_LOCK, 0);
+
     if (tu->cell == -1) {
 	cellname = "<default>";
     } else {
@@ -191,14 +197,17 @@ static int uu_show(struct seq_file *m, void *p)
     }
 
     seq_printf(m, "%10d %4d %04x    %-25s %10d",
-	       tu->uid, tu->refCount, tu->states, cellname, tu->vid);
+	       tu->uid, tu->refCount, tu->states, cellname, tu->viceId);
 
     if (tc) afs_PutCell(tc, READ_LOCK);
 
     if (tu->states & UHasTokens) {
+	token = afs_FindToken(tu->tokens, RX_SECIDX_KAD);
 	seq_printf(m, "  %10d %10d %10d %3d",
-		   tu->tokenTime, tu->ct.BeginTimestamp, tu->ct.EndTimestamp,
-		   tu->ct.AuthHandle);
+		   tu->tokenTime,
+		   (token != NULL)?token->rxkad.clearToken.BeginTimestamp:0,
+		   (token != NULL)?token->rxkad.clearToken.EndTimestamp:0,
+		   (token != NULL)?token->rxkad.clearToken.AuthHandle:0);
     } else {
 	seq_printf(m, "  %-36s", "Tokens Not Set");
     }
@@ -221,6 +230,9 @@ static int uu_show(struct seq_file *m, void *p)
 	seq_printf(m, "  Unknown exporter type %d", tu->exporter->exp_type);
     }
     seq_printf(m, "\n");
+
+    afs_PutUser(tu, READ_LOCK);
+    ObtainReadLock(&afs_xuser);
 
     return 0;
 }

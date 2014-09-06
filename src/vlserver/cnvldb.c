@@ -9,16 +9,12 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
-
-
 #include <afs/stds.h>
-#include <sys/types.h>
-#include <errno.h>
-#include <stdio.h>
-#include <sys/file.h>
-#include <string.h>
 
-#include <netinet/in.h>
+#include <roken.h>
+
+#include <sys/file.h>
+
 #include <afs/venus.h>
 #include <afs/cmd.h>
 #include <afs/afsutil.h>
@@ -243,7 +239,7 @@ handleit(struct cmd_syndesc *as, void *arock)
     }
     close(new);
 
-    renamefile(tempname, pathname);
+    rk_rename(tempname, pathname);
     sleep(5);
     exit(0);
 }
@@ -389,7 +385,7 @@ read_mhentries(afs_uint32 mh_addr, int oldfd)
 	perror("seek MH block");
 	exit(1);
     }
-    base[0] = (struct extentaddr *)malloc(VL_ADDREXTBLK_SIZE);
+    base[0] = malloc(VL_ADDREXTBLK_SIZE);
     if (!base[0]) {
 	perror("malloc1");
 	exit(1);
@@ -403,7 +399,7 @@ read_mhentries(afs_uint32 mh_addr, int oldfd)
     }
 
     /* Verify that this block is the right one */
-    if (ntohl(base[0]->ex_flags) != VLCONTBLOCK) {	/* check if flag is correct */
+    if (ntohl(base[0]->ex_hdrflags) != VLCONTBLOCK) {	/* check if flag is correct */
 	free(base[0]);
 	base[0] = 0;
 	return;
@@ -434,7 +430,7 @@ read_mhentries(afs_uint32 mh_addr, int oldfd)
 	    perror("seek MH block");
 	    exit(1);
 	}
-	base[j] = (struct extentaddr *)malloc(VL_ADDREXTBLK_SIZE);
+	base[j] = malloc(VL_ADDREXTBLK_SIZE);
 	if (!base[j]) {
 	    perror("malloc1");
 	    exit(1);
@@ -446,7 +442,7 @@ read_mhentries(afs_uint32 mh_addr, int oldfd)
 	}
 
 	/* Verify that this block knows its an extent block */
-	if (ntohl(base[j]->ex_flags) != VLCONTBLOCK) {
+	if (ntohl(base[j]->ex_hdrflags) != VLCONTBLOCK) {
 	    free(base[j]);
 	    base[j] = 0;
 	    continue;

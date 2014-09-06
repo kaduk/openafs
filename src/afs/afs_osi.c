@@ -54,8 +54,12 @@ struct lock__bsd__ afs_global_lock;
 #endif
 
 #if defined(AFS_XBSD_ENV) && !defined(AFS_FBSD_ENV)
+# if defined(AFS_NBSD50_ENV)
+kmutex_t afs_global_mtx;
+# else
 struct lock afs_global_lock;
 afs_proc_t *afs_global_owner;
+# endif
 #elif defined(AFS_FBSD_ENV)
 struct mtx afs_global_mtx;
 struct thread *afs_global_owner;
@@ -84,7 +88,7 @@ osi_Init(void)
 	/* Can't just invent one, must use crget() because of mutex */
 	afs_osi_credp =
 	  crdup(osi_curcred());
-#elif defined(AFS_SUN58_ENV)
+#elif defined(AFS_SUN5_ENV)
 	afs_osi_credp = kcred;
 #else
 	memset(&afs_osi_cred, 0, sizeof(afs_ucred_t));
@@ -165,6 +169,8 @@ afs_osi_Invisible(void)
 #elif defined(AFS_DARWIN_ENV)
     /* maybe call init_process instead? */
     current_proc()->p_flag |= P_SYSTEM;
+#elif defined(AFS_NBSD50_ENV)
+    /* XXX in netbsd a system thread is more than invisible */
 #elif defined(AFS_XBSD_ENV)
     curproc->p_flag |= P_SYSTEM;
 #elif defined(AFS_SGI_ENV)
@@ -183,6 +189,8 @@ afs_osi_Visible(void)
 #elif defined(AFS_DARWIN_ENV)
     /* maybe call init_process instead? */
     current_proc()->p_flag &= ~P_SYSTEM;
+#elif defined(AFS_NBSD50_ENV)
+    /* XXX in netbsd a system thread is more than invisible */
 #elif defined(AFS_XBSD_ENV)
     curproc->p_flag &= ~P_SYSTEM;
 #endif
@@ -199,21 +207,8 @@ afs_osi_SetTime(osi_timeval_t * atv)
     t.tv_sec = atv->tv_sec;
     t.tv_nsec = atv->tv_usec * 1000;
     ksettimer(&t);		/*  Was -> settimer(TIMEOFDAY, &t); */
-#elif defined(AFS_SUN55_ENV)
-    stime(atv->tv_sec);
 #elif defined(AFS_SUN5_ENV)
-    /*
-     * To get more than second resolution we can use adjtime. The problem
-     * is that the usecs from the server are wrong (by now) so it isn't
-     * worth complicating the following code.
-     */
-    struct stimea {
-	time_t time;
-    } sta;
-
-    sta.time = atv->tv_sec;
-
-    stime(&sta, NULL);
+    stime(atv->tv_sec);
 #elif defined(AFS_SGI_ENV)
     struct stimea {
 	sysarg_t time;
@@ -278,12 +273,46 @@ shutdown_osi(void)
        afs_osi_ctxtp = NULL;
        afs_osi_ctxtp_initialized = 0;
     }
+#endif
+#if !defined(AFS_HPUX_ENV) && !defined(UKERNEL) && !defined(AFS_DFBSD_ENV) && !defined(AFS_LINUX26_ENV)
+    /* LINUX calls this from afs_cleanup() which hooks into module_exit */
     shutdown_osisleep();
 #endif
     if (afs_cold_shutdown) {
 	LOCK_INIT(&afs_ftf, "afs_ftf");
     }
 }
+
+#if !defined(AFS_HPUX_ENV) && !defined(UKERNEL) && !defined(AFS_DFBSD_ENV) && !defined(AFS_DARWIN_ENV)
+/* DARWIN uses locking, and so must provide its own */
+void
+shutdown_osisleep(void)
+{
+    afs_event_t *tmp;
+    int i;
+
+    for (i=0;i<AFS_EVHASHSIZE;i++) {
+	while ((tmp = afs_evhasht[i]) != NULL) {
+	    afs_evhasht[i] = tmp->next;
+	    if (tmp->refcount > 0) {
+		afs_warn("nonzero refcount in shutdown_osisleep()\n");
+	    } else {
+#if defined(AFS_AIX_ENV)
+		xmfree(tmp);
+#elif defined(AFS_FBSD_ENV)
+		afs_osi_Free(tmp, sizeof(*tmp));
+#elif defined(AFS_SGI_ENV) || defined(AFS_XBSD_ENV) || defined(AFS_SUN5_ENV)
+		osi_FreeSmallSpace(tmp);
+#elif defined(AFS_LINUX26_ENV)
+		kfree(tmp);
+#elif defined(AFS_LINUX20_ENV)
+		osi_linux_free(tmp);
+#endif
+	    }
+	}
+    }
+}
+#endif
 
 #if !defined(AFS_OBSD_ENV) && !defined(AFS_NBSD40_ENV)
 int

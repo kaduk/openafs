@@ -21,30 +21,15 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
-
-#include <sys/types.h>
-#include <stdio.h>
-#ifdef AFS_NT40_ENV
-#include <winsock2.h>
-#include <time.h>
-#else
-#include <sys/param.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <sys/time.h>
-#include <unistd.h>
-#endif
-#include <errno.h>
-#include <afs/afs_assert.h>
-#include <signal.h>
-#include <string.h>
-
+#include <roken.h>
+#include <afs/opr.h>
 
 #include <rx/xdr.h>
 #include <afs/afsint.h>
-#include "nfs.h"
 #include <afs/errors.h>
+#include <rx/rx_queue.h>
+
+#include "nfs.h"
 #include "daemon_com.h"
 #include "lwp.h"
 #include "lock.h"
@@ -104,7 +89,7 @@ SYNC_getAddr(SYNC_endpoint_t * endpoint, SYNC_sockaddr_t * addr)
 
 #ifdef USE_UNIX_SOCKETS
     strcompose(tbuffer, AFSDIR_PATH_MAX, AFSDIR_SERVER_LOCAL_DIRPATH, "/",
-               endpoint->un, NULL);
+               endpoint->un, (char *)NULL);
     addr->sun_family = AF_UNIX;
     strncpy(addr->sun_path, tbuffer, (sizeof(struct sockaddr_un) - sizeof(short)));
 #else  /* !USE_UNIX_SOCKETS */
@@ -131,7 +116,7 @@ osi_socket
 SYNC_getSock(SYNC_endpoint_t * endpoint)
 {
     osi_socket sd;
-    osi_Assert((sd = socket(endpoint->domain, SOCK_STREAM, 0)) >= 0);
+    opr_Verify((sd = socket(endpoint->domain, SOCK_STREAM, 0)) >= 0);
     return sd;
 }
 
@@ -189,11 +174,7 @@ SYNC_connect(SYNC_client_state * state)
 int
 SYNC_disconnect(SYNC_client_state * state)
 {
-#ifdef AFS_NT40_ENV
-    closesocket(state->fd);
-#else
-    close(state->fd);
-#endif
+    rk_closesocket(state->fd);
     state->fd = OSI_NULLSOCKET;
     return 0;
 }
@@ -624,7 +605,7 @@ SYNC_verifyProtocolString(char * buf, size_t len)
 {
     size_t s_len;
 
-    s_len = afs_strnlen(buf, len);
+    s_len = strnlen(buf, len);
 
     return (s_len == len) ? 1 : 0;
 }

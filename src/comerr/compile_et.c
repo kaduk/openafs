@@ -10,22 +10,10 @@
 #undef MEMORYLEAK
 #include <afsconfig.h>
 #include <afs/param.h>
-#include <afs/afsutil.h>
 
+#include <roken.h>
+#include <afs/opr.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-
-#ifndef AFS_NT40_ENV
-#include <sys/file.h>
-#include <sys/param.h>
-#endif
-
-#include <errno.h>
-#include <string.h>
-#ifdef	AFS_AIX32_ENV
-#include <signal.h>
-#endif
 #include "mit-sipb-cr.h"
 #include "internal.h"
 #include "compiler.h"
@@ -33,7 +21,7 @@
 extern char *current_token;
 extern int table_number, current;
 char buffer[BUFSIZ];
-char *table_name = (char *)NULL;
+char *table_name = NULL;
 FILE *hfile = NULL, *cfile = NULL, *msfile = NULL;
 int version = 1;
 int use_msf = 0;
@@ -52,7 +40,7 @@ extern int yylineno;
 char *
 xmalloc(unsigned int size)
 {
-    char *p = (char *)malloc(size);
+    char *p = malloc(size);
     if (!p) {
 	perror(whoami);
 	exit(1);
@@ -293,7 +281,7 @@ main(int argc, char **argv)
     }
 
     p = strrchr(filename, '/');
-    if (p == (char *)NULL)
+    if (p == NULL)
 	p = filename;
     else
 	p++;
@@ -385,14 +373,14 @@ main(int argc, char **argv)
 
     if (emit_source && use_msf) {
 	msfile = fopen(msf_file, "w");
-	if (msfile == (FILE *) NULL) {
+	if (msfile == NULL) {
 	    perror(msf_file);
 	    exit(1);
 	}
 	fprintf(msfile, msf_warning, msf_file);
     } else if (emit_source) {
 	cfile = fopen(c_file, "w");
-	if (cfile == (FILE *) NULL) {
+	if (cfile == NULL) {
 	    perror(c_file);
 	    exit(1);
 	}

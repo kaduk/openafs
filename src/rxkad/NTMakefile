@@ -15,10 +15,8 @@ INCFILES =\
 	$(INCFILEDIR)\rxkad_prototypes.h \
 	$(INCFILEDIR)\asn1_err.h \
         $(INCFILEDIR)\v5gen.h \
-        $(INCFILEDIR)\hash.h\
-        $(INCFILEDIR)\md4.h \
-        $(INCFILEDIR)\md5.h \
-	$(INCFILEDIR)\rxkad.h
+	$(INCFILEDIR)\rxkad.h \
+	$(INCFILEDIR)\rxkad_convert.h
 
 # build afsrxkad.lib
 LIBOBJS =\
@@ -31,8 +29,6 @@ LIBOBJS =\
 	$(OUT)\bg-fcrypt.obj \
 	$(OUT)\ticket5.obj \
 	$(OUT)\crc.obj \
-        $(OUT)\md4.obj \
-        $(OUT)\md5.obj \
 	$(OUT)\crypt_conn.obj 
 
 $(LIBOBJS):
@@ -48,6 +44,7 @@ $(LIBFILE): $(LIBOBJS)
 $(INCFILES):$$(@F)
 	 $(COPY)  $** $(INCFILEDIR)\.
 	 $(COPY)  fcrypt.h $(INCFILEDIR)\.
+	 $(COPY)  stats.h $(INCFILEDIR)\rxkad_stats.h
 
 rxkad.h rxkad_errs.c : rxkad_errs.et rxkad.p.h
 	$(DEL) rxkad_errs.c 
@@ -60,8 +57,6 @@ $(OUT)\crypt_conn.obj: crypt_conn.c fcrypt.h private_data.h
 	$(C2OBJ) crypt_conn.c
 
 install: $(INCFILES) $(LIBFILE)
-
-install9x: install
 
 clean::
 	$(DEL) rxkad.h rxkad_errs.c $(INCFILES) $(INCFILEDIR)\fcrypt.h

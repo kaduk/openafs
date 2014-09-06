@@ -6,8 +6,10 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
-#include <afs/afsutil.h>
 
+#include <roken.h>
+
+#include <afs/opr.h>
 
 #include "error_table.h"
 #include "mit-sipb-cr.h"

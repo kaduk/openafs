@@ -10,32 +10,26 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
+#include <roken.h>
 
-#include <stdio.h>
-#include <string.h>
-#ifdef	AFS_AIX32_ENV
-#include <signal.h>
-#endif
 #include <ctype.h>
-#include <sys/types.h>
-#include <errno.h>
-#include <afs/cmd.h>
+
 #ifdef AFS_NT40_ENV
-#include <winsock2.h>
 #include <WINNT/afsevent.h>
 #include <WINNT/afsreg.h>
-#else
-#include <netinet/in.h>
 #endif
+
 #include <afs/cellconfig.h>
+#include <afs/afsutil.h>
+#include <afs/com_err.h>
+#include <afs/cmd.h>
 #include <rx/rx.h>
 #include <rx/xdr.h>
+
 #include "ptclient.h"
 #include "ptuser.h"
 #include "pterror.h"
 #include "ptprototypes.h"
-#include <afs/afsutil.h>
-#include <afs/com_err.h>
 
 #undef FOREIGN
 
@@ -90,7 +84,7 @@ pts_Source(struct cmd_syndesc *as, void *arock)
 	perror(as->parms[0].items->data);
 	return errno;
     }
-    sp = (struct sourcestack *)malloc(sizeof *sp);
+    sp = malloc(sizeof *sp);
     if (!sp) {
 	return errno ? errno : ENOMEM;
     } else {
@@ -129,7 +123,7 @@ popsource(void)
 	fclose(source);
     source = sp->s_file;
     shead = sp->s_next;
-    free((char *)sp);
+    free(sp);
     return 1;
 }
 
@@ -223,6 +217,12 @@ GetGlobals(struct cmd_syndesc *as, void *arock)
 	else
 	    confdir = AFSDIR_CLIENT_ETC_DIRPATH;
     }
+
+    if (as->parms[23].items) { /* -config */
+	changed = 1;
+	confdir = as->parms[23].items->data;
+    }
+
     if (changed) {
 	CleanUp(as, arock);
 	code = pr_Initialize(sec, confdir, cell);
@@ -403,7 +403,7 @@ GetNameOrId(struct cmd_syndesc *as, struct idlist *lids, struct namelist *lnames
 	n = 0;			/* count names */
 	for (i = as->parms[0].items; i; i = i->next)
 	    n++;
-	nl->namelist_val = (prname *) malloc(n * PR_MAXNAMELEN);
+	nl->namelist_val = malloc(n * PR_MAXNAMELEN);
 	nl->namelist_len = n;
 	n = 0;
 	for (i = as->parms[0].items; i; i = i->next)
@@ -431,7 +431,7 @@ GetNameOrId(struct cmd_syndesc *as, struct idlist *lids, struct namelist *lnames
 	n = 0;
 	for (i = as->parms[1].items; i; i = i->next)
 	    n++;
-	lids->idlist_val = (afs_int32 *) malloc(n * sizeof(afs_int32));
+	lids->idlist_val = malloc(n * sizeof(afs_int32));
 	lids->idlist_len = n;
 	n = 0;
 	for (i = as->parms[1].items; i; i = i->next) {
@@ -471,20 +471,30 @@ GetNameOrId(struct cmd_syndesc *as, struct idlist *lids,
     struct idlist ids, tids;	/* local copy, if not ret. ids */
     int goodCount = 0;
 
+    /* Initialise our outputs */
+    memset(lids, 0, sizeof(struct idlist));
+    if (lnames)
+	memset(lnames, 0, sizeof(struct namelist));
+
     for (i = as->parms[0].items; i; i = i->next)
 	n++;
-    lids->idlist_val = (afs_int32 *) malloc(n * sizeof(afs_int32));
+
+    /* Nothing to do, so bail */
+    if (n == 0)
+	return 0;
+
+    lids->idlist_val = malloc(n * sizeof(afs_int32));
     lids->idlist_len = n;
-    ids.idlist_val = (afs_int32 *) malloc(n * sizeof(afs_int32));
+    ids.idlist_val = malloc(n * sizeof(afs_int32));
     ids.idlist_len = n;
-    names.namelist_val = (prname *) malloc(n * PR_MAXNAMELEN);
+    names.namelist_val = malloc(n * PR_MAXNAMELEN);
     names.namelist_len = n;
     if (lnames) {
-	lnames->namelist_val = (prname *) malloc(n * PR_MAXNAMELEN);
+	lnames->namelist_val = malloc(n * PR_MAXNAMELEN);
 	lnames->namelist_len = 0;
     }
     for (i = as->parms[0].items; i; i = i->next) {
-	tnames.namelist_val = (prname *) malloc(PR_MAXNAMELEN);
+	tnames.namelist_val = malloc(PR_MAXNAMELEN);
 	strncpy(tnames.namelist_val[0], i->data, PR_MAXNAMELEN);
 	tnames.namelist_len = 1;
 	tids.idlist_len = 0;
@@ -529,12 +539,13 @@ GetNameOrId(struct cmd_syndesc *as, struct idlist *lids,
 	code = pr_IdToName(&ids, &tnames);
 	if (code)
 	    afs_com_err(whoami, code, "translating ids");
-	else
+	else {
 	    goodCount++;
-	if (lnames) {
-	    for (x = 0; x < ids.idlist_len; x++)
-		strcpy(lnames->namelist_val[nd + x], tnames.namelist_val[x]);
-	    lnames->namelist_len = nd + x;
+	    if (lnames) {
+		for (x = 0; x < ids.idlist_len; x++)
+		    strcpy(lnames->namelist_val[nd + x], tnames.namelist_val[x]);
+		lnames->namelist_len = nd + x;
+	    }
 	}
     }
     /* treat things as working if any of the lookups worked */
@@ -714,7 +725,7 @@ CheckEntry(struct cmd_syndesc *as, void *arock)
 	return PRBADARG;
 
     lids.idlist_len = 2;
-    lids.idlist_val = (afs_int32 *) malloc(sizeof(afs_int32) * 2);
+    lids.idlist_val = malloc(sizeof(afs_int32) * 2);
     lnames.namelist_len = 0;
     lnames.namelist_val = 0;
 
@@ -1092,6 +1103,7 @@ add_std_args(struct cmd_syndesc *ts)
 		"use user's authentication (default)");
     cmd_AddParm(ts, "-encrypt", CMD_FLAG, CMD_OPTIONAL,
 		"encrypt commands");
+    cmd_AddParm(ts, "-config", CMD_SINGLE, CMD_OPTIONAL, "config location");
 }
 
 /*
@@ -1251,7 +1263,7 @@ main(int argc, char **argv)
 
     finished = 1;
     source = NULL;
-    if ((code = cmd_Dispatch(argc, argv))) {
+    if (cmd_Dispatch(argc, argv)) {
 	CleanUp(NULL, NULL);
 	exit(1);
     }
@@ -1282,7 +1294,7 @@ main(int argc, char **argv)
 	}
 	savec = parsev[0];
 	parsev[0] = argv[0];
-	code = cmd_Dispatch(parsec, parsev);
+	cmd_Dispatch(parsec, parsev);
 	parsev[0] = savec;
 	cmd_FreeArgv(parsev);
     }

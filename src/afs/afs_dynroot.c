@@ -54,7 +54,7 @@ static int afs_dynrootInit = 0;
 static int afs_dynrootEnable = 0;
 static int afs_dynrootCell = 0;
 
-static afs_rwlock_t afs_dynrootDirLock;
+afs_rwlock_t afs_dynrootDirLock;
 /* Start of variables protected by afs_dynrootDirLock */
 static char *afs_dynrootDir = NULL;
 static int afs_dynrootDirLen;
@@ -74,7 +74,7 @@ struct afs_dynSymlink {
     char *target;
 };
 
-static afs_rwlock_t afs_dynSymlinkLock;
+afs_rwlock_t afs_dynSymlinkLock;
 /* Start of variables protected by afs_dynSymlinkLock */
 static struct afs_dynSymlink *afs_dynSymlinkBase = NULL;
 static int afs_dynSymlinkIndex = 0;
@@ -257,7 +257,7 @@ afs_dynroot_addDirEnt(struct DirHeader *dirHeader, int *curPageP,
     /*
      * Add the new entry to the correct hash chain.
      */
-    i = DirHash(name);
+    i = afs_dir_DirHash(name);
     dirEntry->next = dirHeader->hashTable[i];
     dirHeader->hashTable[i] = htons(curPage * EPP + curChunk);
 

@@ -172,7 +172,7 @@ afs_FlushVCache(struct vcache *avc, int *slept)
     for (wvc = *uvc; wvc; uvc = &wvc->hnext, wvc = *uvc) {
 	if (avc == wvc) {
 	    *uvc = avc->hnext;
-	    avc->hnext = (struct vcache *)NULL;
+	    avc->hnext = NULL;
 	    break;
 	}
     }
@@ -376,8 +376,8 @@ FlushAllVCBs(int nconns, struct rx_connection **rxconns,
     for ( i = 0 ; i < nconns ; i++ ) {
 	if (results[i] == 0) {
 	    /* Unchain all of them */
-	    while (conns[i]->srvr->server->cbrs)
-		afs_FreeCBR(conns[i]->srvr->server->cbrs);
+	    while (conns[i]->parent->srvr->server->cbrs)
+		afs_FreeCBR(conns[i]->parent->srvr->server->cbrs);
 	}
     }
     afs_osi_Free(results, nconns * sizeof(afs_int32));
@@ -855,7 +855,6 @@ afs_FlushAllVCaches(void)
 	    if (slept) {
 		goto retry;
 	    }
-	    tvc = nvc;
 	}
     }
 
@@ -1583,7 +1582,7 @@ afs_RemoteLookup(struct VenusFid *afid, struct vrequest *areq,
 	tc = afs_Conn(afid, areq, SHARED_LOCK, &rxconn);
 	if (tc) {
 	    if (serverp)
-		*serverp = tc->srvr->server;
+		*serverp = tc->parent->srvr->server;
 	    XSTATS_START_TIME(AFS_STATS_FS_RPCIDX_XLOOKUP);
 	    RX_AFS_GUNLOCK();
 	    code =
@@ -2344,7 +2343,7 @@ afs_UpdateStatus(struct vcache *avc, struct VenusFid *afid,
 void
 afs_BadFetchStatus(struct afs_conn *tc)
 {
-    int addr = ntohl(tc->srvr->sa_ip);
+    int addr = ntohl(tc->parent->srvr->sa_ip);
     afs_warn("afs: Invalid AFSFetchStatus from server %u.%u.%u.%u\n",
              (addr >> 24) & 0xff, (addr >> 16) & 0xff, (addr >> 8) & 0xff,
              (addr) & 0xff);
@@ -2404,7 +2403,7 @@ afs_FetchStatus(struct vcache * avc, struct VenusFid * afid,
 	tc = afs_Conn(afid, areq, SHARED_LOCK, &rxconn);
 	avc->dchint = NULL;	/* invalidate hints */
 	if (tc) {
-	    avc->callback = tc->srvr->server;
+	    avc->callback = tc->parent->srvr->server;
 	    start = osi_Time();
 	    XSTATS_START_TIME(AFS_STATS_FS_RPCIDX_FETCHSTATUS);
 	    RX_AFS_GUNLOCK();

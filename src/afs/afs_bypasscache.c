@@ -109,7 +109,7 @@
 
 
 int cache_bypass_strategy   = 	NEVER_BYPASS_CACHE;
-int cache_bypass_threshold  =  	AFS_CACHE_BYPASS_DISABLED; /* file size > threshold triggers bypass */
+afs_size_t cache_bypass_threshold  =  	AFS_CACHE_BYPASS_DISABLED; /* file size > threshold triggers bypass */
 int cache_bypass_prefetch = 1;	/* Should we do prefetching ? */
 
 extern afs_rwlock_t afs_xcbhash;
@@ -437,6 +437,7 @@ afs_NoCacheFetchProc(struct rx_call *acall,
 			goto done;
 		    }
 		    size -= bytes;
+		    auio->uio_resid -= bytes;
 		    iovno = 0;
 		}
 		pp = (bypass_page_t)auio->uio_iov[curpage].iov_base;
@@ -485,7 +486,7 @@ afs_ReadNoCache(struct vcache *avc,
     struct brequest *breq;
     struct vrequest *areq = NULL;
 
-    if (avc && avc->vc_error) {
+    if (avc->vc_error) {
 	code = EIO;
 	afs_warn("afs_ReadNoCache VCache Error!\n");
 	goto cleanup;
@@ -581,11 +582,11 @@ afs_PrefetchNoCache(struct vcache *avc,
     iovecp = auio->uio_iov;
 #endif
 
-    tcallspec = (struct tlocal1 *) osi_Alloc(sizeof(struct tlocal1));
+    tcallspec = osi_Alloc(sizeof(struct tlocal1));
     do {
-      tc = afs_Conn(&avc->f.fid, areq, SHARED_LOCK /* ignored */, &rxconn);
+	tc = afs_Conn(&avc->f.fid, areq, SHARED_LOCK /* ignored */, &rxconn);
 	if (tc) {
-	    avc->callback = tc->srvr->server;
+	    avc->callback = tc->parent->srvr->server;
 	    tcall = rx_NewCall(rxconn);
 #ifdef AFS_64BIT_CLIENT
 	    if (!afs_serverHasNo64Bit(tc)) {
@@ -601,9 +602,8 @@ afs_PrefetchNoCache(struct vcache *avc,
 
 		    if (bytes != sizeof(afs_int32)) {
 			length_hi = 0;
-			code = rx_Error(tcall);
 			COND_GUNLOCK(locked);
-			code = rx_EndCall(tcall, code);
+			code = rx_EndCall(tcall, RX_PROTOCOL_ERROR);
 			COND_RE_GLOCK(locked);
 			tcall = NULL;
 		    }

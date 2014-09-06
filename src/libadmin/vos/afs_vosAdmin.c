@@ -9,28 +9,19 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
-
-
 #include <afs/stds.h>
-#include <stdio.h>
-#include <string.h>
+
+#include <roken.h>
+
 #include <ctype.h>
-#ifdef AFS_NT40_ENV
-#include <winsock2.h>
-#include <io.h>
-#else
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#endif
-#include "afs_vosAdmin.h"
-#include "../adminutil/afs_AdminInternal.h"
+
 #include <afs/vlserver.h>
+#include <afs/afsint.h>
 #include <afs/volser.h>
 #include <afs/volint.h>
+
+#include "afs_vosAdmin.h"
+#include "../adminutil/afs_AdminInternal.h"
 
 /* File descriptors are HANDLE's on NT. The following typedef helps catch
  * type errors. Duplicated from vol/ihandle.h
@@ -696,10 +687,8 @@ vos_PartitionGetBegin(const void *cellHandle, const void *serverHandle,
     int rc = 0;
     afs_status_t tst = 0;
     file_server_p f_server = (file_server_p) serverHandle;
-    afs_admin_iterator_p iter =
-	(afs_admin_iterator_p) malloc(sizeof(afs_admin_iterator_t));
-    partition_get_p part =
-	(partition_get_p) calloc(1, sizeof(partition_get_t));
+    afs_admin_iterator_p iter = malloc(sizeof(afs_admin_iterator_t));
+    partition_get_p part = calloc(1, sizeof(partition_get_t));
 
     /*
      * Validate arguments
@@ -885,7 +874,7 @@ vos_ServerOpen(const void *cellHandle, const char *serverName,
     int rc = 0;
     afs_status_t tst = 0;
     afs_cell_handle_p c_handle = (afs_cell_handle_p) cellHandle;
-    file_server_p f_server = (file_server_p) malloc(sizeof(file_server_t));
+    file_server_p f_server = malloc(sizeof(file_server_t));
     int server_address;
     struct rx_securityClass *sc[3];
     int scIndex;
@@ -1343,9 +1332,8 @@ vos_FileServerGetBegin(const void *cellHandle, vos_MessageCallBack_t callBack,
     int rc = 0;
     afs_status_t tst = 0;
     afs_cell_handle_p c_handle = (afs_cell_handle_p) cellHandle;
-    afs_admin_iterator_p iter =
-	(afs_admin_iterator_p) malloc(sizeof(afs_admin_iterator_t));
-    server_get_p serv = (server_get_p) calloc(1, sizeof(server_get_t));
+    afs_admin_iterator_p iter = malloc(sizeof(afs_admin_iterator_t));
+    server_get_p serv = calloc(1, sizeof(server_get_t));
     struct VLCallBack unused;
 
 
@@ -1682,10 +1670,8 @@ vos_ServerTransactionStatusGetBegin(const void *cellHandle,
     int rc = 0;
     afs_status_t tst = 0;
     file_server_p f_server = (file_server_p) serverHandle;
-    afs_admin_iterator_p iter =
-	(afs_admin_iterator_p) malloc(sizeof(afs_admin_iterator_t));
-    transaction_get_p tran =
-	(transaction_get_p) calloc(1, sizeof(transaction_get_t));
+    afs_admin_iterator_p iter = malloc(sizeof(afs_admin_iterator_t));
+    transaction_get_p tran = calloc(1, sizeof(transaction_get_t));
 
 
     /*
@@ -2132,10 +2118,8 @@ vos_VLDBGetBegin(const void *cellHandle, const void *serverHandle,
     afs_status_t tst = 0;
     afs_cell_handle_p c_handle = (afs_cell_handle_p) cellHandle;
     file_server_p f_server = (file_server_p) serverHandle;
-    afs_admin_iterator_p iter =
-	(afs_admin_iterator_p) malloc(sizeof(afs_admin_iterator_t));
-    vldb_entry_get_p entry =
-	(vldb_entry_get_p) calloc(1, sizeof(vldb_entry_get_t));
+    afs_admin_iterator_p iter = malloc(sizeof(afs_admin_iterator_t));
+    vldb_entry_get_p entry = calloc(1, sizeof(vldb_entry_get_t));
     struct VldbListByAttributes attr;
 
     attr.Mask = 0;
@@ -3813,9 +3797,8 @@ vos_VolumeGetBegin(const void *cellHandle, const void *serverHandle,
     int rc = 0;
     afs_status_t tst = 0;
     file_server_p f_server = (file_server_p) serverHandle;
-    afs_admin_iterator_p iter =
-	(afs_admin_iterator_p) malloc(sizeof(afs_admin_iterator_t));
-    volume_get_p entry = (volume_get_p) calloc(1, sizeof(volume_get_t));
+    afs_admin_iterator_p iter = malloc(sizeof(afs_admin_iterator_t));
+    volume_get_p entry = calloc(1, sizeof(volume_get_t));
 
     /*
      * Validate arguments

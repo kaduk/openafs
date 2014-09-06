@@ -13,7 +13,6 @@
 
 #include <stdio.h>
 
-#if defined(AFS_SUN54_ENV)
 #define OSVERS "SunOS 5.6"
 #include <sys/types.h>
 #include <rx/xdr.h>
@@ -53,20 +52,6 @@ int icount = 0, iarraysize = 0, *iarray;
 char *rawname(), *unrawname(), *vol_DevName(), *blockcheck();
 #define ROOTINODE	2
 int force = 0, verbose = 0, unconv = 0;
-
-static int
-ConvCmd(struct cmd_syndesc *as, void *arock)
-{
-    unconv = 0;
-    handleit(as);
-}
-
-static int
-UnConvCmd(struct cmd_syndesc *as, void *arock)
-{
-    unconv = 1;
-    handleit(as);
-}
 
 static int
 handleit(struct cmd_syndesc *as)
@@ -180,6 +165,20 @@ handleit(struct cmd_syndesc *as)
     }
 }
 
+static int
+ConvCmd(struct cmd_syndesc *as, void *arock)
+{
+    unconv = 0;
+    handleit(as);
+}
+
+static int
+UnConvCmd(struct cmd_syndesc *as, void *arock)
+{
+    unconv = 1;
+    handleit(as);
+}
+
 
 #include "AFS_component_version_number.c"
 
@@ -289,7 +288,7 @@ ProcessAfsInodes(devname, partition)
 	goto out;
     }
     bufsize = super.fs.fs_ipg * sizeof(struct dinode);
-    if (!(inodes = (struct dinode *)malloc(bufsize))) {
+    if (!(inodes = malloc(bufsize))) {
 	printf("Unable to allocate enough memory to scan inodes; help!\n");
 	goto out;
     }
@@ -332,11 +331,7 @@ ProcessAfsInodes(devname, partition)
 		int p5;
 		quad *q;
 
-#if	defined(AFS_SUN56_ENV)
 		q = (quad *) & (p->di_ic.ic_lsize);
-#else
-		q = &(p->di_ic.ic_size);
-#endif
 
 		p1 = p->di_gen;
 		p2 = p->di_ic.ic_flags;
@@ -706,17 +701,3 @@ CheckMountedDevice(devName)
 	return 1;
     return 0;
 }
-
-#else /* !AFS_SUN54_ENV */
-
-#include "AFS_component_version_number.c"
-
-main(argc, argv)
-     int argc;
-     char *argv[];
-{
-    printf
-	("%s: **ONLY** supported for Solaris 2.4 and later ...\n",
-	 argv[0]);
-}
-#endif /* !AFS_SUN5_ENV */

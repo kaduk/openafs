@@ -159,7 +159,7 @@ struct vnodeopv_entry_desc afs_vnodeop_entries[] = {
     {VOPPREF(blktooff_desc), (VOPFUNC)afs_vop_blktooff},	/* blktooff */
     {VOPPREF(offtoblk_desc), (VOPFUNC)afs_vop_offtoblk},	/* offtoblk */
     {VOPPREF(bwrite_desc), (VOPFUNC)vn_bwrite},
-    {(struct vnodeop_desc *)NULL, (void (*)())NULL}
+    {NULL, (void (*)())NULL}
 };
 struct vnodeopv_desc afs_vnodeop_opv_desc =
     { &afs_vnodeop_p, afs_vnodeop_entries };
@@ -202,7 +202,7 @@ struct vnodeopv_entry_desc afs_dead_vnodeop_entries[] = {
     {VOPPREF(blktooff_desc), (VOPFUNC)err_blktooff},	/* blktooff */
     {VOPPREF(offtoblk_desc), (VOPFUNC)err_offtoblk},	/* offtoblk */
     {VOPPREF(bwrite_desc), (VOPFUNC)err_bwrite},
-    {(struct vnodeop_desc *)NULL, (void (*)())NULL}
+    {NULL, (void (*)())NULL}
 };
 struct vnodeopv_desc afs_dead_vnodeop_opv_desc =
     { &afs_dead_vnodeop_p, afs_dead_vnodeop_entries };
@@ -812,7 +812,7 @@ afs_vop_read(ap)
 #endif
     AFS_GLOCK();
     osi_FlushPages(avc, vop_cred);	/* hold bozon lock, but not basic vnode lock */
-    code = afs_read(avc, ap->a_uio, vop_cred, 0, 0, 0);
+    code = afs_read(avc, ap->a_uio, vop_cred, 0);
     AFS_GUNLOCK();
     return code;
 }
@@ -898,7 +898,7 @@ afs_vop_pagein(ap)
 #endif
     AFS_GLOCK();
     osi_FlushPages(tvc, vop_cred);	/* hold bozon lock, but not basic vnode lock */
-    code = afs_read(tvc, uio, cred, 0, 0, 0);
+    code = afs_read(tvc, uio, cred, 0);
     if (code == 0) {
 	ObtainWriteLock(&tvc->lock, 2);
 	tvc->f.states |= CMAPPED;
@@ -2240,6 +2240,10 @@ afs_darwin_finalizevnode(struct vcache *avc, struct vnode *dvp,
 	vnode_put(ovp);
 	vnode_rele(ovp);
     }
+    /* If it's ref'd still, unmark stat'd to force new lookup */
+    if ((vnode_vtype(ovp) != avc->f.m.Type) && VREFCOUNT_GT(avc, 1))
+	avc->f.states &= ~CStatd;
+
     vnode_put(ovp);
     vnode_rele(ovp);
     AFS_GLOCK();

@@ -10,17 +10,12 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
-#include <sys/types.h>
+#include <roken.h>
+
+#include <afs/opr.h>
 #include <lock.h>
 #include <ubik.h>
-#include <stdio.h>
-#ifdef AFS_NT40_ENV
-#include <winsock2.h>
-#else
-#include <netinet/in.h>
-#include <netdb.h>
-#endif
-#include <string.h>
+
 #include "ptserver.h"
 #include "pterror.h"
 
@@ -106,12 +101,10 @@ pr_WriteEntry(struct ubik_trans *tt, afs_int32 afd, afs_int32 pos, struct prentr
 	nentry.sibling = htonl(tentry->sibling);
 	nentry.child = htonl(tentry->child);
 	strncpy(nentry.name, tentry->name, PR_MAXNAMELEN);
-#ifdef PR_REMEMBER_TIMES
 	nentry.createTime = htonl(tentry->createTime);
 	nentry.addTime = htonl(tentry->addTime);
 	nentry.removeTime = htonl(tentry->removeTime);
 	nentry.changeTime = htonl(tentry->changeTime);
-#endif
 	for (i = 0; i < PRSIZE; i++)
 	    nentry.entries[i] = htonl(tentry->entries[i]);
 	tentry = &nentry;
@@ -155,12 +148,10 @@ pr_ReadEntry(struct ubik_trans *tt, afs_int32 afd, afs_int32 pos, struct prentry
     tentry->sibling = ntohl(nentry.sibling);
     tentry->child = ntohl(nentry.child);
     strncpy(tentry->name, nentry.name, PR_MAXNAMELEN);
-#ifdef PR_REMEMBER_TIMES
     tentry->createTime = ntohl(nentry.createTime);
     tentry->addTime = ntohl(nentry.addTime);
     tentry->removeTime = ntohl(nentry.removeTime);
     tentry->changeTime = ntohl(nentry.changeTime);
-#endif
     for (i = 0; i < PRSIZE; i++)
 	tentry->entries[i] = ntohl(nentry.entries[i]);
     return (code);
@@ -291,7 +282,7 @@ FindByID(struct ubik_trans *at, afs_int32 aid)
 	return 0;
     if (aid == tentry.id)
 	return entry;
-    osi_Assert(entry != tentry.nextID);
+    opr_Assert(entry != tentry.nextID);
     entry = tentry.nextID;
     while (entry != 0) {
 	memset(&tentry, 0, sizeof(tentry));
@@ -300,7 +291,7 @@ FindByID(struct ubik_trans *at, afs_int32 aid)
 	    return 0;
 	if (aid == tentry.id)
 	    return entry;
-	osi_Assert(entry != tentry.nextID);
+	opr_Assert(entry != tentry.nextID);
 	entry = tentry.nextID;
     }
     return 0;
@@ -324,7 +315,7 @@ FindByName(struct ubik_trans *at, char aname[PR_MAXNAMELEN], struct prentry *ten
 	return 0;
     if ((strncmp(aname, tentryp->name, PR_MAXNAMELEN)) == 0)
 	return entry;
-    osi_Assert(entry != tentryp->nextName);
+    opr_Assert(entry != tentryp->nextName);
     entry = tentryp->nextName;
     while (entry != 0) {
 	memset(tentryp, 0, sizeof(struct prentry));
@@ -333,7 +324,7 @@ FindByName(struct ubik_trans *at, char aname[PR_MAXNAMELEN], struct prentry *ten
 	    return 0;
 	if ((strncmp(aname, tentryp->name, PR_MAXNAMELEN)) == 0)
 	    return entry;
-	osi_Assert(entry != tentryp->nextName);
+	opr_Assert(entry != tentryp->nextName);
 	entry = tentryp->nextName;
     }
     return 0;
@@ -464,7 +455,7 @@ RemoveFromIDHash(struct ubik_trans *tt, afs_int32 aid, afs_int32 *loc)		/* ??? i
     if (code)
 	return PRDBFAIL;
     while (aid != tentry.id) {
-	osi_Assert(trail != current);
+	opr_Assert(trail != current);
 	trail = current;
 	current = tentry.nextID;
 	if (current == 0)
@@ -544,7 +535,7 @@ RemoveFromNameHash(struct ubik_trans *tt, char *aname, afs_int32 *loc)
     if (code)
 	return PRDBFAIL;
     while (strcmp(aname, tentry.name)) {
-	osi_Assert(trail != current);
+	opr_Assert(trail != current);
 	trail = current;
 	current = tentry.nextName;
 	if (current == 0)

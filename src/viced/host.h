@@ -14,7 +14,6 @@
 
 #include "fs_stats.h"		/*File Server stats package */
 
-#ifdef AFS_PTHREAD_ENV
 /*
  * There are three locks in the host package.
  * the global hash lock protects hash chains.
@@ -23,16 +22,11 @@
  * precedence is host_listlock_mutex, host->mutex, host_glock_mutex.
  */
 #include <rx/rx_globals.h>
-#include <afs/afs_assert.h>
 #include <pthread.h>
 extern pthread_mutex_t host_glock_mutex;
-#define H_LOCK MUTEX_ENTER(&host_glock_mutex);
-#define H_UNLOCK MUTEX_EXIT(&host_glock_mutex);
+#define H_LOCK opr_mutex_enter(&host_glock_mutex)
+#define H_UNLOCK opr_mutex_exit(&host_glock_mutex)
 extern pthread_key_t viced_uclient_key;
-#else /* AFS_PTHREAD_ENV */
-#define H_LOCK
-#define H_UNLOCK
-#endif /* AFS_PTHREAD_ENV */
 
 #define h_MAXHOSTTABLEENTRIES 1000
 #define h_HASHENTRIES 256	/* Power of 2 */
@@ -68,11 +62,9 @@ struct host {
     afs_uint16 port;		/* port address of host */
     char Console;		/* XXXX This host is a console */
     unsigned short hostFlags;		/*  bit map */
-#if FS_STATS_DETAILED
     char InSameNetwork;		/*Is host's addr in the same network as
 				 * the File Server's? */
     char dummy[3];		/* for padding */
-#endif				/* FS_STATS_DETAILED */
     char hcpsfailed;		/* Retry the cps call next time */
     prlist hcps;		/* cps for hostip acls */
     afs_uint32 LastCall;	/* time of last call from host */
@@ -88,11 +80,15 @@ struct host {
      * the index fields isn't zeroed. XXX
      */
     afs_uint32 index;		/* Host table index, for vicecb.c */
+    unsigned int n_tmays;       /* how many successful TellMeAboutYourself calls
+                                 * have we made against this host? */
+    /* cache of the result of the last successful TMAY call to this host */
+    struct interfaceAddr tmay_interf;
+    Capabilities tmay_caps;
+
     struct Lock lock;		/* Write lock for synchronization of
 				 * VenusDown flag */
-#ifdef AFS_PTHREAD_ENV
     pthread_cond_t cond;	/* used to wait on hcpsValid */
-#endif				/* AFS_PTHREAD_ENV */
 };
 
 /* * Don't zero the index, lock or condition varialbles */
@@ -128,12 +124,8 @@ struct client {
 				 * structure */
     char authClass;		/* auth type, RX-only */
     char prfail;		/* True if prserver couldn't be contacted */
-#if FS_STATS_DETAILED
     char InSameNetwork;		/* Is client's IP address in the same
 				 * network as ours? */
-#else				/* FS_STATS_DETAILED */
-    char dummy;			/* For padding */
-#endif				/* FS_STATS_DETAILED */
     struct Lock lock;		/* lock to ensure CPS valid if entry
 				 * on host's clients list. */
 };
@@ -191,7 +183,7 @@ do { \
 				hostList ? (hostList->prev = (h)):0; 	\
 				hostList = (h);                         \
 			        hostCount++;
-#define h_DeleteList_r(h)	osi_Assert(hostCount>0);                    \
+#define h_DeleteList_r(h)	opr_Assert(hostCount>0);                    \
 				hostCount--;                                \
 				(h)->next ? ((h)->next->prev = (h)->prev):0;\
 				(h)->prev ? ((h)->prev->next = (h)->next):0;\
@@ -224,7 +216,7 @@ extern struct host *h_GetHost_r(struct rx_connection *tcon);
 extern struct client *h_FindClient_r(struct rx_connection *tcon, afs_int32 *viceid);
 extern int h_ReleaseClient_r(struct client *client);
 extern void h_TossStuff_r(struct host *host);
-extern void h_EnumerateClients(afs_int32 vid,
+extern void h_EnumerateClients(VolumeId vid,
                                int (*proc)(struct client *client, void *rock),
                                void *arock);
 extern int GetClient(struct rx_connection *tcon, struct client **cp);
@@ -241,12 +233,10 @@ extern int h_NBLock_r(struct host *host);
 extern void h_DumpHosts(void);
 extern void h_InitHostPackage(int hquota);
 extern void h_CheckHosts(void );
-extern int initInterfaceAddr_r(struct host *host, struct interfaceAddr *interf);
 extern void h_AddHostToAddrHashTable_r(afs_uint32 addr, afs_uint16 port, struct host * host);
 extern void h_AddHostToUuidHashTable_r(afsUUID * uuid, struct host * host);
 extern int h_DeleteHostFromAddrHashTable_r(afs_uint32 addr, afs_uint16 port, struct host *host);
 extern int h_DeleteHostFromUuidHashTable_r(struct host *host);
-extern int initInterfaceAddr_r(struct host *host, struct interfaceAddr *interf);
 extern int addInterfaceAddr_r(struct host *host, afs_uint32 addr, afs_uint16 port);
 extern int removeInterfaceAddr_r(struct host *host, afs_uint32 addr, afs_uint16 port);
 extern afs_int32 hpr_Initialize(struct ubik_client **);

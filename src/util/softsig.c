@@ -11,17 +11,11 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
+#include <afs/procmgmt.h> /* Must be before roken.h */
 
-#include <afs/param.h>
-#include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
-#ifndef  AFS_NT40_ENV
-#include <signal.h>
-#include <unistd.h>
-#else
-#include <afs/procmgmt.h>
-#endif
+#include <roken.h>
+#include <afs/opr.h>
+
 #include <pthread.h>
 
 #include "pthread_nosigs.h"
@@ -123,7 +117,7 @@ softsig_init(void)
     AFS_SIGSET_DECL;
     AFS_SIGSET_CLEAR();
     rc = pthread_create(&softsig_tid, NULL, &softsig_thread, NULL);
-    assert(0 == rc);
+    opr_Assert(0 == rc);
     AFS_SIGSET_RESTORE();
     signal (SIGUSR1, softsig_usr1);
 }

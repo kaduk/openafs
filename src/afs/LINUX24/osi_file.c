@@ -44,7 +44,7 @@ osi_UFSOpen(afs_dcache_id_t *ainode)
 	crhold(&afs_osi_cred);	/* don't let it evaporate, since it is static */
 	afs_osicred_initialized = 1;
     }
-    afile = (struct osi_file *)osi_AllocLargeSpace(sizeof(struct osi_file));
+    afile = osi_AllocLargeSpace(sizeof(struct osi_file));
     AFS_GUNLOCK();
     if (!afile) {
 	osi_Panic("osi_UFSOpen: Failed to allocate %d bytes for osi_file.\n",
@@ -216,7 +216,7 @@ afs_osi_Read(struct osi_file *afile, int offset, void *aptr,
 	afs_Trace2(afs_iclSetp, CM_TRACE_READFAILED, ICL_TYPE_INT32, auio.uio_resid,
 		   ICL_TYPE_INT32, code);
 	if (code > 0) {
-	    code *= -1;
+	    code = -code;
 	}
     }
     return code;
@@ -254,7 +254,7 @@ afs_osi_Write(struct osi_file *afile, afs_int32 offset, void *aptr,
 	    afs_warnuser
 		("\n\n\n*** Cache partition is FULL - Decrease cachesize!!! ***\n\n");
 	if (code > 0) {
-	    code *= -1;
+	    code = -code;
 	}
     }
 

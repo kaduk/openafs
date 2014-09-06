@@ -22,8 +22,8 @@
 /* salvager data structures */
 struct InodeSummary {		/* Inode summary file--an entry for each
 				 * volume in the inode file for a partition */
-    VolId volumeId;		/* Volume id */
-    VolId RWvolumeId;		/* RW volume associated */
+    VolumeId volumeId;		/* Volume id */
+    VolumeId RWvolumeId;		/* RW volume associated */
     int index;			/* index into inode file (0, 1, 2 ...) */
     int nInodes;		/* Number of inodes for this volume */
     int nSpecialInodes;		/* Number of special inodes, i.e.  volume
@@ -211,7 +211,7 @@ extern void DeleteExtraVolumeHeaderFile(struct SalvInfo *salvinfo,
                                         struct VolumeSummary *vsp);
 extern void DistilVnodeEssence(struct SalvInfo *salvinfo, VolumeId vid,
                                VnodeClass class, Inode ino, Unique * maxu);
-extern int GetInodeSummary(struct SalvInfo *salvinfo, FILE *inodeFile,
+extern int GetInodeSummary(struct SalvInfo *salvinfo, FD_t inodeFile,
                            VolumeId singleVolumeNumber);
 extern int GetVolumeSummary(struct SalvInfo *salvinfo,
 			    VolumeId singleVolumeNumber);
@@ -246,9 +246,7 @@ extern int SalvageVolume(struct SalvInfo *salvinfo, struct InodeSummary *rwIsp,
 extern void DoSalvageVolumeGroup(struct SalvInfo *salvinfo,
                                  struct InodeSummary *isp, int nVols);
 #ifdef AFS_NT40_ENV
-extern void SalvageVolumeGroup(struct SalvInfo *salvinfo, struct InodeSummary *isp, int nVols);
-#else
-#define SalvageVolumeGroup DoSalvageVolumeGroup
+extern void nt_SalvageVolumeGroup(struct SalvInfo *salvinfo, struct InodeSummary *isp, int nVols);
 #endif
 extern int SalvageVolumeHeaderFile(struct SalvInfo *salvinfo,
                                    struct InodeSummary *isp,

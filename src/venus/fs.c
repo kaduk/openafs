@@ -9,29 +9,19 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
+#include <afs/stds.h>
 
+#include <roken.h>
+#include <ctype.h>
+#include <assert.h>
 
 #include <afs/afs_consts.h>
 #include <afs/afs_args.h>
 #include <rx/xdr.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <errno.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <netinet/in.h>
-#include <sys/stat.h>
-#include <afs/stds.h>
 #include <afs/vice.h>
 #include <afs/venus.h>
 #include <afs/com_err.h>
 #include <afs/afs_consts.h>
-#ifdef	AFS_AIX32_ENV
-#include <signal.h>
-#endif
-
-#include <string.h>
 
 #undef VIRTUE
 #undef VICE
@@ -45,10 +35,7 @@
 #include <afs/volser.h>
 #include <afs/vlserver.h>
 #include <afs/cmd.h>
-#include <afs/afsutil.h>
 #include <afs/com_err.h>
-#include <stdlib.h>
-#include <assert.h>
 #include <afs/ptclient.h>
 #include <afs/ptuser.h>
 #include <afs/afsutil.h>
@@ -80,7 +67,6 @@ static int PruneList(struct AclEntry **, int);
 static int CleanAcl(struct Acl *, char *);
 static int SetVolCmd(struct cmd_syndesc *as, void *arock);
 static int GetCellName(char *, struct afsconf_cell *);
-static int VLDBInit(int, struct afsconf_cell *);
 static void Die(int, char *);
 
 /*
@@ -310,7 +296,7 @@ Parent(char *apath)
     tp = strrchr(tspace, '/');
     if (tp == (char *)tspace)
 	tp++;
-    else if (tp == (char *)NULL) {
+    else if (tp == NULL) {
 	tp      = (char *)tspace;
 	*(tp++) = '.';
     }
@@ -318,16 +304,32 @@ Parent(char *apath)
     return tspace;
 }
 
-enum rtype { add, destroy, deny };
+                                /* added relative add resp. delete    */
+                                /* (so old add really means to set)   */
+enum rtype { add, destroy, deny, reladd, reldel };
 
 static afs_int32
 Convert(char *arights, int dfs, enum rtype *rtypep)
 {
-    int i, len;
     afs_int32 mode;
     char tc;
+    char *tcp;                  /* to walk through the rights string  */
 
     *rtypep = add;		/* add rights, by default */
+
+                                /* analyze last character of string   */
+    tcp = arights + strlen(arights);
+    if ( tcp-- > arights ) {    /* assure non-empty string            */
+        if ( *tcp == '+' )
+            *rtypep = reladd;   /* '+' indicates more rights          */
+        else if ( *tcp == '-' )
+            *rtypep = reldel;   /* '-' indicates less rights          */
+        else if ( *tcp == '=' )
+            *rtypep = add;      /* '=' also allows old behaviour      */
+        else
+            tcp++;              /* back to original null byte         */
+        *tcp = '\0';            /* do not disturb old strcmp-s        */
+    }
 
     if (dfs) {
 	if (!strcmp(arights, "null")) {
@@ -358,10 +360,9 @@ Convert(char *arights, int dfs, enum rtype *rtypep)
 	*rtypep = destroy;	/* Remove entire entry */
 	return 0;
     }
-    len = strlen(arights);
     mode = 0;
-    for (i = 0; i < len; i++) {
-	tc = *arights++;
+    tcp = arights;
+    while ((tc = *tcp++ )) {
 	if (dfs) {
 	    if (tc == '-')
 		continue;
@@ -458,32 +459,47 @@ SetDotDefault(struct cmd_item **aitemp)
     if (*aitemp)
 	return;			/* already has value */
     /* otherwise, allocate an item representing "." */
-    ti = (struct cmd_item *)malloc(sizeof(struct cmd_item));
+    ti = malloc(sizeof(struct cmd_item));
     assert(ti);
     ti->next = (struct cmd_item *)0;
-    ti->data = (char *)malloc(2);
+    ti->data = malloc(2);
     assert(ti->data);
     strcpy(ti->data, ".");
     *aitemp = ti;
 }
 
 static void
-ChangeList(struct Acl *al, afs_int32 plus, char *aname, afs_int32 arights)
+ChangeList(struct Acl *al, afs_int32 plus, char *aname, afs_int32 arights,
+	   enum rtype *artypep)
 {
     struct AclEntry *tlist;
     tlist = (plus ? al->pluslist : al->minuslist);
     tlist = FindList(tlist, aname);
     if (tlist) {
-	/* Found the item already in the list. */
-	tlist->rights = arights;
+	/* Found the item already in the list.
+	 * modify rights in case of reladd and reladd only,
+	 * use standard - add, ie. set - otherwise
+	 */
+        if ( artypep == NULL )
+            tlist->rights = arights;
+        else if ( *artypep == reladd )
+            tlist->rights |= arights;
+        else if ( *artypep == reldel )
+            tlist->rights &= ~arights;
+        else
+            tlist->rights = arights;
+
 	if (plus)
 	    al->nplus -= PruneList(&al->pluslist, al->dfs);
 	else
 	    al->nminus -= PruneList(&al->minuslist, al->dfs);
 	return;
     }
+    if ( artypep != NULL && *artypep == reldel )
+        return;                 /* can't reduce non-existing rights   */
+
     /* Otherwise we make a new item and plug in the new data. */
-    tlist = (struct AclEntry *)malloc(sizeof(struct AclEntry));
+    tlist = malloc(sizeof(struct AclEntry));
     assert(tlist);
     strcpy(tlist->name, aname);
     tlist->rights = arights;
@@ -556,7 +572,7 @@ EmptyAcl(char *astr)
     struct Acl *tp;
     int junk;
 
-    tp = (struct Acl *)malloc(sizeof(struct Acl));
+    tp = malloc(sizeof(struct Acl));
     assert(tp);
     tp->nplus = tp->nminus = 0;
     tp->pluslist = tp->minuslist = 0;
@@ -573,7 +589,7 @@ ParseAcl(char *astr)
     struct AclEntry *first, *last, *tl;
     struct Acl *ta;
 
-    ta = (struct Acl *)malloc(sizeof(struct Acl));
+    ta = malloc(sizeof(struct Acl));
     assert(ta);
     ta->dfs = 0;
     sscanf(astr, "%d dfs:%d %1024s", &ta->nplus, &ta->dfs, ta->cell);
@@ -589,7 +605,7 @@ ParseAcl(char *astr)
     for (i = 0; i < nplus; i++) {
 	sscanf(astr, "%99s %d", tname, &trights);
 	astr = SkipLine(astr);
-	tl = (struct AclEntry *)malloc(sizeof(struct AclEntry));
+	tl = malloc(sizeof(struct AclEntry));
 	assert(tl);
 	if (!first)
 	    first = tl;
@@ -607,7 +623,7 @@ ParseAcl(char *astr)
     for (i = 0; i < nminus; i++) {
 	sscanf(astr, "%99s %d", tname, &trights);
 	astr = SkipLine(astr);
-	tl = (struct AclEntry *)malloc(sizeof(struct AclEntry));
+	tl = malloc(sizeof(struct AclEntry));
 	assert(tl);
 	if (!first)
 	    first = tl;
@@ -834,7 +850,7 @@ SetACLCmd(struct cmd_syndesc *as, void *arock)
 		plusp = 0;
 	    if (rtype == destroy && ta->dfs)
 		rights = -1;
-	    ChangeList(ta, plusp, ui->data, rights);
+	    ChangeList(ta, plusp, ui->data, rights, &rtype);
 	}
 	blob.in = AclToString(ta);
 	blob.out_size = 0;
@@ -961,10 +977,11 @@ CopyACLCmd(struct cmd_syndesc *as, void *arock)
 	    }
 	    strcpy(ta->cell, fa->cell);
 	}
+                                /* NULL rtype for standard handling   */
 	for (tp = fa->pluslist; tp; tp = tp->next)
-	    ChangeList(ta, 1, tp->name, tp->rights);
+	    ChangeList(ta, 1, tp->name, tp->rights, NULL);
 	for (tp = fa->minuslist; tp; tp = tp->next)
-	    ChangeList(ta, 0, tp->name, tp->rights);
+	    ChangeList(ta, 0, tp->name, tp->rights, NULL);
 	blob.in = AclToString(ta);
 	blob.out_size = 0;
 	blob.in_size = 1 + strlen(blob.in);
@@ -1706,102 +1723,126 @@ QuotaCmd(struct cmd_syndesc *as, void *arock)
 }
 
 static int
+GetLastComponent(const char *data, char **outdir, char **outbase,
+		 int *thru_symlink)
+{
+    char orig_name[MAXPATHLEN];	/*Original name, may be modified */
+    char true_name[MAXPATHLEN];	/*``True'' dirname (e.g., symlink target) */
+    char *lastSlash;
+    struct stat statbuff;	/*Buffer for status info */
+    int link_chars_read;	/*Num chars read in readlink() */
+    char *dirname = NULL;
+    char *basename = NULL;
+
+    *outbase = NULL;
+    *outdir = NULL;
+
+    if (thru_symlink)
+	*thru_symlink = 0;
+
+    snprintf(orig_name, sizeof(orig_name), "%s%s",
+	     (data[0] == '/') ? "" : "./", data);
+
+    if (lstat(orig_name, &statbuff) < 0) {
+	/* if lstat fails, we should still try the pioctl, since it
+	 * may work (for example, lstat will fail, but pioctl will
+	 * work if the volume of offline (returning ENODEV). */
+	statbuff.st_mode = S_IFDIR;	/* lie like pros */
+    }
+
+    /*
+     * The lstat succeeded.  If the given file is a symlink, substitute
+     * the file name with the link name.
+     */
+    if ((statbuff.st_mode & S_IFMT) == S_IFLNK) {
+	if (thru_symlink)
+	     *thru_symlink = 1;
+
+	/* Read name of resolved file (leave space for NULL!) */
+	link_chars_read = readlink(orig_name, true_name, MAXPATHLEN-1);
+	if (link_chars_read <= 0) {
+	    fprintf(stderr,
+		    "%s: Can't read target name for '%s' symbolic link!\n",
+		    pn, orig_name);
+	    goto out;
+	}
+
+	/* Add a trailing null to what was read, bump the length. */
+	true_name[link_chars_read++] = 0;
+
+	/*
+	 * If the symlink is an absolute pathname, we're fine.  Otherwise, we
+	 * have to create a full pathname using the original name and the
+	 * relative symlink name.  Find the rightmost slash in the original
+	 * name (we know there is one) and splice in the symlink value.
+	 */
+	if (true_name[0] != '/') {
+	    lastSlash = strrchr(orig_name, '/');
+	    strcpy(++lastSlash, true_name);
+	    strcpy(true_name, orig_name);
+	}
+     } else {
+	strcpy(true_name, orig_name);
+     }
+
+    /* Find rightmost slash, if any. */
+    lastSlash = strrchr(true_name, '/');
+    if (lastSlash == true_name) {
+	dirname = strdup("/");
+	basename = strdup(lastSlash+1);
+    } else if (lastSlash != NULL) {
+	/*
+	 * Found it.  Designate everything before it as the parent directory,
+	 * everything after it as the final component.
+	 */
+	*lastSlash = '\0';
+	dirname = strdup(true_name);
+	basename = strdup(lastSlash+1);
+    } else {
+	/*
+	 * No slash appears in the given file name.  Set parent_dir to the current
+	 * directory, and the last component as the given name.
+	 */
+	dirname = strdup(".");
+	basename = strdup(true_name);
+    }
+
+    if (strcmp(basename, ".") == 0
+	|| strcmp(basename, "..") == 0) {
+	fprintf(stderr,
+		"%s: you may not use '.' or '..' as the last component\n", pn);
+	fprintf(stderr, "%s: of a name in this fs command.\n", pn);
+	goto out;
+    }
+
+    *outdir = dirname;
+    *outbase = basename;
+
+    return 0;
+
+out:
+    if (dirname)
+	free(dirname);
+    if (basename)
+	free(basename);
+    return -1;
+}
+
+
+static int
 ListMountCmd(struct cmd_syndesc *as, void *arock)
 {
     afs_int32 code;
     struct ViceIoctl blob;
     struct cmd_item *ti;
-    char orig_name[1024];	/*Original name, may be modified */
-    char true_name[1024];	/*``True'' dirname (e.g., symlink target) */
-    char parent_dir[1024];	/*Parent directory of true name */
-    char *last_component;	/*Last component of true name */
-    struct stat statbuff;	/*Buffer for status info */
-    int link_chars_read;	/*Num chars read in readlink() */
-    int thru_symlink;		/*Did we get to a mount point via a symlink? */
+    char *last_component;
+    char *parent_dir;
+    int thru_symlink = 0;
     int error = 0;
 
     for (ti = as->parms[0].items; ti; ti = ti->next) {
-	/* once per file */
-	thru_symlink = 0;
-	sprintf(orig_name, "%s%s", (ti->data[0] == '/') ? "" : "./",
-		ti->data);
-
-	if (lstat(orig_name, &statbuff) < 0) {
-	    /* if lstat fails, we should still try the pioctl, since it
-	     * may work (for example, lstat will fail, but pioctl will
-	     * work if the volume of offline (returning ENODEV). */
-	    statbuff.st_mode = S_IFDIR;	/* lie like pros */
-	}
-
-	/*
-	 * The lstat succeeded.  If the given file is a symlink, substitute
-	 * the file name with the link name.
-	 */
-	if ((statbuff.st_mode & S_IFMT) == S_IFLNK) {
-	    thru_symlink = 1;
-	    /*
-	     * Read name of resolved file.
-	     */
-	    link_chars_read = readlink(orig_name, true_name, 1024 - 1);
-	    if (link_chars_read <= 0) {
-		fprintf(stderr,
-			"%s: Can't read target name for '%s' symbolic link!\n",
-			pn, orig_name);
-		error = 1;
-		continue;
-	    }
-
-	    /*
-	     * Add a trailing null to what was read, bump the length.
-	     */
-	    true_name[link_chars_read++] = 0;
-
-	    /*
-	     * If the symlink is an absolute pathname, we're fine.  Otherwise, we
-	     * have to create a full pathname using the original name and the
-	     * relative symlink name.  Find the rightmost slash in the original
-	     * name (we know there is one) and splice in the symlink value.
-	     */
-	    if (true_name[0] != '/') {
-		last_component = (char *)strrchr(orig_name, '/');
-		strcpy(++last_component, true_name);
-		strcpy(true_name, orig_name);
-	    }
-	} else
-	    strcpy(true_name, orig_name);
-
-	/*
-	 * Find rightmost slash, if any.
-	 */
-	last_component = (char *)strrchr(true_name, '/');
-	if (last_component == (char *)true_name) {
-	    strcpy(parent_dir, "/");
-	    last_component++;
-	}
-	else if (last_component != (char *)NULL) {
-	    /*
-	     * Found it.  Designate everything before it as the parent directory,
-	     * everything after it as the final component.
-	     */
-	    strncpy(parent_dir, true_name, last_component - true_name);
-	    parent_dir[last_component - true_name] = 0;
-	    last_component++;	/*Skip the slash */
-	} else {
-	    /*
-	     * No slash appears in the given file name.  Set parent_dir to the current
-	     * directory, and the last component as the given name.
-	     */
-	    strcpy(parent_dir, ".");
-	    last_component = true_name;
-	}
-
-	if (strcmp(last_component, ".") == 0
-	    || strcmp(last_component, "..") == 0) {
-	    fprintf(stderr,
-		    "%s: you may not use '.' or '..' as the last component\n",
-		    pn);
-	    fprintf(stderr, "%s: of a name in the 'fs lsmount' command.\n",
-		    pn);
+	if (GetLastComponent(ti->data, &parent_dir,
+			     &last_component, &thru_symlink) != 0) {
 	    error = 1;
 	    continue;
 	}
@@ -1813,6 +1854,7 @@ ListMountCmd(struct cmd_syndesc *as, void *arock)
 	memset(space, 0, AFS_PIOCTL_MAXSIZE);
 
 	code = pioctl(parent_dir, VIOC_AFS_STAT_MT_PT, &blob, 1);
+	free(last_component);
 
 	if (code == 0) {
 	    printf("'%s' is a %smount point for volume '%s'\n", ti->data,
@@ -1826,6 +1868,7 @@ ListMountCmd(struct cmd_syndesc *as, void *arock)
 	    }
 	    error = 1;
 	}
+	free(parent_dir);
     }
     return error;
 }
@@ -1838,6 +1881,7 @@ MakeMountCmd(struct cmd_syndesc *as, void *arock)
     struct afsconf_cell info;
     struct vldbentry vldbEntry;
     struct ViceIoctl blob;
+    struct afsconf_dir *dir;
 
 /*
 
@@ -1896,14 +1940,31 @@ defect #3069
 	}
     }
 
-    code = GetCellName(cellName ? cellName : space, &info);
+    dir = afsconf_Open(AFSDIR_CLIENT_ETC_DIRPATH);
+    if (!dir) {
+	fprintf(stderr,
+		"Could not process files in configuration directory (%s).\n",
+		AFSDIR_CLIENT_ETC_DIRPATH);
+        return 1;
+    }
+
+    code = afsconf_GetCellInfo(dir, cellName ? cellName : space,
+		               AFSCONF_VLDBSERVICE, &info);
     if (code) {
+	fprintf(stderr,
+		"%s: cell %s not in %s\n", pn, cellName ? cellName : space,
+		AFSDIR_CLIENT_CELLSERVDB_FILEPATH);
 	return 1;
     }
+
     if (!(as->parms[4].items)) {
 	/* not fast, check which cell the mountpoint is being created in */
-	/* not fast, check name with VLDB */
-	code = VLDBInit(1, &info);
+	code = ugen_ClientInitCell(dir, &info,
+				   AFSCONF_SECOPTS_FALLBACK_NULL |
+				   AFSCONF_SECOPTS_NOAUTH,
+				   &uclient, VLDB_MAXSERVERS,
+				   AFSCONF_VLDBSERVICE, 50);
+
 	if (code == 0) {
 	    /* make the check.  Don't complain if there are problems with init */
 	    code =
@@ -3015,25 +3076,10 @@ GetCellName(char *cellName, struct afsconf_cell *info)
     return 0;
 }
 
-
-static int
-VLDBInit(int noAuthFlag, struct afsconf_cell *info)
-{
-    afs_int32 code;
-
-    code = ugen_ClientInit(noAuthFlag, (char *) AFSDIR_CLIENT_ETC_DIRPATH,
-			   info->name, 0, &uclient,
-                           NULL, pn, rxkad_clear,
-                           VLDB_MAXSERVERS, AFSCONF_VLDBSERVICE, 50,
-                           0, 0, USER_SERVICE_ID);
-    rxInitDone = 1;
-    return code;
-}
-
 static struct ViceIoctl gblob;
 static int debug = 0;
 /*
- * here follow some routines in suport of the setserverprefs and
+ * here follow some routines in support of the setserverprefs and
  * getserverprefs commands.  They are:
  * SetPrefCmd  "top-level" routine
  * addServer   adds a server to the list of servers to be poked into the
@@ -3780,8 +3826,8 @@ defect 3069
 			  "list configured cells");
     cmd_AddParm(ts, "-numeric", CMD_FLAG, CMD_OPTIONAL, "addresses only");
 
-    ts = cmd_CreateSyntax("listaliases", ListAliasesCmd, NULL,
-			  "list configured cell aliases");
+    cmd_CreateSyntax("listaliases", ListAliasesCmd, NULL,
+		     "list configured cell aliases");
 
     ts = cmd_CreateSyntax("setquota", SetQuotaCmd, NULL, "set volume quota");
     cmd_AddParm(ts, "-path", CMD_SINGLE, CMD_OPTIONAL, "dir/file path");
@@ -3821,7 +3867,7 @@ defect 3069
     ts = cmd_CreateSyntax("whereis", WhereIsCmd, NULL, "list file's location");
     cmd_AddParm(ts, "-path", CMD_LIST, CMD_OPTIONAL, "dir/file path");
 
-    ts = cmd_CreateSyntax("wscell", WSCellCmd, NULL, "list workstation's cell");
+    cmd_CreateSyntax("wscell", WSCellCmd, NULL, "list workstation's cell");
 
 /*
     ts = cmd_CreateSyntax("primarycell", PrimaryCellCmd, NULL, "obsolete (listed primary cell)");
@@ -3883,7 +3929,7 @@ defect 3069
 			  "set cache manager encryption flag");
     cmd_AddParm(ts, "-crypt", CMD_SINGLE, 0, "on or off");
 
-    ts = cmd_CreateSyntax("getcrypt", GetCryptCmd, NULL,
+    cmd_CreateSyntax("getcrypt", GetCryptCmd, NULL,
 			  "get cache manager encryption flag");
 
     ts = cmd_CreateSyntax("rxstatproc", RxStatProcCmd, NULL,
@@ -4101,94 +4147,13 @@ FlushMountCmd(struct cmd_syndesc *as, void *arock)
     afs_int32 code;
     struct ViceIoctl blob;
     struct cmd_item *ti;
-    char orig_name[1024];	/*Original name, may be modified */
-    char true_name[1024];	/*``True'' dirname (e.g., symlink target) */
-    char parent_dir[1024];	/*Parent directory of true name */
-    char *last_component;	/*Last component of true name */
-    struct stat statbuff;	/*Buffer for status info */
-    int link_chars_read;	/*Num chars read in readlink() */
+    char *last_component;
+    char *parent_dir;
     int error = 0;
 
     for (ti = as->parms[0].items; ti; ti = ti->next) {
-	/* once per file */
-	sprintf(orig_name, "%s%s", (ti->data[0] == '/') ? "" : "./",
-		ti->data);
-
-	if (lstat(orig_name, &statbuff) < 0) {
-	    /* if lstat fails, we should still try the pioctl, since it
-	     * may work (for example, lstat will fail, but pioctl will
-	     * work if the volume of offline (returning ENODEV). */
-	    statbuff.st_mode = S_IFDIR;	/* lie like pros */
-	}
-
-	/*
-	 * The lstat succeeded.  If the given file is a symlink, substitute
-	 * the file name with the link name.
-	 */
-	if ((statbuff.st_mode & S_IFMT) == S_IFLNK) {
-	    /*
-	     * Read name of resolved file.
-	     */
-	    link_chars_read = readlink(orig_name, true_name, 1024 - 1);
-	    if (link_chars_read <= 0) {
-		fprintf(stderr,
-			"%s: Can't read target name for '%s' symbolic link!\n",
-			pn, orig_name);
-		error = 1;
-		continue;
-	    }
-
-	    /*
-	     * Add a trailing null to what was read, bump the length.
-	     */
-	    true_name[link_chars_read++] = 0;
-
-	    /*
-	     * If the symlink is an absolute pathname, we're fine.  Otherwise, we
-	     * have to create a full pathname using the original name and the
-	     * relative symlink name.  Find the rightmost slash in the original
-	     * name (we know there is one) and splice in the symlink value.
-	     */
-	    if (true_name[0] != '/') {
-		last_component = (char *)strrchr(orig_name, '/');
-		strcpy(++last_component, true_name);
-		strcpy(true_name, orig_name);
-	    }
-	} else
-	    strcpy(true_name, orig_name);
-
-	/*
-	 * Find rightmost slash, if any.
-	 */
-	last_component = (char *)strrchr(true_name, '/');
-	if (last_component == (char *)true_name) {
-	    strcpy(parent_dir, "/");
-	    last_component++;
-	}
-	else if (last_component != (char *)NULL) {
-	    /*
-	     * Found it.  Designate everything before it as the parent directory,
-	     * everything after it as the final component.
-	     */
-	    strncpy(parent_dir, true_name, last_component - true_name);
-	    parent_dir[last_component - true_name] = 0;
-	    last_component++;	/*Skip the slash */
-	} else {
-	    /*
-	     * No slash appears in the given file name.  Set parent_dir to the current
-	     * directory, and the last component as the given name.
-	     */
-	    strcpy(parent_dir, ".");
-	    last_component = true_name;
-	}
-
-	if (strcmp(last_component, ".") == 0
-	    || strcmp(last_component, "..") == 0) {
-	    fprintf(stderr,
-		    "%s: you may not use '.' or '..' as the last component\n",
-		    pn);
-	    fprintf(stderr, "%s: of a name in the 'fs flushmount' command.\n",
-		    pn);
+	if (GetLastComponent(ti->data, &parent_dir,
+			     &last_component, NULL) != 0) {
 	    error = 1;
 	    continue;
 	}
@@ -4196,9 +4161,10 @@ FlushMountCmd(struct cmd_syndesc *as, void *arock)
 	blob.in = last_component;
 	blob.in_size = strlen(last_component) + 1;
 	blob.out_size = 0;
-	memset(space, 0, AFS_PIOCTL_MAXSIZE);
 
 	code = pioctl(parent_dir, VIOC_AFS_FLUSHMOUNT, &blob, 1);
+
+	free(last_component);
 
 	if (code != 0) {
 	    if (errno == EINVAL) {
@@ -4208,6 +4174,7 @@ FlushMountCmd(struct cmd_syndesc *as, void *arock)
 	    }
 	    error = 1;
 	}
+	free(parent_dir);
     }
     return error;
 }

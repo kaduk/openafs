@@ -12,6 +12,7 @@
 
 #ifdef AFS_PTHREAD_ENV
 #include <pthread.h>
+#include <afs/opr.h>
 
 typedef struct {
     pthread_mutex_t mut;
@@ -34,10 +35,10 @@ extern int pthread_recursive_mutex_lock(pthread_recursive_mutex_p);
 extern int pthread_recursive_mutex_unlock(pthread_recursive_mutex_p);
 
 #define LOCK_GLOBAL_MUTEX \
-    osi_Assert(pthread_recursive_mutex_lock(&grmutex)==0)
+    opr_Verify(pthread_recursive_mutex_lock(&grmutex)==0)
 
 #define UNLOCK_GLOBAL_MUTEX \
-    osi_Assert(pthread_recursive_mutex_unlock(&grmutex)==0)
+    opr_Verify(pthread_recursive_mutex_unlock(&grmutex)==0)
 
 #else
 

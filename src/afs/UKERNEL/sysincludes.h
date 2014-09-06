@@ -11,17 +11,15 @@
 #define __AFS_SYSINCLUDESH__ 1
 
 #include  <stdio.h>
+#include  <afs/opr.h>
+
 #if !defined(AFS_USR_DARWIN_ENV) && !defined(AFS_USR_FBSD_ENV) && !defined(AFS_USR_DFBSD_ENV) /* must be included after KERNEL undef'd */
 #include  <errno.h>
 #endif
 #include  <stdlib.h>
 #include  <string.h>
 #include  <limits.h>
-#ifdef AFS_PTHREAD_ENV
 #include  <assert.h>
-#else
-#include <afs/afs_assert.h>
-#endif
 #include  <stdarg.h>
 
 #if !defined(AFS_USR_DARWIN_ENV) && !defined(AFS_USR_FBSD_ENV) && !defined(AFS_USR_DFBSD_ENV) /* must be included after KERNEL undef'd */
@@ -206,9 +204,8 @@ typedef unsigned int fsblkcnt_t;
 
 #ifdef UKERNEL
 
-#ifdef AFS_USR_SGI_ENV
 #undef socket
-#endif /* AFS_USR_SGI_ENV */
+#undef flock
 
 #if defined(AFS_USR_DARWIN_ENV) || defined(AFS_USR_FBSD_ENV)
 #undef if_mtu
@@ -236,6 +233,7 @@ typedef unsigned int fsblkcnt_t;
 #define ifaddr                  usr_ifaddr
 #define ifnet                   usr_ifnet
 #define in_ifaddr		usr_in_ifaddr
+#undef socket
 #define socket			usr_socket
 #define crget			usr_crget
 #define crcopy			usr_crcopy
@@ -838,7 +836,15 @@ enum usr_uio_rw { USR_UIO_READ, USR_UIO_WRITE };
 #endif
 #define NBPG			4096
 
-#define panic(S)		do{fprintf(stderr, "%s", S);assert(0);}while(0)
+static_inline void panic(const char *format, ...) AFS_NORETURN;
+static_inline void panic(const char *format, ...)
+{
+    va_list ap;
+    va_start(ap, format);
+    vfprintf(stderr, format, ap);
+    va_end(ap);
+    assert(0);
+};
 #define abort()			assert(0)
 #define usr_assert(A)		assert(A)
 
@@ -939,29 +945,29 @@ extern pthread_cond_t usr_sleep_cond;
 #define usr_thread_t		pthread_t
 #define usr_key_t		pthread_key_t
 
-#define usr_mutex_init(A)	assert(pthread_mutex_init(A,NULL) == 0)
-#define usr_mutex_destroy(A)	assert(pthread_mutex_destroy(A) == 0)
-#define usr_mutex_lock(A)	assert(pthread_mutex_lock(A) == 0)
+#define usr_mutex_init(A)	opr_Verify(pthread_mutex_init(A,NULL) == 0)
+#define usr_mutex_destroy(A)	opr_Verify(pthread_mutex_destroy(A) == 0)
+#define usr_mutex_lock(A)	opr_Verify(pthread_mutex_lock(A) == 0)
 #define usr_mutex_trylock(A)	((pthread_mutex_trylock(A)==0)?1:0)
-#define usr_mutex_unlock(A)	assert(pthread_mutex_unlock(A) == 0)
-#define usr_cond_init(A)	assert(pthread_cond_init(A,NULL) == 0)
-#define usr_cond_destroy(A)	assert(pthread_cond_destroy(A) == 0)
-#define usr_cond_signal(A)	assert(pthread_cond_signal(A) == 0)
-#define usr_cond_broadcast(A)	assert(pthread_cond_broadcast(A) == 0)
+#define usr_mutex_unlock(A)	opr_Verify(pthread_mutex_unlock(A) == 0)
+#define usr_cond_init(A)	opr_Verify(pthread_cond_init(A,NULL) == 0)
+#define usr_cond_destroy(A)	opr_Verify(pthread_cond_destroy(A) == 0)
+#define usr_cond_signal(A)	opr_Verify(pthread_cond_signal(A) == 0)
+#define usr_cond_broadcast(A)	opr_Verify(pthread_cond_broadcast(A) == 0)
 #define usr_cond_wait(A,B)	pthread_cond_wait(A,B)
 #define usr_cond_timedwait(A,B,C)  pthread_cond_timedwait(A,B,C)
 
 #define usr_thread_create(A,B,C) \
     do { \
 	pthread_attr_t attr; \
-	assert(pthread_attr_init(&attr) == 0); \
-	assert(pthread_attr_setstacksize(&attr, 122880) == 0);	   \
-	assert(pthread_create((A), &attr, (B), (void *)(C)) == 0); \
-	assert(pthread_attr_destroy(&attr) == 0); \
+	opr_Verify(pthread_attr_init(&attr) == 0); \
+	opr_Verify(pthread_attr_setstacksize(&attr, 122880) == 0); \
+	opr_Verify(pthread_create((A), &attr, (B), (void *)(C)) == 0); \
+	opr_Verify(pthread_attr_destroy(&attr) == 0); \
     } while(0)
 #define usr_thread_join(A,B)	pthread_join(A, B)
 #define usr_thread_detach(A)	pthread_detach(A)
-#define usr_keycreate(A,B)	assert(pthread_key_create(A,B) == 0)
+#define usr_keycreate(A,B)	opr_Verify(pthread_key_create(A,B) == 0)
 #define usr_setspecific(A,B)	pthread_setspecific(A,B)
 #define usr_getspecific(A,B)	(*(B)=pthread_getspecific(A),0)
 #define usr_thread_self()	pthread_self()
@@ -977,9 +983,9 @@ extern pthread_cond_t usr_sleep_cond;
 	_sleep_ts.tv_sec += 1;						   \
 	_sleep_ts.tv_nsec -= 1000000000;				   \
     }									   \
-    assert(pthread_mutex_lock(&usr_sleep_mutex) == 0);			   \
+    opr_Verify(pthread_mutex_lock(&usr_sleep_mutex) == 0);			   \
     pthread_cond_timedwait(&usr_sleep_cond, &usr_sleep_mutex, &_sleep_ts); \
-    assert(pthread_mutex_unlock(&usr_sleep_mutex) == 0);		   \
+    opr_Verify(pthread_mutex_unlock(&usr_sleep_mutex) == 0);		   \
 }
 
 #define uprintf			printf

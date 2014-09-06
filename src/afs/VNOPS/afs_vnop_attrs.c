@@ -56,8 +56,8 @@ afs_CopyOutAttrs(struct vcache *avc, struct vattr *attrs)
     if (afs_fakestat_enable && avc->mvstat == 1)
 	fakedir = 1;
     attrs->va_type = fakedir ? VDIR : vType(avc);
-#if defined(AFS_SGI_ENV) || defined(AFS_AIX32_ENV) || defined(AFS_SUN5_ENV)
-    attrs->va_mode = fakedir ? 0755 : (mode_t) (avc->f.m.Mode & 0xffff);
+#if defined(AFS_SGI_ENV) || defined(AFS_AIX32_ENV) || defined(AFS_SUN5_ENV) || defined(AFS_DARWIN_ENV)
+    attrs->va_mode = fakedir ? S_IFDIR | 0755 : (mode_t) (avc->f.m.Mode & 0xffff);
 #else
     attrs->va_mode = fakedir ? VDIR | 0755 : avc->f.m.Mode;
 #endif
@@ -92,7 +92,7 @@ afs_CopyOutAttrs(struct vcache *avc, struct vattr *attrs)
 #endif /* AFS_DARWIN_ENV */
     attrs->va_uid = fakedir ? 0 : avc->f.m.Owner;
     attrs->va_gid = fakedir ? 0 : avc->f.m.Group;	/* yeah! */
-#if defined(AFS_SUN56_ENV)
+#if defined(AFS_SUN5_ENV)
     attrs->va_fsid = avc->v.v_vfsp->vfs_fsid.val[0];
 #elif defined(AFS_DARWIN80_ENV)
     VATTR_RETURN(attrs, va_fsid, vfs_statfs(vnode_mount(AFSTOV(avc)))->f_fsid.val[0]);
@@ -245,8 +245,13 @@ afs_getattr(OSI_VC_DECL(avc), struct vattr *attrs, afs_ucred_t *acred)
     afs_BozonLock(&avc->pvnLock, avc);
 #endif
 
-    if (afs_shuttingdown)
+    if (afs_shuttingdown) {
+#ifdef AFS_BOZONLOCK_ENV
+	afs_BozonUnlock(&avc->pvnLock, avc);
+#endif
+	AFS_DISCON_UNLOCK();
 	return EIO;
+    }
 
     if (!(avc->f.states & CStatd)) {
 	if (!(code = afs_CreateReq(&treq, acred))) {
@@ -256,9 +261,11 @@ afs_getattr(OSI_VC_DECL(avc), struct vattr *attrs, afs_ucred_t *acred)
     } else
 	code = 0;
 
-#ifdef AFS_BOZONLOCK_ENV
+#if defined(AFS_SUN5_ENV) || defined(AFS_BOZONLOCK_ENV)
     if (code == 0)
 	osi_FlushPages(avc, acred);
+#endif
+#ifdef AFS_BOZONLOCK_ENV
     afs_BozonUnlock(&avc->pvnLock, avc);
 #endif
 
@@ -309,8 +316,10 @@ afs_getattr(OSI_VC_DECL(avc), struct vattr *attrs, afs_ucred_t *acred)
 		    }
 #else
 		    if (
-#ifdef AFS_DARWIN_ENV		    
+#if defined(AFS_DARWIN_ENV)
 			vnode_isvroot(AFSTOV(avc))
+#elif defined(AFS_NBSD50_ENV)
+			AFSTOV(avc)->v_vflag & VV_ROOT
 #else
 			AFSTOV(avc)->v_flag & VROOT
 #endif

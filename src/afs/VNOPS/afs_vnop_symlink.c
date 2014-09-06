@@ -162,7 +162,7 @@ afs_symlink(OSI_VC_DECL(adp), char *aname, struct vattr *attrs,
 	do {
 	    tc = afs_Conn(&adp->f.fid, treq, SHARED_LOCK, &rxconn);
 	    if (tc) {
-		hostp = tc->srvr->server;
+		hostp = tc->parent->srvr->server;
 		XSTATS_START_TIME(AFS_STATS_FS_RPCIDX_SYMLINK);
 		if (adp->f.states & CForeign) {
 		    now = osi_Time();
@@ -188,7 +188,7 @@ afs_symlink(OSI_VC_DECL(adp), char *aname, struct vattr *attrs,
 	    } else
 		code = -1;
 	} while (afs_Analyze
-		 (tc, rxconn, code, &adp->f.fid, treq, AFS_STATS_FS_RPCIDX_SYMLINK,
+		    (tc, rxconn, code, &adp->f.fid, treq, AFS_STATS_FS_RPCIDX_SYMLINK,
 		     SHARED_LOCK, NULL));
     } else {
 	newFid.Cell = adp->f.fid.Cell;
@@ -333,7 +333,7 @@ afs_MemHandleLink(struct vcache *avc, struct vrequest *areq)
 	    alen = len + 1;	/* regular link */
 	else
 	    alen = len;		/* mt point */
-	rbuf = (char *)osi_AllocLargeSpace(AFS_LRALLOCSIZ);
+	rbuf = osi_AllocLargeSpace(AFS_LRALLOCSIZ);
 	ObtainReadLock(&tdc->lock);
 	addr = afs_MemCacheOpen(&tdc->f.inode);
 	tlen = len;
@@ -390,7 +390,7 @@ afs_UFSHandleLink(struct vcache *avc, struct vrequest *areq)
 	    alen = len + 1;	/* regular link */
 	else
 	    alen = len;		/* mt point */
-	rbuf = (char *)osi_AllocLargeSpace(AFS_LRALLOCSIZ);
+	rbuf = osi_AllocLargeSpace(AFS_LRALLOCSIZ);
 	tlen = len;
 	ObtainReadLock(&tdc->lock);
 	tfile = osi_UFSOpen(&tdc->f.inode);

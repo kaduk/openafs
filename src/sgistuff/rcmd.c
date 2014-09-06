@@ -419,7 +419,7 @@ ruserok(rhost, superuser, ruser, luser)
 	    goto bad;
 	/*
 	 * if owned by someone other than user or root or if
-	 * writeable by anyone but the owner, quit
+	 * writable by anyone but the owner, quit
 	 */
 	if (fstat(fileno(hostf), &sbuf) || sbuf.st_uid
 	    && sbuf.st_uid != pwd->pw_uid || sbuf.st_mode & 022) {
@@ -586,7 +586,7 @@ _checkhost(rhost, lhost, len)
 	    return (0);
 	}
 	ldomain[MAXHOSTNAMELEN] = '\0';
-	if ((domainp = strchr(ldomain, '.')) == (char *)NULL) {
+	if ((domainp = strchr(ldomain, '.')) == NULL) {
 	    nodomain = 1;
 	    return (0);
 	}

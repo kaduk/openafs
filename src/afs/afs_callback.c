@@ -65,6 +65,8 @@ static struct ltable {
     { "afs_discon_lock", (char *)&afs_discon_lock},
     { "afs_disconDirtyLock", (char *)&afs_disconDirtyLock},
     { "afs_discon_vc_dirty", (char *)&afs_xvcdirty},
+    { "afs_dynrootDirLock", (char *)&afs_dynrootDirLock},
+    { "afs_dynSymlinkLock", (char *)&afs_dynSymlinkLock},
 };
 unsigned long lastCallBack_vnode;
 unsigned int lastCallBack_dv;
@@ -234,12 +236,7 @@ SRXAFSCB_GetCE64(struct rx_call *a_call, afs_int32 a_index,
     a_result->lock.pid_writer = 0;
     a_result->lock.src_indicator = 0;
 #endif /* INSTRUMENT_LOCKS */
-#if !defined(AFS_64BIT_ENV)
-    a_result->Length.high = 0;
-    a_result->Length.low = tvc->f.m.Length;
-#else
     a_result->Length = tvc->f.m.Length;
-#endif
     a_result->DataVersion = hgetlo(tvc->f.m.DataVersion);
     a_result->callback = afs_data_pointer_to_int32(tvc->callback);	/* XXXX Now a pointer; change it XXXX */
     a_result->cbExpires = tvc->cbExpires;
@@ -1309,7 +1306,8 @@ SRXAFSCB_GetCellServDB(struct rx_call *a_call, afs_int32 a_index,
 
     t_name = afs_osi_Alloc(i + 1);
     if (t_name == NULL) {
-	afs_osi_Free(a_hosts->serverList_val, (j * sizeof(afs_int32)));
+	if (tcell != NULL)
+	    afs_osi_Free(a_hosts->serverList_val, (j * sizeof(afs_int32)));
 	RX_AFS_GUNLOCK();
 	return ENOMEM;
     }

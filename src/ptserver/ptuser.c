@@ -9,24 +9,18 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
-
 #include <afs/stds.h>
-#include <ctype.h>
-#include <sys/types.h>
-#ifdef AFS_NT40_ENV
-#include <winsock2.h>
-#else
-#include <netinet/in.h>
-#endif
-#include <stdio.h>
-#include <string.h>
+
+#include <roken.h>
+#include <afs/opr.h>
+
 #include <rx/rx.h>
 #include <rx/xdr.h>
 #include <afs/auth.h>
 #include <afs/cellconfig.h>
 #include <afs/afsutil.h>
 #include <afs/com_err.h>
-#include <errno.h>
+
 #include "ptclient.h"
 #include "ptuser.h"
 #include "pterror.h"
@@ -69,11 +63,10 @@ AllocateIdHash(struct idhash **aidhash)
 {
     struct idhash *idhash;
 
-    idhash = (struct idhash *)malloc(sizeof(struct idhash));
+    idhash = calloc(1, sizeof(struct idhash));
     if (!idhash) {
        return ENOMEM;
     }
-    memset((void *)idhash, 0, sizeof(struct idhash));
     *aidhash = idhash;
     return 0;
 }
@@ -121,7 +114,7 @@ FindId(struct idhash *idhash, afs_int32 id)
     }
 
     /* Insert this id but return not found. */
-    newChain = (struct idchain *)malloc(sizeof(struct idchain));
+    newChain = malloc(sizeof(struct idchain));
     if (!newChain) {
 	return ENOMEM;
     } else {
@@ -154,9 +147,14 @@ CreateIdList(struct idhash *idhash, idlist * alist, afs_int32 select)
     if (select & PRUSERS) {
 	entries += idhash->userEntries;
     }
+    if (entries == 0) {
+	alist->idlist_len = 0;
+	alist->idlist_val = NULL;
+	return 0;
+    }
 
     alist->idlist_len = entries;
-    alist->idlist_val = (afs_int32 *) malloc(sizeof(afs_int32) * entries);
+    alist->idlist_val = malloc(sizeof(afs_int32) * entries);
     if (!alist->idlist_val) {
 	return ENOMEM;
     }
@@ -183,7 +181,7 @@ pr_Initialize(IN afs_int32 secLevel, IN const char *confDir, IN char *cell)
     afs_int32 code;
     struct rx_connection *serverconns[MAXSERVERS];
     struct rx_securityClass *sc = NULL;
-    static struct afsconf_dir *tdir = (struct afsconf_dir *)NULL;	/* only do this once */
+    static struct afsconf_dir *tdir = NULL;	/* only do this once */
     static char tconfDir[100] = "";
     static char tcell[64] = "";
     afs_int32 scIndex;
@@ -239,9 +237,9 @@ pr_Initialize(IN afs_int32 secLevel, IN const char *confDir, IN char *cell)
 	 */
 	if (tdir && !gottdir) {
 	    afsconf_Close(tdir);
-            tdir = (struct afsconf_dir *)NULL;
+            tdir = NULL;
         }
-	pruclient = (struct ubik_client *)NULL;
+	pruclient = NULL;
         refresh = 1;
     }
 
@@ -292,13 +290,11 @@ pr_Initialize(IN afs_int32 secLevel, IN const char *confDir, IN char *cell)
      * to force use of the KeyFile.  secLevel == 0 implies -noauth was
      * specified. */
     if (secLevel == 2) {
-	secFlags = AFSCONF_SECOPTS_LOCALAUTH;
-	secFlags |= AFSCONF_SECOPTS_ALWAYSENCRYPT;
-	code = afsconf_PickClientSecObj(tdir, secFlags, &info, cell, &sc, &scIndex, NULL);
-	if (code) {
-	    afs_com_err(whoami, code, "(getting key from local KeyFile)\n");
-        }
-
+	/* If secLevel is two assume we're on a file server and use
+	 * ClientAuthSecure if possible. */
+	code = afsconf_ClientAuthSecure(tdir, &sc, &scIndex);
+	if (code)
+	    afs_com_err(whoami, code, "(calling client secure)\n");
     } else if (secLevel > 0) {
 	secFlags = 0;
 	if (secLevel > 1)
@@ -355,7 +351,7 @@ pr_End(void)
 
 
 int
-pr_CreateUser(char name[PR_MAXNAMELEN], afs_int32 *id)
+pr_CreateUser(prname name, afs_int32 *id)
 {
     afs_int32 code;
 
@@ -371,7 +367,7 @@ pr_CreateUser(char name[PR_MAXNAMELEN], afs_int32 *id)
 }
 
 int
-pr_CreateGroup(char name[PR_MAXNAMELEN], char owner[PR_MAXNAMELEN], afs_int32 *id)
+pr_CreateGroup(prname name, prname owner, afs_int32 *id)
 {
     afs_int32 code;
     afs_int32 oid = 0;
@@ -500,7 +496,7 @@ pr_NameToId(namelist *names, idlist *ids)
 }
 
 int
-pr_SNameToId(char name[PR_MAXNAMELEN], afs_int32 *id)
+pr_SNameToId(prname name, afs_int32 *id)
 {
     namelist lnames;
     idlist lids;
@@ -516,6 +512,8 @@ pr_SNameToId(char name[PR_MAXNAMELEN], afs_int32 *id)
     if (lids.idlist_val) {
 	*id = *lids.idlist_val;
 	xdr_free((xdrproc_t) xdr_idlist, &lids);
+    } else if (code == 0) {
+	code = PRINTERNAL;
     }
     if (lnames.namelist_val)
 	free(lnames.namelist_val);
@@ -532,7 +530,7 @@ pr_IdToName(idlist *ids, namelist *names)
 }
 
 int
-pr_SIdToName(afs_int32 id, char name[PR_MAXNAMELEN])
+pr_SIdToName(afs_int32 id, prname name)
 {
     namelist lnames;
     idlist lids;
@@ -547,6 +545,8 @@ pr_SIdToName(afs_int32 id, char name[PR_MAXNAMELEN])
 
     if (lnames.namelist_val)
 	strncpy(name, lnames.namelist_val[0], PR_MAXNAMELEN);
+    else if (code == 0)
+	code = PRINTERNAL;
 
     if (lids.idlist_val)
 	free(lids.idlist_val);
@@ -706,7 +706,7 @@ pr_IDListExpandedMembers(afs_int32 aid, namelist * lnames)
     if (code) {
 	return code;
     }
-    stack = (afs_int32 *) malloc(sizeof(afs_int32) * maxstack);
+    stack = malloc(sizeof(afs_int32) * maxstack);
     if (!stack) {
 	code = ENOMEM;
 	goto done;
@@ -749,9 +749,7 @@ pr_IDListExpandedMembers(afs_int32 aid, namelist * lnames)
 		if (n == maxstack) {	/* need more stack space */
 		    afs_int32 *tmp;
 		    maxstack += n;
-		    tmp =
-			(afs_int32 *) realloc(stack,
-					      maxstack * sizeof(afs_int32));
+		    tmp = realloc(stack, maxstack * sizeof(afs_int32));
 		    if (!tmp) {
 			code = ENOMEM;
 			xdr_free((xdrproc_t) xdr_prlist, &alist);
@@ -768,10 +766,14 @@ pr_IDListExpandedMembers(afs_int32 aid, namelist * lnames)
     code = CreateIdList(members, &lids, (aid < 0 ? PRUSERS : PRGROUPS));
     if (code) {
 	goto done;
+    } else if (lids.idlist_len == 0) {
+	/* Avoid the RPC when there's nothing to look up. */
+	lnames->namelist_len = 0;
+	lnames->namelist_val = NULL;
+	goto done;
     }
     code = pr_IdToName(&lids, lnames);
-    if (lids.idlist_len)
-	free(lids.idlist_val);
+    free(lids.idlist_val);
 
   done:
     if (stack)

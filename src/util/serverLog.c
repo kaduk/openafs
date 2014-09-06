@@ -18,40 +18,21 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
-
-
-#include <stdio.h>
-#ifdef AFS_NT40_ENV
-#include <io.h>
-#include <time.h>
-#else
-#ifdef AFS_AIX_ENV
-#include <time.h>
-#endif
-#include <sys/param.h>
-#include <sys/time.h>
-#include <syslog.h>
-#endif
-#include <afs/procmgmt.h>	/* signal(), kill(), wait(), etc. */
-#include <fcntl.h>
 #include <afs/stds.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
+
+#include <afs/procmgmt.h>	/* signal(), kill(), wait(), etc. */
+
+#include <roken.h>		/* Must come after procmgmt.h */
+#include <afs/opr.h>
 #include "afsutil.h"
 #include "fileutil.h"
 #include <lwp.h>
-#ifdef HAVE_STDINT_H
-# include <stdint.h>
-#endif
+
 #if defined(AFS_PTHREAD_ENV)
-#include <afs/afs_assert.h>
-/* can't include rx when we are libutil; it's too early */
-#include <rx/rx.h>
 #include <pthread.h>
 static pthread_mutex_t serverLogMutex;
-#define LOCK_SERVERLOG() MUTEX_ENTER(&serverLogMutex)
-#define UNLOCK_SERVERLOG() MUTEX_EXIT(&serverLogMutex)
+#define LOCK_SERVERLOG() opr_Verify(pthread_mutex_lock(&serverLogMutex) == 0)
+#define UNLOCK_SERVERLOG() opr_Verify(pthread_mutex_unlock(&serverLogMutex) == 0)
 
 #ifdef AFS_NT40_ENV
 #define NULLDEV "NUL"
@@ -84,7 +65,6 @@ int serverLogSyslogFacility = LOG_DAEMON;
 char *serverLogSyslogTag = 0;
 #endif
 
-#include <stdarg.h>
 int LogLevel;
 int mrafsStyleLogs = 0;
 static int threadIdLogs = 0;
@@ -116,28 +96,27 @@ void
 vFSLog(const char *format, va_list args)
 {
     time_t currenttime;
-    char *timeStamp;
     char tbuffer[1024];
     char *info;
     size_t len;
+    struct tm tm;
     int num;
 
-    currenttime = time(0);
-    timeStamp = afs_ctime(&currenttime, tbuffer, sizeof(tbuffer));
-    timeStamp[24] = ' ';	/* ts[24] is the newline, 25 is the null */
-    info = &timeStamp[25];
+    currenttime = time(NULL);
+    len = strftime(tbuffer, sizeof(tbuffer), "%a %b %d %H:%M:%S %Y ",
+		   localtime_r(&currenttime, &tm));
+    info = &tbuffer[len];
 
     if (mrafsStyleLogs || threadIdLogs) {
 	num = (*threadNumProgram) ();
         if (num > -1) {
-	(void)afs_snprintf(info, (sizeof tbuffer) - strlen(tbuffer), "[%d] ",
-			   num);
-	info += strlen(info);
-    }
+	    snprintf(info, (sizeof tbuffer) - strlen(tbuffer), "[%d] ",
+		     num);
+	    info += strlen(info);
+	}
     }
 
-    (void)afs_vsnprintf(info, (sizeof tbuffer) - strlen(tbuffer), format,
-			args);
+    vsnprintf(info, (sizeof tbuffer) - strlen(tbuffer), format, args);
 
     len = strlen(tbuffer);
     LOCK_SERVERLOG();
@@ -177,6 +156,8 @@ LogCommandLine(int argc, char **argv, const char *progname,
 {
     int i, l;
     char *commandLine, *cx;
+
+    opr_Assert(argc > 0);
 
     for (l = i = 0; i < argc; i++)
 	l += strlen(argv[i]) + 1;
@@ -323,7 +304,7 @@ OpenLog(const char *fileName)
     if (mrafsStyleLogs) {
         time_t t;
 	struct stat buf;
-	FT_GetTimeOfDay(&Start, 0);
+	gettimeofday(&Start, NULL);
         t = Start.tv_sec;
 	TimeFields = localtime(&t);
 	if (fileName) {
@@ -331,18 +312,18 @@ OpenLog(const char *fileName)
 		strcpy((char *)&ourName, (char *)fileName);
 	}
     makefilename:
-	afs_snprintf(FileName, MAXPATHLEN, "%s.%d%02d%02d%02d%02d%02d",
-		     ourName, TimeFields->tm_year + 1900,
-		     TimeFields->tm_mon + 1, TimeFields->tm_mday,
-		     TimeFields->tm_hour, TimeFields->tm_min,
-		     TimeFields->tm_sec);
+	snprintf(FileName, MAXPATHLEN, "%s.%d%02d%02d%02d%02d%02d",
+		 ourName, TimeFields->tm_year + 1900,
+		 TimeFields->tm_mon + 1, TimeFields->tm_mday,
+		 TimeFields->tm_hour, TimeFields->tm_min,
+		 TimeFields->tm_sec);
 	if(lstat(FileName, &buf) == 0) {
 	    /* avoid clobbering a log */
 	    TimeFields->tm_sec++;
 	    goto makefilename;
 	}
 	if (!isfifo)
-	    renamefile(fileName, FileName);	/* don't check error code */
+	    rk_rename(fileName, FileName);	/* don't check error code */
 	tempfd = open(fileName, O_WRONLY | O_TRUNC | O_CREAT | (isfifo?O_NONBLOCK:0), 0666);
     } else {
 	strcpy(oldName, fileName);
@@ -350,7 +331,7 @@ OpenLog(const char *fileName)
 
 	/* don't check error */
 	if (!isfifo)
-	    renamefile(fileName, oldName);
+	    rk_rename(fileName, oldName);
 	tempfd = open(fileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND | (isfifo?O_NONBLOCK:0), 0666);
     }
 
@@ -368,7 +349,7 @@ OpenLog(const char *fileName)
 #endif
 
 #if defined(AFS_PTHREAD_ENV)
-    MUTEX_INIT(&serverLogMutex, "serverlog", MUTEX_DEFAULT, 0);
+    opr_Verify(pthread_mutex_init(&serverLogMutex, NULL) == 0);
 #endif /* AFS_PTHREAD_ENV */
 
     serverLogFD = tempfd;

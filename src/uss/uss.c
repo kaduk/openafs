@@ -17,14 +17,14 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
-#include <stdlib.h>
+#include <roken.h>
 
-
-#ifdef	AFS_AIX32_ENV
-#include <signal.h>
-#endif
-
-#include <string.h>
+#include <afs/cmd.h>		/*Command line parsing */
+#include <afs/cellconfig.h>	/*Cell config defs */
+#include <afs/kautils.h>	/*MAXKTCREALMLEN & MAXKTCNAMELEN */
+#include <afs/pterror.h>
+#include <afs/vlserver.h>
+#include <ubik.h>
 
 #include "uss_common.h"		/*Common uss definitions, globals */
 #include "uss_procs.h"		/*Main uss operations */
@@ -33,12 +33,6 @@
 #include "uss_ptserver.h"
 #include "uss_vol.h"
 #include "uss_acl.h"
-#include <afs/cmd.h>		/*Command line parsing */
-#include <afs/cellconfig.h>	/*Cell config defs */
-#include <afs/kautils.h>	/*MAXKTCREALMLEN & MAXKTCNAMELEN */
-#include <afs/pterror.h>
-#include <afs/vlserver.h>
-#include <ubik.h>
 
 extern int yylex(void);
 extern int yyparse (void);
@@ -1809,10 +1803,10 @@ main(int argc, char *argv[])
     sigaction(SIGSEGV, &nsa, NULL);
 #endif
     strcpy(uss_whoami, argv[0]);
-    yyin = (FILE *) NULL;
+    yyin = NULL;
 
-    uss_fs_InBuff = (char *)malloc(USS_FS_MAX_SIZE);	/*Cache Manager input buff */
-    uss_fs_OutBuff = (char *)malloc(USS_FS_MAX_SIZE);	/*Cache Manager output buff */
+    uss_fs_InBuff = malloc(USS_FS_MAX_SIZE);	/*Cache Manager input buff */
+    uss_fs_OutBuff = malloc(USS_FS_MAX_SIZE);	/*Cache Manager output buff */
     if (!uss_fs_InBuff || !uss_fs_OutBuff) {
 	fprintf(stderr, "%s: Can't malloc in/out buffers\n", uss_whoami);
 	exit(-1);
@@ -1846,7 +1840,7 @@ main(int argc, char *argv[])
     cmd_AddParm(cs, "-admin", CMD_SINGLE, CMD_OPTIONAL,
 		"administrator to authenticate");
     cmd_AddParm(cs, "-dryrun", CMD_FLAG, CMD_OPTIONAL,
-		"only list what would be done, don't do it");
+		"list what would be done, don't do it");
     cmd_AddParm(cs, "-skipauth", CMD_FLAG, CMD_OPTIONAL,
 		"ignore all contact with the authentication server (kaserver)");
     cmd_AddParm(cs, "-overwrite", CMD_FLAG, CMD_OPTIONAL,
@@ -1866,7 +1860,7 @@ main(int argc, char *argv[])
     cmd_AddParm(cs, "-admin", CMD_SINGLE, CMD_OPTIONAL,
 		"administrator to authenticate");
     cmd_AddParm(cs, "-dryrun", CMD_FLAG, CMD_OPTIONAL,
-		"only list what would be done, don't do it");
+		"list what would be done, don't do it");
     cmd_AddParm(cs, "-skipauth", CMD_FLAG, CMD_OPTIONAL,
 		"ignore all contact with the authentication server (kaserver)");
     cmd_AddParm(cs, "-overwrite", CMD_FLAG, CMD_OPTIONAL,
@@ -1907,7 +1901,7 @@ main(int argc, char *argv[])
     cmd_AddParm(cs, "-admin", CMD_SINGLE, CMD_OPTIONAL,
 		"administrator to authenticate");
     cmd_AddParm(cs, "-dryrun", CMD_FLAG, CMD_OPTIONAL,
-		"only list what would be done, don't do it");
+		"list what would be done, don't do it");
     cmd_AddParm(cs, "-skipauth", CMD_FLAG, CMD_OPTIONAL,
 		"ignore all contact with the authentication server (kaserver)");
 #if USS_FUTURE_FEATURES
@@ -1927,7 +1921,7 @@ main(int argc, char *argv[])
     cmd_AddParm(cs, "-admin", CMD_SINGLE, CMD_OPTIONAL,
 		"administrator to authenticate");
     cmd_AddParm(cs, "-dryrun", CMD_FLAG, CMD_OPTIONAL,
-		"only list what would be done, don't do it");
+		"list what would be done, don't do it");
     cmd_AddParm(cs, "-skipauth", CMD_FLAG, CMD_OPTIONAL,
 		"ignore all contact with the authentication server (kaserver)");
 #endif /* USS_DONT_HIDE_SOME_FEATURES */
@@ -1960,7 +1954,7 @@ main(int argc, char *argv[])
     cmd_AddParm(cs, "-admin", CMD_SINGLE, CMD_OPTIONAL,
 		"administrator to authenticate");
     cmd_AddParm(cs, "-dryrun", CMD_FLAG, CMD_OPTIONAL,
-		"only list what would be done, don't do it");
+		"list what would be done, don't do it");
     cmd_AddParm(cs, "-skipauth", CMD_FLAG, CMD_OPTIONAL,
 		"ignore all contact with the authentication server (kaserver)");
 #endif /* USS_DONT_HIDE_SOME_FEATURES */
@@ -1979,13 +1973,6 @@ main(int argc, char *argv[])
      * Execute the parsed command.
      */
     cmd_Dispatch(argc, argv);
-#if 0
-    if (code) {
-	fprintf(stderr, "%s: Call to cmd_Dispatch() failed; code is %d\n",
-		uss_whoami, code);
-	exit(-1);
-    }
-#endif /* 0 */
     if (doUnlog) {
 	uss_fs_UnlogToken(uss_Cell);
     }

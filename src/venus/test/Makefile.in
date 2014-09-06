@@ -7,17 +7,15 @@
 
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
-INSTALL = @INSTALL@
-INSTALL_DATA = @INSTALL_DATA@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@
-INSTALL_SCRIPT = @INSTALL_SCRIPT@
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
 
 
 INCDIRS= -I${TOP_OBJDIR}/src/config -I${TOP_INCDIR} -I..
 LDIRS= -L${TOP_LIBDIR} -L..
-LIBS= -lsys -lubik -lvldb -lauth -lrxkad -ldes -lafscom_err -lcmd -lrx -llwp -lafsutil
-
-CFLAGS = ${OPTIMIZE} ${INCDIRS} ${XCFLAGS} ${ARCHFLAGS}
+LIBS= -lsys -lubik -lvldb -lauth -lrxkad -lafshcrypto_lwp \
+      -lafscom_err -lcmd -lrx -llwp -lafsutil -lopr \
+      $(LIB_roken) $(XLIBS)
 
 all test:  fulltest owntest idtest getinitparams
 
@@ -25,13 +23,13 @@ install:
 dest:
 
 fulltest: fulltest.o
-	$(CC) $(CFLAGS) -o $@ $@.o $(LDIRS) $(LIBS)
+	$(AFS_LDRULE) $@.o $(LDIRS) $(LIBS)
 owntest: owntest.o
-	$(CC) $(CFLAGS) -o $@ $@.o $(LDIRS) $(LIBS)
+	$(AFS_LDRULE) $@.o $(LDIRS) $(LIBS)
 idtest: idtest.o
-	$(CC) $(CFLAGS) -o $@ $@.o $(LDIRS) $(LIBS)
+	$(AFS_LDRULE) $@.o $(LDIRS) $(LIBS)
 getinitparams: getinitparams.o
-	$(CC) $(CFLAGS) -o $@ $@.o $(LDIRS) $(LIBS)
+	$(AFS_LDRULE) $@.o $(LDIRS) $(LIBS)
 
 clean:
 	$(RM) -f *.o fulltest owntest idtest getinitparams

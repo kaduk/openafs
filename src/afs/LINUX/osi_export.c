@@ -520,7 +520,7 @@ static struct dentry *get_dentry_from_fid(cred_t *credp, struct VenusFid *afid)
 	       code);
 #endif
 	afs_PutVCache(vcp);
-	code = afs_CheckCode(code, treq, 101);
+	code = afs_CheckCode(code, treq, 103);
 	afs_DestroyReq(treq);
 	afs_DestroyAttr(vattr);
 	return ERR_PTR(-code);

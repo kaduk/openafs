@@ -9,36 +9,22 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
-
-
 #include <afs/stds.h>
-#ifdef	AFS_AIX32_ENV
-#include <signal.h>
-#endif
-#include <sys/types.h>
-#include <sys/stat.h>
+
+#include <afs/procmgmt.h>
+#include <roken.h>
+#include <afs/opr.h>
+
 #ifdef AFS_NT40_ENV
-#include <fcntl.h>
-#include <winsock2.h>
 #include <WINNT/afsevent.h>
 #include <sys/utime.h>
 #include <direct.h>
-#include <process.h>
-#include <io.h>
-#include <afs/procmgmt.h>
-#else
-#include <sys/file.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <sys/time.h>
 #endif
-#include <dirent.h>
-#include <string.h>
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
+
+#ifdef	AFS_AIX_ENV
+#include <sys/statfs.h>
 #endif
-#include <stdio.h>
-#include <errno.h>
+
 #include <rx/xdr.h>
 #include <rx/rx.h>
 #include <rx/rxkad.h>
@@ -46,9 +32,7 @@
 #include <afs/cellconfig.h>
 #include <afs/afsutil.h>
 #include <afs/fileutil.h>
-#ifdef	AFS_AIX_ENV
-#include <sys/statfs.h>
-#endif
+
 #include "update.h"
 #include "global.h"
 #include "update_internal.h"
@@ -496,7 +480,7 @@ update_ReceiveFile(int fd, struct rx_call *call, struct stat *status)
 #else
     blockSize = status->st_blksize;
 #endif
-    buffer = (char *)malloc(blockSize);
+    buffer = malloc(blockSize);
     if (!buffer) {
 	printf("malloc failed\n");
 	return UPDATE_ERROR;
@@ -624,7 +608,7 @@ RenameNewFiles(struct filestr *modFiles)
 	strcat(newname, ".NEW");
 	if (verbose >= 2)
 	    printf("  renaming %s\n", newname);
-	errcode = renamefile(newname, fname);
+	errcode = rk_rename(newname, fname);
 	if (errcode) {
 	    printf("could not rename %s to %s\n", newname, fname);
 	    afs_com_err(whoami, errno, "could not rename %s to %s", newname,

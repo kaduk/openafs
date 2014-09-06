@@ -95,8 +95,6 @@ typedef struct vlheader vlheader;
 typedef struct vlentry vlentry;
 typedef struct nvlentry nvlentry;
 
-#define COUNT_REQ(op) static int this_op = op-VL_LOWEST_OPCODE; dynamic_statistics.requests[this_op]++
-#define COUNT_ABO dynamic_statistics.aborts[this_op]++
 #define	DOFFSET(abase,astr,aitem) ((abase)+(((char *)(aitem)) - ((char *)(astr))))
 
 #define	VL_MHSRV_PERBLK		64
@@ -108,7 +106,8 @@ struct extentaddr {
 	struct {
 	    afs_int32 count;	/* # of valid addresses */
 	    afs_int32 spares1[2];
-	    afs_int32 flags;	/* must match vlentry's flags field XXX */
+	    afs_int32 flags;	/* must be in the same position as the vlentry's
+				   flags field */
 	    afs_uint32 contaddrs[VL_MAX_ADDREXTBLKS];
 	    afs_int32 spares2[24];
 	} _ex_header;
@@ -116,15 +115,18 @@ struct extentaddr {
 	    afsUUID hostuuid;
 	    afs_int32 uniquifier;
 	    afs_uint32 addrs[VL_MAXIPADDRS_PERMH];
+	    afs_uint32 flags;
+	    afs_int32 spares[11];
 	} _ex_addrentry;
     } _ex_un;
 };
 #define	ex_count	_ex_un._ex_header.count
-#define	ex_flags	_ex_un._ex_header.flags
+#define	ex_hdrflags	_ex_un._ex_header.flags
 #define	ex_contaddrs	_ex_un._ex_header.contaddrs
 #define	ex_hostuuid	_ex_un._ex_addrentry.hostuuid
 #define	ex_addrs	_ex_un._ex_addrentry.addrs
 #define	ex_uniquifier	_ex_un._ex_addrentry.uniquifier
+#define ex_srvflags	_ex_un._ex_addrentry.flags
 
 #define VLog(level, str)   ViceLog(level, str)
 

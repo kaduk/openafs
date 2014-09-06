@@ -17,24 +17,18 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
+#include <roken.h>
 
-#include <sys/types.h>
-#ifdef AFS_NT40_ENV
-#include <winsock2.h>
-#else
-#include <netinet/in.h>
-#endif
-#include <string.h>
 #include <afs/voldefs.h>
 #include <rx/xdr.h>
 #include <rx/rx.h>
 #include <afs/vlserver.h>
 #include <afs/nfs.h>
 #include <afs/afsint.h>
+
 #include "volint.h"
 #include "volser.h"
 #include "lockdata.h"
-
 #include "vsutils_prototypes.h"
 #include "lockprocs_prototypes.h"
 
@@ -43,7 +37,7 @@
  * If server is zero, will match first index of ANY server and partition
  * Zero is a valid partition field.
  */
-int
+static int
 FindIndex(struct nvldbentry *entry, afs_uint32 server, afs_int32 part, afs_int32 type)
 {
     int e;
@@ -75,7 +69,7 @@ FindIndex(struct nvldbentry *entry, afs_uint32 server, afs_int32 part, afs_int32
 }
 
 /* Changes the rw site only */
-void
+static void
 SetAValue(struct nvldbentry *entry, afs_uint32 oserver, afs_int32 opart,
           afs_uint32 nserver, afs_int32 npart, afs_int32 type)
 {

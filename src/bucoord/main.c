@@ -9,30 +9,16 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
-
-
 #include <afs/stds.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 
-#ifdef	AFS_AIX32_ENV
-#include <signal.h>
-#endif
-#ifdef AFS_NT40_ENV
-#include <winsock2.h>
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#endif
+#include <roken.h>
 
-#include <errno.h>
+
 #include <afs/cmd.h>
 #include <rx/rx.h>
 #include <rx/rx_globals.h>
 #include <lwp.h>
 #include <afs/bubasics.h>
-#include <fcntl.h>
 #include <afs/afsutil.h>
 #include <afs/auth.h>
 #include <afs/cellconfig.h>
@@ -40,6 +26,7 @@
 #include <ubik.h>
 #include <afs/cmd.h>
 #include <rx/rxkad.h>
+#include <afs/afsint.h>
 #include <afs/volser.h>		/*VLDB_MAXSERVERS */
 #include <afs/com_err.h>
 #include <lock.h>
@@ -477,7 +464,17 @@ main(int argc, char **argv)
     /* setup the default backup dir */
     DefaultConfDir = AFSDIR_SERVER_BACKUP_DIRPATH;
     /* Get early warning if the command is interacive mode or not */
-    interact = (((argc < 2) || (argv[1][0] == '-')) ? 1 : 0);
+    if (argc < 2) {
+	interact = 1;
+    } else {
+	interact = 0;
+	if (argv[1][0] == '-') {
+	    interact = 1;
+	    if (strcmp(argv[1], "-help") == 0) {
+		interact = 0;
+	    }
+	}
+    }
 
     cmd_SetBeforeProc(MyBeforeProc, NULL);
 
@@ -490,7 +487,9 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-at", CMD_LIST, CMD_OPTIONAL, "Date/time to start dump");
     cmd_AddParm(ts, "-append", CMD_FLAG, CMD_OPTIONAL,
 		"append to existing dump set");
-    cmd_AddParm(ts, "-n", CMD_FLAG, CMD_OPTIONAL, "don't really execute it");
+    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL,
+                "list what would be done, don't do it");
+    cmd_AddParmAlias(ts, 5, "-n");
     cmd_AddParm(ts, "-file", CMD_SINGLE, CMD_OPTIONAL, "load file");
     if (!interact)
 	add_std_args(ts);
@@ -508,7 +507,9 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-date", CMD_LIST, CMD_OPTIONAL,
 		"date from which to restore");
     cmd_AddParm(ts, "-portoffset", CMD_LIST, CMD_OPTIONAL, "TC port offsets");
-    cmd_AddParm(ts, "-n", CMD_FLAG, CMD_OPTIONAL, "don't really execute it");
+    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL,
+                "list what would be done, don't do it");
+    cmd_AddParmAlias(ts, 6, "-n");
     cmd_AddParm(ts, "-usedump", CMD_SINGLE, CMD_OPTIONAL,
 		"specify the dumpID to restore from");
     if (!interact)
@@ -528,11 +529,13 @@ main(int argc, char **argv)
 		"destination partition");
     cmd_AddParm(ts, "-extension", CMD_SINGLE, CMD_OPTIONAL,
 		"new volume name extension");
-    cmd_AddParm(ts, "-n", CMD_FLAG, CMD_OPTIONAL, "don't really execute it");
+    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL,
+                "list what would be done, don't do it");
+    cmd_AddParmAlias(ts, 11, "-n");
     if (!interact)
 	add_std_args(ts);
 
-    ts = cmd_CreateSyntax("quit", bc_QuitCmd, NULL, "leave the program");
+    cmd_CreateSyntax("quit", bc_QuitCmd, NULL, "leave the program");
 
     ts = cmd_CreateSyntax("volsetrestore", bc_VolsetRestoreCmd, NULL,
 			  "restore a set of volumes");
@@ -541,7 +544,9 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-portoffset", CMD_LIST, CMD_OPTIONAL, "TC port offset");
     cmd_AddParm(ts, "-extension", CMD_SINGLE, CMD_OPTIONAL,
 		"new volume name extension");
-    cmd_AddParm(ts, "-n", CMD_FLAG, CMD_OPTIONAL, "don't really execute it");
+    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL,
+                "list what would be done, don't do it");
+    cmd_AddParmAlias(ts, 4, "-n");
     if (!interact)
 	add_std_args(ts);
 
@@ -567,7 +572,7 @@ main(int argc, char **argv)
     if (!interact)
 	add_std_args(ts);
 
-    ts = cmd_CreateSyntax("jobs", bc_JobsCmd, NULL, "list running jobs");
+    cmd_CreateSyntax("jobs", bc_JobsCmd, NULL, "list running jobs");
 
     ts = cmd_CreateSyntax("kill", bc_KillCmd, NULL, "kill running job");
     cmd_AddParm(ts, "-id", CMD_SINGLE, CMD_REQUIRED,
@@ -709,14 +714,17 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-dumpid", CMD_LIST, CMD_OPTIONAL, "dump id");
     cmd_AddParm(ts, "-from", CMD_LIST, CMD_OPTIONAL, "date time");
     cmd_AddParm(ts, "-to", CMD_LIST, CMD_OPTIONAL, "date time");
-    cmd_AddParm(ts, "-port", CMD_SINGLE, CMD_OPTIONAL, "TC port offset");
+    cmd_AddParm(ts, "-portoffset", CMD_SINGLE, CMD_OPTIONAL, "TC port offset");
+    cmd_AddParmAlias(ts, 3, "-port");
     cmd_AddParm(ts, "-groupid", CMD_SINGLE, CMD_OPTIONAL, "group ID");
     cmd_AddParm(ts, "-dbonly", CMD_FLAG, CMD_OPTIONAL,
 		"delete the dump from the backup database only");
     cmd_AddParm(ts, "-force", CMD_FLAG, CMD_OPTIONAL,
 		"always delete from backup database");
-    cmd_AddParm(ts, "-noexecute", CMD_FLAG, CMD_OPTIONAL,
-		"Just list the dumps");
+    cmd_AddParm(ts, "-noexecute", CMD_FLAG, CMD_OPTIONAL|CMD_HIDDEN, "");
+    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL,
+		"list the dumps, don't delete anything");
+    cmd_AddParmAlias(ts, 8, "-n");
 
     if (!interact)
 	add_std_args(ts);

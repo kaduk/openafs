@@ -607,7 +607,7 @@ afs_ProcessOpRename(struct vcache *avc, struct vrequest *areq)
 
     /* Send to data to server. */
     do {
-    	tc = afs_Conn(&old_pdir_fid, areq, SHARED_LOCK, &rxconn);
+	tc = afs_Conn(&old_pdir_fid, areq, SHARED_LOCK, &rxconn);
     	if (tc) {
 	    XSTATS_START_TIME(AFS_STATS_FS_RPCIDX_RENAME);
 	    RX_AFS_GUNLOCK();
@@ -625,13 +625,13 @@ afs_ProcessOpRename(struct vcache *avc, struct vrequest *areq)
 	    code = -1;
 
     } while (afs_Analyze(tc,
-			 rxconn,
-			 code,
-			 &new_pdir_fid,
-			 areq,
-			 AFS_STATS_FS_RPCIDX_RENAME,
-			 SHARED_LOCK,
-			 NULL));
+                rxconn,
+    		code,
+		&new_pdir_fid,
+		areq,
+		AFS_STATS_FS_RPCIDX_RENAME,
+		SHARED_LOCK,
+		NULL));
 
     /* if (code) printf("afs_ProcessOpRename: server code=%u\n", code); */
 done:
@@ -729,7 +729,7 @@ afs_ProcessOpCreate(struct vcache *avc, struct vrequest *areq,
 		op = AFS_STATS_FS_RPCIDX_CREATEFILE;
 		XSTATS_START_TIME(op);
                 RX_AFS_GUNLOCK();
-                code = RXAFS_CreateFile(tc->id,
+                code = RXAFS_CreateFile(rxconn,
 					(struct AFSFid *)&tdp->f.fid.Fid,
 					tname, &InStatus,
 					(struct AFSFid *) &newFid.Fid,
@@ -956,13 +956,13 @@ afs_ProcessOpRemove(struct vcache *avc, struct vrequest *areq)
 	    } else
 		code = -1;
 	} while (afs_Analyze(tc,
-			     rxconn,
-			     code,
-			     &pdir_fid,
-			     areq,
-			     AFS_STATS_FS_RPCIDX_REMOVEFILE,
-			     SHARED_LOCK,
-			     NULL));
+			rxconn,
+			code,
+			&pdir_fid,
+			areq,
+			AFS_STATS_FS_RPCIDX_REMOVEFILE,
+			SHARED_LOCK,
+			NULL));
 
     } else if (vType(avc) == VDIR) {
     	/* Remove dir on server. */
@@ -981,13 +981,13 @@ afs_ProcessOpRemove(struct vcache *avc, struct vrequest *areq)
 	   } else
 		code = -1;
 	} while (afs_Analyze(tc,
-			     rxconn,
-			     code,
-			     &pdir_fid,
-			     areq,
-			     AFS_STATS_FS_RPCIDX_REMOVEDIR,
-			     SHARED_LOCK,
-			     NULL));
+			rxconn,
+			code,
+			&pdir_fid,
+			areq,
+			AFS_STATS_FS_RPCIDX_REMOVEDIR,
+			SHARED_LOCK,
+			NULL));
 
     }				/* if (vType(avc) == VREG) */
 
@@ -1043,13 +1043,13 @@ afs_SendChanges(struct vcache *avc, struct vrequest *areq)
 		    code = -1;
 
 	} while (afs_Analyze(tc,
-			     rxconn,
-			     code,
-			     &avc->f.fid,
-			     areq,
-			     AFS_STATS_FS_RPCIDX_STORESTATUS,
-			     SHARED_LOCK,
-			     NULL));
+			rxconn,
+			code,
+			&avc->f.fid,
+			areq,
+			AFS_STATS_FS_RPCIDX_STORESTATUS,
+			SHARED_LOCK,
+			NULL));
 
 	}		/* if (afs_GenStoreStatus() > 0)*/
     }			/* disconnected SETATTR */
@@ -1082,13 +1082,13 @@ afs_SendChanges(struct vcache *avc, struct vrequest *areq)
 		code = -1;
 
 	} while (afs_Analyze(tc,
-			     rxconn,
-			     code,
-			     &avc->f.fid,
-			     areq,
-			     AFS_STATS_FS_RPCIDX_STOREDATA,
-			     SHARED_LOCK,
-			     NULL));
+			rxconn,
+			code,
+			&avc->f.fid,
+			areq,
+			AFS_STATS_FS_RPCIDX_STOREDATA,
+			SHARED_LOCK,
+			NULL));
 
     }			/* disconnected TRUNC | WRITE */
 
@@ -1157,7 +1157,7 @@ afs_ResyncDisconFiles(struct vrequest *areq, afs_ucred_t *acred)
   	    if (tc) {
 	    	XSTATS_START_TIME(AFS_STATS_FS_RPCIDX_SETLOCK);
   		RX_AFS_GUNLOCK();
-  		code = RXAFS_SetLock(rxconn,
+		code = RXAFS_SetLock(rxconn,
 					(struct AFSFid *)&tvc->f.fid.Fid,
 					LockWrite,
 					&tsync);
@@ -1167,13 +1167,13 @@ afs_ResyncDisconFiles(struct vrequest *areq, afs_ucred_t *acred)
 		code = -1;
 
 	} while (afs_Analyze(tc,
-			     rxconn,
-			     code,
-			     &tvc->f.fid,
-			     areq,
-			     AFS_STATS_FS_RPCIDX_SETLOCK,
-			     SHARED_LOCK,
-			     NULL));
+			rxconn,
+			code,
+			&tvc->f.fid,
+			areq,
+			AFS_STATS_FS_RPCIDX_SETLOCK,
+			SHARED_LOCK,
+			NULL));
 
 	if (code)
 	    goto next_file;
@@ -1189,7 +1189,7 @@ afs_ResyncDisconFiles(struct vrequest *areq, afs_ucred_t *acred)
 	do {
 	    tc = afs_Conn(&tvc->f.fid, areq, SHARED_LOCK, &rxconn);
 	    if (tc) {
-	    	tvc->callback = tc->srvr->server;
+	    	tvc->callback = tc->parent->srvr->server;
 		start = osi_Time();
 		XSTATS_START_TIME(AFS_STATS_FS_RPCIDX_FETCHSTATUS);
 		RX_AFS_GUNLOCK();
@@ -1204,13 +1204,13 @@ afs_ResyncDisconFiles(struct vrequest *areq, afs_ucred_t *acred)
 		code = -1;
 
 	} while (afs_Analyze(tc,
-			     rxconn,
-			     code,
-			     &tvc->f.fid,
-			     areq,
-			     AFS_STATS_FS_RPCIDX_FETCHSTATUS,
-			     SHARED_LOCK,
-			     NULL));
+			rxconn,
+			code,
+			&tvc->f.fid,
+			areq,
+			AFS_STATS_FS_RPCIDX_FETCHSTATUS,
+			SHARED_LOCK,
+			NULL));
 
 	if (code) {
 	    goto unlock_srv_file;
@@ -1256,13 +1256,13 @@ unlock_srv_file:
 	    } else
 		ucode = -1;
 	} while (afs_Analyze(tc,
-			     rxconn,
-			     ucode,
-			     &tvc->f.fid,
-			     areq,
-			     AFS_STATS_FS_RPCIDX_RELEASELOCK,
-			     SHARED_LOCK,
-			     NULL));
+			rxconn,
+			ucode,
+			&tvc->f.fid,
+			areq,
+			AFS_STATS_FS_RPCIDX_RELEASELOCK,
+			SHARED_LOCK,
+			NULL));
 #endif
 next_file:
 	ObtainWriteLock(&afs_disconDirtyLock, 710);

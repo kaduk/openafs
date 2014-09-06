@@ -51,6 +51,7 @@
 #define AFSOP_SET_RXMAXMTU       40     /* set rx_MyMaxSendSize,rx_maxReceiveSizeUser,rx_maxReceiveSize */
 #define AFSOP_BKG_HANDLER        41     /* userspace-capable Bkg daemon */
 #define AFSOP_SET_RXMAXFRAGS     43     /* set rxi_nSendFrags, rxi_nRecvFrags */
+#define AFSOP_SET_RMTSYS_FLAG    44     /* set flag if rmtsys is enabled */
 
 /* The range 20-30 is reserved for AFS system offsets in the afs_syscall */
 #define	AFSCALL_PIOCTL		20
@@ -79,13 +80,6 @@
 #define AFSCALL_INIT_KERNEL_CONFIG 47	/* set vnode glue ops. */
 #endif
 
-#ifdef	AFS_SGI53_ENV
-#define AFSOP_NFSSTATICADDR	 32	/* to contents addr of nfs kernel addr */
-#define AFSOP_NFSSTATICADDRPTR	 33	/* pass addr of variable containing
-					 * address into kernel. */
-#define AFSOP_NFSSTATICADDR2	 34	/* pass address in as hyper. */
-#define AFSOP_SBLOCKSTATICADDR2  35	/* for sblock and sbunlock */
-#endif
 #define	AFSOP_GETMASK		 42	/* stand-in for SIOCGIFNETMASK */
 /* For SGI, this can't interfere with any of the 64 bit inode calls. */
 #define AFSOP_RXLISTENER_DAEMON  48	/* starts kernel RX listener */

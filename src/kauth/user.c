@@ -12,19 +12,14 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
-
-
 #include <afs/stds.h>
-#include <signal.h>
+
+#include <roken.h>
+
+#include <hcrypto/des.h>
+#include <hcrypto/ui.h>
+
 #include <afs/com_err.h>
-#ifdef AFS_NT40_ENV
-#include <winsock2.h>
-#else
-#include <netinet/in.h>
-#include <unistd.h>
-#endif
-#include <string.h>
-#include <stdio.h>
 #include <afs/cellconfig.h>
 #include <afs/auth.h>
 #include <afs/ptint.h>
@@ -37,15 +32,14 @@
 #include <afs/sys_prototypes.h>
 #endif
 
-#include <des.h>
-#include <des_prototypes.h>
 #include <rx/rx.h>
 #include <rx/rx_globals.h>
 #include <rx/rxkad.h>		/* max ticket lifetime */
+#include <rx/rxkad_convert.h>
+
 #include "kauth.h"
 #include "kautils.h"
 #include <afs/ktc.h>
-
 
 afs_int32
 GetTickets(char *name, char *instance, char *realm,
@@ -141,9 +135,6 @@ ka_UserAuthenticateGeneral(afs_int32 flags, char *name, char *instance,
     int remainingTime = 0;
     struct ktc_encryptionKey key;
     afs_int32 code, dosetpag = 0;
-#if !defined(AFS_NT40_ENV) && !defined(AFS_LINUX20_ENV) && !defined(AFS_USR_LINUX20_ENV) && !defined(AFS_XBSD_ENV) || defined(AFS_FBSD_ENV)
-    void (*old)(int);
-#endif
 
     if (reasonP)
 	*reasonP = "";
@@ -161,7 +152,7 @@ ka_UserAuthenticateGeneral(afs_int32 flags, char *name, char *instance,
     ka_StringToKey(password, realm, &key);
 
 /*
- * alarm is set by klogin and kpasswd only so ignore for
+ * alarm is set by kpasswd only so ignore for
  * NT
  */
 
@@ -177,7 +168,7 @@ ka_UserAuthenticateGeneral(afs_int32 flags, char *name, char *instance,
 
 #if !defined(AFS_NT40_ENV) && !defined(AFS_LINUX20_ENV) && !defined(AFS_USR_LINUX20_ENV) && (!defined(AFS_XBSD_ENV) || defined(AFS_FBSD_ENV))
     /* handle smoothly the case where no AFS system calls exists (yet) */
-    old = signal(SIGSYS, SIG_IGN);
+    (void)signal(SIGSYS, SIG_IGN);
 #endif
 #ifdef	AFS_DECOSF_ENV
     (void)signal(SIGTRAP, SIG_IGN);
@@ -187,7 +178,7 @@ ka_UserAuthenticateGeneral(afs_int32 flags, char *name, char *instance,
     if (flags & KA_USERAUTH_ONLY_VERIFY) {
 	code = ka_VerifyUserToken(name, instance, realm, &key);
 	if (code == KABADREQUEST) {
-	    des_string_to_key(password, ktc_to_cblockptr(&key));
+	    DES_string_to_key(password, ktc_to_cblockptr(&key));
 	    code = ka_VerifyUserToken(name, instance, realm, &key);
 	}
     } else {
@@ -212,7 +203,7 @@ ka_UserAuthenticateGeneral(afs_int32 flags, char *name, char *instance,
 	    GetTickets(name, instance, realm, &key, lifetime,
 		       password_expires, dosetpag);
 	if (code == KABADREQUEST) {
-	    des_string_to_key(password, ktc_to_cblockptr(&key));
+	    DES_string_to_key(password, ktc_to_cblockptr(&key));
 	    code =
 		GetTickets(name, instance, realm, &key, lifetime,
 			   password_expires, dosetpag);
@@ -264,7 +255,7 @@ ka_UserReadPassword(char *prompt, char *password, int plen, char **reasonP)
     code = ka_Init(0);
     if (code)
 	return code;
-    code = read_pw_string(password, plen, prompt, 0);
+    code = UI_UTIL_read_pw_string(password, plen, prompt, 0);
     if (code)
 	code = KAREADPW;
     else if (strlen(password) == 0)

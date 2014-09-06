@@ -9,10 +9,8 @@
 
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
-INSTALL = @INSTALL@
-INSTALL_DATA = @INSTALL_DATA@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@
-INSTALL_SCRIPT = @INSTALL_SCRIPT@
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
 
 all: depinstall
 
@@ -35,8 +33,6 @@ afszcm.cat: afs_trace.msf
 	case ${SYS_NAME} in \
 		sgi_* ) \
 			${GENCAT} -m afszcm.cat afs_trace.msf ;; \
-		sun*_4* ) \
-			/usr/etc/gencat afszcm.cat afs_trace.msf ;; \
 		*_linux* | *_umlinux* ) \
 			${GENCAT} --new afszcm.cat afs_trace.msf ;; \
 		*_darwin_* ) \
