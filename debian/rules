@@ -57,7 +57,7 @@ IGNORE = -XAuthLog -Xaklog_dynamic_auth.8 -Xcopyauth -Xdlog -Xdpass	\
 	-Xfs_flushall.1 -Xfs_memdump.1 -Xfs_minidump.1 -Xfs_trace.1	\
 	-Xkadb_check -Xkaserver -Xkdb -Xkdump -Xkpwvalid -Xpagsh.krb	\
 	-Xsymlink -Xtokens.krb -Xuss -Xvldb_convert -Xvsys		\
-	-Xxfs_size_check
+	-Xxfs_size_check -Xfs_disconn.1
 
 # Installed via other means since we have to rename them.
 IGNORE += -Xafsd.fuse.8 -Xpam_afs

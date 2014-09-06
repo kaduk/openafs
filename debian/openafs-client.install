@@ -45,7 +45,6 @@ debian/tmp/usr/share/man/man1/fs_checkvolumes.1       usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_cleanacl.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_copyacl.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_diskfree.1           usr/share/man/man1
-debian/tmp/usr/share/man/man1/fs_disconn.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_examine.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_exportafs.1          usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_flush.1              usr/share/man/man1
