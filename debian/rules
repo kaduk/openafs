@@ -145,7 +145,7 @@ override_dh_auto_install:
 	$(MAKE) install_nolibafs DESTDIR=$(CURDIR)/debian/tmp
 	rm -f debian/tmp/usr/bin/klog.krb
 	rm -f debian/tmp/usr/share/man/man1/klog.krb.1
-	rm -f debian/tmp/usr/share/man/man8/kas_*.8
+	rm -f debian/tmp/usr/share/man/man8/kas*.8
 	rm -f debian/tmp/usr/share/man/man1/kpasswd.1
 
 # Override dh_install for architecture-dependent builds to move some files
