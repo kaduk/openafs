@@ -45,6 +45,7 @@ debian/tmp/usr/share/man/man1/fs_checkvolumes.1       usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_cleanacl.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_copyacl.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_diskfree.1           usr/share/man/man1
+debian/tmp/usr/share/man/man1/fs_disconn.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_examine.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_exportafs.1          usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_flush.1              usr/share/man/man1
@@ -57,6 +58,7 @@ debian/tmp/usr/share/man/man1/fs_getfid.1             usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_getclientaddrs.1     usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_getcrypt.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_getserverprefs.1     usr/share/man/man1
+debian/tmp/usr/share/man/man1/fs_getverify.1          usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_help.1               usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_listacl.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_listaliases.1        usr/share/man/man1
@@ -68,6 +70,7 @@ debian/tmp/usr/share/man/man1/fs_mkmount.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_monitor.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_newalias.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_newcell.1            usr/share/man/man1
+debian/tmp/usr/share/man/man1/fs_nukenfscreds.1       usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_quota.1              usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_rmmount.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_rxstatpeer.1         usr/share/man/man1
@@ -80,6 +83,7 @@ debian/tmp/usr/share/man/man1/fs_setclientaddrs.1     usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_setcrypt.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_setquota.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_setserverprefs.1     usr/share/man/man1
+debian/tmp/usr/share/man/man1/fs_seterify.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_setvol.1             usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_storebehind.1        usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_sysname.1            usr/share/man/man1
