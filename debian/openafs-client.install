@@ -44,6 +44,7 @@ debian/tmp/usr/share/man/man1/fs_checkservers.1       usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_checkvolumes.1       usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_cleanacl.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_copyacl.1            usr/share/man/man1
+debian/tmp/usr/share/man/man1/fs_discon.1             usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_diskfree.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_examine.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_exportafs.1          usr/share/man/man1
@@ -70,6 +71,7 @@ debian/tmp/usr/share/man/man1/fs_monitor.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_newalias.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_newcell.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_nukenfscreds.1       usr/share/man/man1
+debian/tmp/usr/share/man/man1/fs_precache.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_quota.1              usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_rmmount.1            usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_rxstatpeer.1         usr/share/man/man1
