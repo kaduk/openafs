@@ -65,7 +65,7 @@ afsremove(struct vcache *adp, struct dcache *tdc,
     XSTATS_DECLS;
     if (!AFS_IS_DISCONNECTED) {
         do {
-	  tc = afs_Conn(&adp->f.fid, treqp, SHARED_LOCK, &rxconn);
+	    tc = afs_Conn(&adp->f.fid, treqp, SHARED_LOCK, &rxconn);
 	    if (tc) {
 	        XSTATS_START_TIME(AFS_STATS_FS_RPCIDX_REMOVEFILE);
 	        RX_AFS_GUNLOCK();

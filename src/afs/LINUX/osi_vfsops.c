@@ -87,6 +87,9 @@ int
 afs_fill_super(struct super_block *sb, void *data, int silent)
 {
     int code = 0;
+#if defined(HAVE_LINUX_BDI_INIT)
+    int bdi_init_done = 0;
+#endif
 
     AFS_GLOCK();
     if (afs_was_mounted) {
@@ -112,10 +115,12 @@ afs_fill_super(struct super_block *sb, void *data, int silent)
 #endif
 
     /* used for inodes backing_dev_info field, also */
-    afs_backing_dev_info = osi_Alloc(sizeof(struct backing_dev_info));
-    memset(afs_backing_dev_info, 0, sizeof(struct backing_dev_info));
+    afs_backing_dev_info = kzalloc(sizeof(struct backing_dev_info), GFP_NOFS);
 #if defined(HAVE_LINUX_BDI_INIT)
-    bdi_init(afs_backing_dev_info);
+    code = bdi_init(afs_backing_dev_info);
+    if (code)
+	goto out;
+    bdi_init_done = 1;
 #endif
 #if defined(STRUCT_BACKING_DEV_INFO_HAS_NAME)
     afs_backing_dev_info->name = "openafs";
@@ -144,13 +149,15 @@ afs_fill_super(struct super_block *sb, void *data, int silent)
 #endif
 #endif
     code = afs_root(sb);
+out:
     if (code) {
 	afs_globalVFS = NULL;
 	afs_FlushAllVCaches();
 #if defined(HAVE_LINUX_BDI_INIT)
-	bdi_destroy(afs_backing_dev_info);
+	if (bdi_init_done)
+	    bdi_destroy(afs_backing_dev_info);
 #endif
-	osi_Free(afs_backing_dev_info, sizeof(struct backing_dev_info));
+	kfree(afs_backing_dev_info);
         module_put(THIS_MODULE);
     }
 
@@ -338,7 +345,7 @@ afs_put_super(struct super_block *sbp)
 #if defined(HAVE_LINUX_BDI_INIT)
     bdi_destroy(afs_backing_dev_info);
 #endif
-    osi_Free(afs_backing_dev_info, sizeof(struct backing_dev_info));
+    kfree(afs_backing_dev_info);
     AFS_GUNLOCK();
 
     sbp->s_dev = 0;

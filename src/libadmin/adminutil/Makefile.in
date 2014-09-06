@@ -7,14 +7,9 @@
 
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
-INSTALL = @INSTALL@
-INSTALL_DATA = @INSTALL_DATA@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@
-INSTALL_SCRIPT = @INSTALL_SCRIPT@
+include @TOP_OBJDIR@/src/config/Makefile.pthread
 
-CC = ${MT_CC}
-CFLAGS=${COMMON_CFLAGS} ${MT_CFLAGS}
-CCRULE = ${CC} ${CFLAGS} -c
+
 RXKAD = ../../rxkad
 AUTH = ../../auth
 BOZO = ../../bozo
@@ -47,6 +42,7 @@ ${TOP_INCDIR}/afs/afs_utilAdmin.h: afs_utilAdmin.h
 ${TOP_INCDIR}/afs/afs_AdminErrors.h: afs_AdminErrors.h
 	${INSTALL_DATA} $? $@
 
+
 afs_AdminBosErrors.h: afs_AdminBosErrors.et
 	${COMPILE_ET_H} -p ${srcdir} afs_AdminBosErrors.et
 
@@ -55,6 +51,7 @@ afs_AdminBosErrors.c: afs_AdminBosErrors.et
 
 ${TOP_INCDIR}/afs/afs_AdminBosErrors.h: afs_AdminBosErrors.h
 	${INSTALL_DATA} $? $@
+
 
 afs_AdminCfgErrors.h: afs_AdminCfgErrors.et
 	${COMPILE_ET_H} -p ${srcdir} afs_AdminCfgErrors.et
@@ -65,6 +62,7 @@ afs_AdminCfgErrors.c: afs_AdminCfgErrors.et
 ${TOP_INCDIR}/afs/afs_AdminCfgErrors.h: afs_AdminCfgErrors.h
 	${INSTALL_DATA} $? $@
 
+
 afs_AdminClientErrors.h: afs_AdminClientErrors.et
 	${COMPILE_ET_H} -p ${srcdir} afs_AdminClientErrors.et
 
@@ -73,6 +71,7 @@ afs_AdminClientErrors.c: afs_AdminClientErrors.et
 
 ${TOP_INCDIR}/afs/afs_AdminClientErrors.h: afs_AdminClientErrors.h
 	${INSTALL_DATA} $? $@
+
 
 afs_AdminMiscErrors.h: afs_AdminMiscErrors.et
 	${COMPILE_ET_H} -p ${srcdir} afs_AdminMiscErrors.et
@@ -83,6 +82,7 @@ afs_AdminMiscErrors.c: afs_AdminMiscErrors.et
 ${TOP_INCDIR}/afs/afs_AdminMiscErrors.h: afs_AdminMiscErrors.h
 	${INSTALL_DATA} $? $@
 
+
 afs_AdminCommonErrors.h: afs_AdminCommonErrors.et
 	${COMPILE_ET_H} -p ${srcdir} afs_AdminCommonErrors.et
 
@@ -91,6 +91,7 @@ afs_AdminCommonErrors.c: afs_AdminCommonErrors.et
 
 ${TOP_INCDIR}/afs/afs_AdminCommonErrors.h: afs_AdminCommonErrors.h
 	${INSTALL_DATA} $? $@
+
 
 afs_AdminKasErrors.h: afs_AdminKasErrors.et
 	${COMPILE_ET_H} -p ${srcdir} afs_AdminKasErrors.et
@@ -101,6 +102,7 @@ afs_AdminKasErrors.c: afs_AdminKasErrors.et
 ${TOP_INCDIR}/afs/afs_AdminKasErrors.h: afs_AdminKasErrors.h
 	${INSTALL_DATA} $? $@
 
+
 afs_AdminPtsErrors.h: afs_AdminPtsErrors.et
 	${COMPILE_ET_H} -p ${srcdir} afs_AdminPtsErrors.et
 
@@ -110,6 +112,7 @@ afs_AdminPtsErrors.c: afs_AdminPtsErrors.et
 ${TOP_INCDIR}/afs/afs_AdminPtsErrors.h: afs_AdminPtsErrors.h
 	${INSTALL_DATA} $? $@
 
+
 afs_AdminUtilErrors.h: afs_AdminUtilErrors.et
 	${COMPILE_ET_H} -p ${srcdir} afs_AdminUtilErrors.et
 
@@ -118,6 +121,7 @@ afs_AdminUtilErrors.c: afs_AdminUtilErrors.et
 
 ${TOP_INCDIR}/afs/afs_AdminUtilErrors.h: afs_AdminUtilErrors.h
 	${INSTALL_DATA} $? $@
+
 
 afs_AdminVosErrors.h: afs_AdminVosErrors.et
 	${COMPILE_ET_H} -p ${srcdir} afs_AdminVosErrors.et
@@ -178,34 +182,34 @@ afs_utilAdmin.o: afs_utilAdmin.h ${TOP_INCDIR}/afs/afs_AdminBosErrors.h ${TOP_IN
 				${TOP_INCDIR}/afs/afs_AdminCfgErrors.h ${TOP_INCDIR}/afs/afs_AdminErrors.h
 
 ktc_errors.o: ${AUTH}/ktc_errors.c
-	${CCRULE} ${AUTH}/ktc_errors.c
+	$(AFS_CCRULE) $(AUTH)/ktc_errors.c
 
 acfg_errors.o: ${AUTH}/acfg_errors.c
-	${CCRULE} ${AUTH}/acfg_errors.c
+	$(AFS_CCRULE) $(AUTH)/acfg_errors.c
 
 boserr.o: ${BOZO}/boserr.c
-	${CCRULE} ${BOZO}/boserr.c
+	$(AFS_CCRULE) $(BOZO)/boserr.c
 
 cmd_errors.o: ${CMD}/cmd_errors.c
-	${CCRULE} ${CMD}/cmd_errors.c
+	$(AFS_CCRULE) $(CMD)/cmd_errors.c
 
 kaerrors.o: ${KAUTH}/kaerrors.c
-	${CCRULE} ${KAUTH}/kaerrors.c
+	$(AFS_CCRULE) $(KAUTH)/kaerrors.c
 
 pterror.o: ${PTSERVER}/pterror.c
-	${CCRULE} ${PTSERVER}/pterror.c
+	$(AFS_CCRULE) $(PTSERVER)/pterror.c
 
 rxkad_errs.o: ${RXKAD}/rxkad_errs.c
-	${CCRULE} ${RXKAD}/rxkad_errs.c
+	$(AFS_CCRULE) $(RXKAD)/rxkad_errs.c
 
 uerrors.o: ${UBIK}/uerrors.c
-	${CCRULE} ${UBIK}/uerrors.c
+	$(AFS_CCRULE) $(UBIK)/uerrors.c
 
 vl_errors.o: ${VLSERVER}/vl_errors.c
-	${CCRULE} ${VLSERVER}/vl_errors.c
+	$(AFS_CCRULE) $(VLSERVER)/vl_errors.c
 
 volerr.o: ${VOLSER}/volerr.c
-	${CCRULE} ${VOLSER}/volerr.c
+	$(AFS_CCRULE) $(VOLSER)/volerr.c
 
 ${LIBOBJS}: ${INCLS}
 

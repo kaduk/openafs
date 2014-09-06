@@ -205,7 +205,7 @@ EvalMountData(char type, char *data, afs_uint32 states, afs_uint32 cellnum,
      * Don't know why we do this. Would have still found it in above call - jpm.
      */
     if (!tvp && (prefetch == 2) && len < AFS_SMALLOCSIZ - 10) {
-	buf = (char *)osi_AllocSmallSpace(len + 10);
+	buf = osi_AllocSmallSpace(len + 10);
 
 	strcpy(buf, volnamep);
 	afs_strcat(buf, ".readonly");
@@ -300,8 +300,7 @@ EvalMountPoint(struct vcache *avc, struct vcache *advc,
 	auniq = 1;
 
     if (avc->mvid == 0)
-	avc->mvid =
-	    (struct VenusFid *)osi_AllocSmallSpace(sizeof(struct VenusFid));
+	avc->mvid = osi_AllocSmallSpace(sizeof(struct VenusFid));
     avc->mvid->Cell = (*avolpp)->cell;
     avc->mvid->Fid.Volume = (*avolpp)->volume;
     avc->mvid->Fid.Vnode = avnoid;
@@ -528,19 +527,19 @@ afs_getsysname(struct vrequest *areq, struct vcache *adp,
     if (!afs_nfsexporter)
 	strcpy(bufp, (*sysnamelist)[0]);
     else {
-	au = afs_GetUser(areq->uid, adp->f.fid.Cell, 0);
+	au = afs_GetUser(areq->uid, adp->f.fid.Cell, READ_LOCK);
 	if (au->exporter) {
 	    error = EXP_SYSNAME(au->exporter, (char *)0, sysnamelist, num, 0);
 	    if (error) {
 		strcpy(bufp, "@sys");
-		afs_PutUser(au, 0);
+		afs_PutUser(au, READ_LOCK);
 		return -1;
 	    } else {
 		strcpy(bufp, (*sysnamelist)[0]);
 	    }
 	} else
 	    strcpy(bufp, afs_sysname);
-	afs_PutUser(au, 0);
+	afs_PutUser(au, READ_LOCK);
     }
     return 0;
 }
@@ -554,7 +553,7 @@ Check_AtSys(struct vcache *avc, const char *aname,
 
     if (AFS_EQ_ATSYS(aname)) {
 	state->offset = 0;
-	state->name = (char *)osi_AllocLargeSpace(MAXSYSNAME);
+	state->name = osi_AllocLargeSpace(MAXSYSNAME);
 	state->allocked = 1;
 	state->index =
 	    afs_getsysname(areq, avc, state->name, &num, sysnamelist);
@@ -586,7 +585,7 @@ Next_AtSys(struct vcache *avc, struct vrequest *areq,
 
 	if ((tname > state->name + 4) && (AFS_EQ_ATSYS(tname - 4))) {
 	    state->offset = (tname - 4) - state->name;
-	    tname = (char *)osi_AllocLargeSpace(AFS_LRALLOCSIZ);
+	    tname = osi_AllocLargeSpace(AFS_LRALLOCSIZ);
 	    strncpy(tname, state->name, state->offset);
 	    state->name = tname;
 	    state->allocked = 1;
@@ -604,16 +603,16 @@ Next_AtSys(struct vcache *avc, struct vrequest *areq,
 	*sysnamelist = afs_sysnamelist;
 
 	if (afs_nfsexporter) {
-	    au = afs_GetUser(areq->uid, avc->f.fid.Cell, 0);
+	    au = afs_GetUser(areq->uid, avc->f.fid.Cell, READ_LOCK);
 	    if (au->exporter) {
 		error =
 		    EXP_SYSNAME(au->exporter, (char *)0, sysnamelist, &num, 0);
 		if (error) {
-		    afs_PutUser(au, 0);
+		    afs_PutUser(au, READ_LOCK);
 		    return 0;
 		}
 	    }
-	    afs_PutUser(au, 0);
+	    afs_PutUser(au, READ_LOCK);
 	}
 	if (++(state->index) >= num || !(*sysnamelist)[(unsigned int)state->index])
 	    return 0;		/* end of list */
@@ -701,6 +700,7 @@ afs_DoBulkStat(struct vcache *adp, long dirCookie, struct vrequest *areqp)
     afs_size_t statSeqNo = 0;	/* Valued of file size to detect races */
     int code;			/* error code */
     long newIndex;		/* new index in the dir */
+    struct DirBuffer entry;	/* Buffer for dir manipulation */
     struct DirEntry *dirEntryp;	/* dir entry we are examining */
     int i;
     struct VenusFid afid;	/* file ID we are using now */
@@ -739,11 +739,9 @@ afs_DoBulkStat(struct vcache *adp, long dirCookie, struct vrequest *areqp)
      * one for fids and callbacks, and one for stat info.  Well set
      * up our pointers to the memory from there, too.
      */
-    statsp = (AFSFetchStatus *) 
-	    osi_Alloc(AFSCBMAX * sizeof(AFSFetchStatus));
-    fidsp = (AFSFid *) osi_AllocLargeSpace(nentries * sizeof(AFSFid));
-    cbsp = (AFSCallBack *) 
-	    osi_Alloc(AFSCBMAX * sizeof(AFSCallBack));
+    statsp = osi_Alloc(AFSCBMAX * sizeof(AFSFetchStatus));
+    fidsp = osi_AllocLargeSpace(nentries * sizeof(AFSFid));
+    cbsp = osi_Alloc(AFSCBMAX * sizeof(AFSCallBack));
 
     /* next, we must iterate over the directory, starting from the specified
      * cookie offset (dirCookie), and counting out nentries file entries.
@@ -818,14 +816,14 @@ afs_DoBulkStat(struct vcache *adp, long dirCookie, struct vrequest *areqp)
 	dirCookie = newIndex << 5;
 
 	/* get a ptr to the dir entry */
-	dirEntryp =
-	    (struct DirEntry *)afs_dir_GetBlob(dcp, newIndex);
-	if (!dirEntryp)
+	code = afs_dir_GetBlob(dcp, newIndex, &entry);
+	if (code)
 	    break;
+	dirEntryp = (struct DirEntry *)entry.data;
 
 	/* dont copy more than we have room for */
 	if (fidIndex >= nentries) {
-	    DRelease(dirEntryp, 0);
+	    DRelease(&entry, 0);
 	    break;
 	}
 
@@ -863,7 +861,7 @@ afs_DoBulkStat(struct vcache *adp, long dirCookie, struct vrequest *areqp)
 		    else
 			tvcp->f.m.Type = VREG;
 		    /* finalize to a best guess */
-		    afs_darwin_finalizevnode(tvcp, VTOAFS(adp), NULL, 0, 1);
+		    afs_darwin_finalizevnode(tvcp, AFSTOV(adp), NULL, 0, 1);
 		    /* re-acquire usecount that finalizevnode disposed of */
 		    vnode_ref(AFSTOV(tvcp));
 #endif
@@ -878,7 +876,7 @@ afs_DoBulkStat(struct vcache *adp, long dirCookie, struct vrequest *areqp)
 	    }
 	    if (!tvcp)
 	    {
-		DRelease(dirEntryp, 0);
+		DRelease(&entry, 0);
 		ReleaseReadLock(&dcp->lock);
 		ReleaseReadLock(&adp->lock);
 		afs_PutDCache(dcp);
@@ -937,7 +935,7 @@ afs_DoBulkStat(struct vcache *adp, long dirCookie, struct vrequest *areqp)
 	 * used by this dir entry.
 	 */
 	temp = afs_dir_NameBlobs(dirEntryp->name) << 5;
-	DRelease(dirEntryp, 0);
+	DRelease(&entry, 0);
 	if (temp <= 0)
 	    break;
 	dirCookie += temp;
@@ -968,7 +966,7 @@ afs_DoBulkStat(struct vcache *adp, long dirCookie, struct vrequest *areqp)
 
 	tcp = afs_Conn(&adp->f.fid, areqp, SHARED_LOCK, &rxconn);
 	if (tcp) {
-	    hostp = tcp->srvr->server;
+	    hostp = tcp->parent->srvr->server;
 
 	    for (i = 0; i < fidIndex; i++) {
 		/* we must set tvcp->callback before the BulkStatus call, so
@@ -1001,14 +999,14 @@ afs_DoBulkStat(struct vcache *adp, long dirCookie, struct vrequest *areqp)
 
 	    XSTATS_START_TIME(AFS_STATS_FS_RPCIDX_BULKSTATUS);
 
-	    if (!(tcp->srvr->server->flags & SNO_INLINEBULK)) {
+	    if (!(tcp->parent->srvr->server->flags & SNO_INLINEBULK)) {
 		RX_AFS_GUNLOCK();
 		code =
 		    RXAFS_InlineBulkStatus(rxconn, &fidParm, &statParm,
 					   &cbParm, &volSync);
 		RX_AFS_GLOCK();
 		if (code == RXGEN_OPCODE) {
-		    tcp->srvr->server->flags |= SNO_INLINEBULK;
+		    tcp->parent->srvr->server->flags |= SNO_INLINEBULK;
 		    RX_AFS_GUNLOCK();
 		    code =
 			RXAFS_BulkStatus(rxconn, &fidParm, &statParm,
@@ -1172,8 +1170,7 @@ afs_DoBulkStat(struct vcache *adp, long dirCookie, struct vrequest *areqp)
 	/* now copy ".." entry back out of volume structure, if necessary */
 	if (tvcp->mvstat == 2 && (dotdot.Fid.Volume != 0)) {
 	    if (!tvcp->mvid)
-		tvcp->mvid = (struct VenusFid *)
-		    osi_AllocSmallSpace(sizeof(struct VenusFid));
+		tvcp->mvid = osi_AllocSmallSpace(sizeof(struct VenusFid));
 	    *tvcp->mvid = dotdot;
 	}
 
@@ -1345,7 +1342,7 @@ afs_DoBulkStat(struct vcache *adp, long dirCookie, struct vrequest *areqp)
 
 /* was: (AFS_DEC_ENV) || defined(AFS_OSF30_ENV) || defined(AFS_NCR_ENV) */
 #ifdef AFS_DARWIN80_ENV
-static int AFSDOBULK = 0;
+int AFSDOBULK = 0;
 #else
 static int AFSDOBULK = 1;
 #endif
@@ -1433,11 +1430,8 @@ afs_lookup(OSI_VC_DECL(adp), char *aname, struct vcache **avcp, afs_ucred_t *acr
     if (code)
 	goto done;
 
-    *avcp = NULL;		/* Since some callers don't initialize it */
-
     /* come back to here if we encounter a non-existent object in a read-only
      * volume's directory */
-
   redo:
     *avcp = NULL;		/* Since some callers don't initialize it */
     bulkcode = 0;
@@ -1863,7 +1857,7 @@ afs_lookup(OSI_VC_DECL(adp), char *aname, struct vcache **avcp, afs_ucred_t *acr
 		    if (tvolp) {
 			ObtainWriteLock(&tvc->lock, 134);
 			if (tvc->mvid == NULL) {
-			    tvc->mvid = (struct VenusFid *)
+			    tvc->mvid =
 				osi_AllocSmallSpace(sizeof(struct VenusFid));
 			}
 			/* setup backpointer */

@@ -10,13 +10,9 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
+#include <roken.h>
 
-#include <stdio.h>
 #include <security/pam_appl.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-
 
 static int my_conv(int num_msg, PAM_CONST struct pam_message **msg,
 		   struct pam_response **response, void *appdata_ptr);
@@ -32,7 +28,7 @@ static const char *service = "afstest";
 static const char *new_envstring = "GOTHEREVIATESTPAM=1";
 static const char *new_homestring = "HOME=/tmp";
 
-#if defined(AFS_LINUX20_ENV) || defined(AFS_FBSD_ENV) || defined(AFS_DFBSD_ENV) || defined(AFS_NBSD_ENV)
+#if defined(AFS_LINUX20_ENV) || defined(AFS_FBSD_ENV) || defined(AFS_DFBSD_ENV) || defined(AFS_NBSD_ENV) || defined(AFS_DARWIN_ENV)
 #define getpassphrase getpass
 #endif
 

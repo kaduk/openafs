@@ -14,6 +14,8 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
+#include <roken.h>
+
 #include <ctype.h>
 
 #include "bos.h"
@@ -102,10 +104,9 @@ LocalParseLine(char *aline, struct token **alist)
 	    if (inToken) {
 		inToken = 0;	/* end of this token */
 		*tptr++ = 0;
-		ttok = (struct token *)malloc(sizeof(struct token));
+		ttok = malloc(sizeof(struct token));
 		ttok->next = NULL;
-		ttok->key = (char *)malloc(strlen(tbuffer) + 1);
-		strcpy(ttok->key, tbuffer);
+		ttok->key = strdup(tbuffer);
 		if (last) {
 		    last->next = ttok;
 		    last = ttok;

@@ -106,8 +106,8 @@ struct afs_cacheOps afs_UfsCacheOps = {
     afs_osi_Read,
     afs_osi_Write,
     osi_UFSClose,
-    afs_UFSRead,
-    afs_UFSWrite,
+    afs_UFSReadUIO,
+    afs_UFSWriteUIO,
     afs_UFSGetDSlot,
     afs_UFSGetVolSlot,
     afs_UFSHandleLink,
@@ -117,8 +117,8 @@ struct afs_cacheOps afs_UfsCacheOps = {
     .fread	= afs_osi_Read,
     .fwrite	= afs_osi_Write,
     .close	= osi_UFSClose,
-    .vread	= afs_UFSRead,
-    .vwrite	= afs_UFSWrite,
+    .vreadUIO	= afs_UFSReadUIO,
+    .vwriteUIO	= afs_UFSWriteUIO,
     .GetDSlot	= afs_UFSGetDSlot,
     .GetVolSlot = afs_UFSGetVolSlot,
     .HandleLink	= afs_UFSHandleLink,
@@ -132,8 +132,8 @@ struct afs_cacheOps afs_MemCacheOps = {
     afs_MemReadBlk,
     afs_MemWriteBlk,
     afs_MemCacheClose,
-    afs_MemRead,
-    afs_MemWrite,
+    afs_MemReadUIO,
+    afs_MemWriteUIO,
     afs_MemGetDSlot,
     afs_MemGetVolSlot,
     afs_MemHandleLink,
@@ -143,8 +143,8 @@ struct afs_cacheOps afs_MemCacheOps = {
     .fread	= afs_MemReadBlk,
     .fwrite	= afs_MemWriteBlk,
     .close	= afs_MemCacheClose,
-    .vread	= afs_MemRead,
-    .vwrite	= afs_MemWrite,
+    .vreadUIO	= afs_MemReadUIO,
+    .vwriteUIO	= afs_MemWriteUIO,
     .GetDSlot	= afs_MemGetDSlot,
     .GetVolSlot	= afs_MemGetVolSlot,
     .HandleLink	= afs_MemHandleLink,
@@ -397,7 +397,8 @@ u_int afs_min_cache = 0;
 
 /*!
  * If there are waiters for the cache to drain, wake them if
- * the number of free cache blocks reaches the CM_CACHESIZEDDRAINEDPCT.
+ * the number of free or discarded cache blocks reaches the
+ * CM_CACHESIZEDDRAINEDPCT limit.
  *
  * \note Environment:
  *	This routine must be called with the afs_xdcache lock held
@@ -451,7 +452,6 @@ afs_CacheTruncateDaemon(void)
 		if (slots_needed || space_needed)
 		    afs_GetDownD(slots_needed, &space_needed, 0);
 		if ((space_needed <= 0) && (slots_needed <= 0)) {
-		    afs_CacheTooFull = 0;
 		    break;
 		}
 		if (afs_termState == AFSOP_STOP_TRUNCDAEMON)
@@ -2262,8 +2262,7 @@ afs_GetDCache(struct vcache *avc, afs_size_t abyte,
 			   ICL_TYPE_POINTER, tdc, ICL_TYPE_INT32,
 			   tdc->dflags);
 	}
-	tsmall =
-	    (struct afs_FetchOutput *)osi_AllocLargeSpace(sizeof(struct afs_FetchOutput));
+	tsmall = osi_AllocLargeSpace(sizeof(struct afs_FetchOutput));
 	setVcacheStatus = 0;
 #ifndef AFS_NOSTATS
 	/*
@@ -2354,9 +2353,9 @@ afs_GetDCache(struct vcache *avc, afs_size_t abyte,
 
 #endif /* AFS_NOSTATS */
 		    if (!setLocks || slowPass) {
-			avc->callback = tc->srvr->server;
+			avc->callback = tc->parent->srvr->server;
 		    } else {
-			newCallback = tc->srvr->server;
+			newCallback = tc->parent->srvr->server;
 			setNewCallback = 1;
 		    }
 		    i = osi_Time();
@@ -3329,7 +3328,6 @@ afs_dcacheInit(int afiles, int ablocks, int aDentries, int achunk, int aflags)
 	    afs_warn("afsd: memory cache too large for available memory.\n");
 	    afs_warn("afsd: AFS files cannot be accessed.\n\n");
 	    dcacheDisabled = 1;
-	    afiles = ablocks = 0;
 	} else
 	    afs_warn("Memory cache: Allocating %d dcache entries...",
 		   aDentries);

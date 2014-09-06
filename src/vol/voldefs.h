@@ -20,12 +20,14 @@
 #define readwriteVolume		RWVOL
 #define readonlyVolume		ROVOL
 #define backupVolume		BACKVOL
+#define rwreplicaVolume		RWREPL
 
 #define RWVOL			0
 #define ROVOL			1
 #define BACKVOL			2
+#define RWREPL			3
 
-#define VOLMAXTYPES             3   /* _current_ max number of types */
+#define VOLMAXTYPES             4   /* _current_ max number of types */
 
 /* the maximum number of volumes in a volume group that we can handle */
 #define VOL_VG_MAX_VOLS 20
@@ -37,15 +39,18 @@
 /* maximum numbe of Vice partitions */
 #define	VOLMAXPARTS	255
 
+#define VFORMATDIGITS 10
+
 /* All volumes will have a volume header name in this format */
 #if	defined(AFS_AIX_ENV) || defined(AFS_HPUX_ENV)
 /* Note that <afs/param.h> must have been included before we get here... */
-#define	VFORMAT	"V%010lu.vl"	/* Sys5's filename length limitation hits us again */
+#define	VFORMAT	"V%010" AFS_VOLID_FMT ".vl"	/* Sys5's filename length limitation hits us again */
 #define	VHDREXT	".vl"
 #else
-#define VFORMAT "V%010lu.vol"
+#define VFORMAT "V%010" AFS_VOLID_FMT ".vol"
 #define	VHDREXT	".vol"
 #endif
+#define	VHDRNAMELEN (VFORMATDIGITS + 1 + sizeof(VHDREXT) - 1) /* must match VFORMAT */
 #define VMAXPATHLEN 64		/* Maximum length (including null) of a volume
 				 * external path name */
 

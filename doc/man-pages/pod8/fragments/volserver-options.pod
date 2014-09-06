@@ -85,6 +85,50 @@ operations.
 This is the same as the B<-sync> option in L<fileserver(8)>. See
 L<fileserver(8)>.
 
+=item B<-logfile> <I<log file>>
+
+Sets the file to use for server logging.  If logfile is not specified and
+no other logging options are supplied, this will be F</usr/afs/logs/VolserLog>.
+Note that this option is intended for debugging and testing purposes.
+Changing the location of the log file from the command line may result
+in undesirable interactions with tools such as B<bos>.
+
+=item B<-config> <I<configuration directory>>
+
+Set the location of the configuration directory used to configure this
+service.  In a typical configuration this will be F</usr/afs/etc> - this
+option allows the use of alternative configuration locations for testing
+purposes.
+
+=item B<-rxmaxmtu> <I<bytes>>
+
+Defines the maximum size of an MTU.  The value must be between the
+minimum and maximum packet data sizes for Rx.
+
+=item B<-rxbind>
+
+Bind the Rx socket to the primary interface only. (If not specified, the Rx
+socket will listen on all interfaces.)
+
+=item B<-syslog>[=<I<syslog facility>>]
+
+Specifies that logging output should go to syslog instead of the normal
+log file. B<-syslog>=I<FACILITY> can be used to specify to which facility
+the log message should be sent.
+
+=item B<-sleep> <I<sleep_time>/I<run_time>>
+
+This option is obsolete, and is now only accepted for compatibility with older
+releases. All it does now is log a warning message about how the option is
+obsolete.
+
+=item B<-restricted_query> (anyuser | admin)
+
+Restrict RPCs that query information about volumes to a specific group
+of users. You can use C<admin> to restrict to AFS administrators.  The
+C<anyuser> option doesn't restrict the RPCs and leaves it open for all
+users including unauthenticated users, this is the default.
+
 =item B<-help>
 
 Prints the online help for this command. All other valid options are

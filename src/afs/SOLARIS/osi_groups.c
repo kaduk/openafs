@@ -14,13 +14,13 @@
  *
  */
 
+#include <afsconfig.h>
+#include "afs/param.h"
+
 #include <unistd.h>
 #ifdef AFS_SUN510_ENV
 #include <sys/cred.h>
 #endif
-
-#include <afsconfig.h>
-#include "afs/param.h"
 
 
 #include "afs/sysincludes.h"
@@ -36,21 +36,10 @@ static int
 		int change_parent);
 
 
-#if	defined(AFS_SUN55_ENV)
 int
 afs_xsetgroups(uap, rvp)
      u_int uap;			/* this is gidsetsize */
      gid_t *rvp;		/* this is gidset */
-#else
-struct setgroupsa {
-    u_int gidsetsize;
-    gid_t *gidset;
-};
-
-afs_xsetgroups(uap, rvp)
-     struct setgroupsa *uap;
-     rval_t *rvp;
-#endif
 {
     int code = 0;
     struct vrequest treq;
@@ -91,7 +80,7 @@ setpag(cred, pagvalue, newpag, change_parent)
 
     AFS_STATCNT(setpag);
 
-    gidset = (gid_t *) osi_AllocSmallSpace(AFS_SMALLOCSIZ);
+    gidset = osi_AllocSmallSpace(AFS_SMALLOCSIZ);
 
     mutex_enter(&curproc->p_crlock);
     ngroups = afs_getgroups(*cred, gidset);

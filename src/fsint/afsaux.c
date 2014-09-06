@@ -17,6 +17,9 @@
 #include "afsincludes.h"
 #include "rx/xdr.h"
 #else /* defined(UKERNEL) */
+#if defined(AFS_NBSD50_ENV)
+#include "afs/afs_osi.h"
+#endif
 #if defined(AFS_OSF_ENV) || defined(AFS_LINUX20_ENV) || defined(AFS_DARWIN_ENV) || defined(AFS_FBSD_ENV)
 #include "afs/sysincludes.h"
 #include "afsincludes.h"
@@ -36,6 +39,7 @@
 #endif /* defined(UKERNEL) */
 #include "afsint.h"
 #else /* KERNEL */
+# include <roken.h>
 # include <rx/xdr.h>
 # include "afsint.h"
 #endif /* KERNEL */
@@ -124,7 +128,7 @@ xdr_CBS(XDR * x, struct CBS * abbs)
 	    return FALSE;
 	}
 	if (!abbs->SeqBody)
-	    abbs->SeqBody = (char *)NVALLOC(len);
+	    abbs->SeqBody = NVALLOC(len);
 	abbs->SeqLen = len;
 	xdr_opaque(x, abbs->SeqBody, len);
 	return TRUE;
@@ -153,7 +157,7 @@ xdr_BBS(XDR * x, struct BBS * abbs)
 	    return FALSE;
 	}
 	if (!abbs->SeqBody)
-	    abbs->SeqBody = (char *)NVALLOC(maxLen);
+	    abbs->SeqBody = NVALLOC(maxLen);
 	abbs->MaxSeqLen = maxLen;
 	abbs->SeqLen = len;
 	xdr_opaque(x, abbs->SeqBody, len);
@@ -183,7 +187,7 @@ xdr_AFSAccessList(XDR * x, AFSAccessList * abbs)
 	    return FALSE;
 	}
 	if (!abbs->SeqBody)
-	    abbs->SeqBody = (char *)NVALLOC(maxLen);
+	    abbs->SeqBody = NVALLOC(maxLen);
 	abbs->MaxSeqLen = maxLen;
 	abbs->SeqLen = len;
 	xdr_opaque(x, abbs->SeqBody, len);

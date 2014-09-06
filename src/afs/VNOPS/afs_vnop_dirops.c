@@ -129,7 +129,7 @@ afs_mkdir(OSI_VC_DECL(adp), char *aname, struct vattr *attrs,
 	    } else
 	    	code = -1;
     	} while (afs_Analyze
-		 (tc, rxconn, code, &adp->f.fid, treq, AFS_STATS_FS_RPCIDX_MAKEDIR,
+		    (tc, rxconn, code, &adp->f.fid, treq, AFS_STATS_FS_RPCIDX_MAKEDIR,
 		     SHARED_LOCK, NULL));
 
     	if (code) {

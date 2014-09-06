@@ -7,10 +7,8 @@
 
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
-INSTALL = @INSTALL@
-INSTALL_DATA = @INSTALL_DATA@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@
-INSTALL_SCRIPT = @INSTALL_SCRIPT@
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
 
 
 #
@@ -19,17 +17,35 @@ INSTALL_SCRIPT = @INSTALL_SCRIPT@
 # Note that if afskauthlib.so gets installed on a client
 # machine then that will be used ..
 #
-CFLAGS=${OPTIMIZE} -I${TOP_OBJDIR}/src/config -I${TOP_INCDIR} ${XCFLAGS} ${ARCHFLAGS}
-LDFLAGS = ${OPTIMIZE} ${XLDFLAGS} ${ARCHFLAGS}
 LIBDIR=${TOP_LIBDIR}/
-AFSLIBS=${TOP_LIBDIR}/libkauth.a ${TOP_LIBDIR}/libprot.a ${LIBDIR}/libubik.a \
-	  ${TOP_LIBDIR}/libauth.a ${TOP_LIBDIR}/librxkad.a ${TOP_LIBDIR}/libsys.a \
-	  ${TOP_LIBDIR}/libdes.a ${LIBDIR}/librx.a ${LIBDIR}/liblwp.a \
-          ${TOP_LIBDIR}/libcmd.a ${TOP_LIBDIR}/libafscom_err.a ${TOP_LIBDIR}/util.a
-KAFSLIBS=${TOP_LIBDIR}/libkauth.krb.a ${TOP_LIBDIR}/libprot.a ${LIBDIR}/libubik.a \
-	  ${TOP_LIBDIR}/libauth.krb.a ${TOP_LIBDIR}/librxkad.a ${TOP_LIBDIR}/libsys.a \
-	  ${TOP_LIBDIR}/libdes.a ${LIBDIR}/librx.a ${LIBDIR}/liblwp.a \
-          ${TOP_LIBDIR}/libcmd.a ${TOP_LIBDIR}/libafscom_err.a ${TOP_LIBDIR}/util.a
+AFSLIBS=${TOP_LIBDIR}/libkauth.a \
+	${TOP_LIBDIR}/libprot.a \
+	${LIBDIR}/libubik.a \
+	${TOP_LIBDIR}/libauth.a \
+	${TOP_LIBDIR}/librxkad.a \
+	${TOP_LIBDIR}/libsys.a \
+	${LIBDIR}/librx.a \
+	${TOP_LIBDIR}/libafsrfc3961.a \
+	${TOP_LIBDIR}/libafshcrypto_lwp.a \
+	${LIBDIR}/liblwp.a \
+        ${TOP_LIBDIR}/libcmd.a \
+	${TOP_LIBDIR}/libafscom_err.a \
+	${TOP_LIBDIR}/util.a
+
+KAFSLIBS=${TOP_LIBDIR}/libkauth.krb.a \
+	${TOP_LIBDIR}/libprot.a \
+	${LIBDIR}/libubik.a \
+	${TOP_LIBDIR}/libauth.krb.a \
+	${TOP_LIBDIR}/librxkad.a \
+	${TOP_LIBDIR}/libsys.a \
+	${LIBDIR}/librx.a \
+	${TOP_LIBDIR}/libafsrfc3961.a \
+	${TOP_LIBDIR}/libafshcrypto_lwp.a \
+	${LIBDIR}/liblwp.a \
+        ${TOP_LIBDIR}/libcmd.a \
+	${TOP_LIBDIR}/libafscom_err.a \
+	${TOP_LIBDIR}/util.a
+
 AUTHFILES=ta-rauth.o rcmd.o herror.o
 AUTHLIBS=afsauthlib.so afskauthlib.so
 TARGETS=$(AUTHLIBS) 
@@ -58,19 +74,15 @@ clean:
 	$(RM) -f $(AUTHLIBS) $(AUTHFILES) 
 
 afsauthlib.so: sgi_auth.o ${AFSLIBS} ${AUTHFILES}
-	$(LD) ${LDFLAGS} -shared -all -o afsauthlib.so sgi_auth.o $(AFSLIBS) ${AUTHFILES}
+	$(LD) ${AFS_LDFLAGS} -shared -all -o afsauthlib.so sgi_auth.o $(AFSLIBS) ${AUTHFILES}
 
 afskauthlib.so: sgi_auth.o ${KAFSLIBS} ${AUTHFILES}
-	$(LD) ${LDFLAGS} -shared -all -o afskauthlib.so sgi_auth.o $(KAFSLIBS) ${AUTHFILES}
+	$(LD) ${AFS_LDFLAGS} -shared -all -o afskauthlib.so sgi_auth.o $(KAFSLIBS) ${AUTHFILES}
 
 ta-rauth.o: ta-rauth.c
-	${CC} ${CFLAGS} -c ta-rauth.c
 
 rcmd.o: rcmd.c
-	${CC} ${CFLAGS} -c rcmd.c
 
 herror.o: herror.c
-	${CC} ${CFLAGS} -c herror.c
 
 sgi_auth.o: sgi_auth.c
-	${CC} ${CFLAGS} -c sgi_auth.c

@@ -11,7 +11,6 @@ RELDIR=kauth\test
 
 EXELIBS = \
 	$(DESTDIR)\afslwp.lib \
-	$(DESTDIR)\lib\afsdes.lib \
 	$(DESTDIR)\lib\afsrxkad.lib \
 	$(DESTDIR)\afs\afsauth.lib \
 	$(DESTDIR)\afs\afscmd.lib \
@@ -19,7 +18,8 @@ EXELIBS = \
 	$(DESTDIR)\afs\afsprot.lib \
 	$(DESTDIR)\afsrx.lib \
 	$(DESTDIR)\afs\afscom_err.lib \
-	$(DESTDIR)\afs\afskauth.lib
+	$(DESTDIR)\afs\afskauth.lib \
+	$(DESTDIR)\lib\afsrfc3961.lib
 
 
 $(OUT)\multiklog.exe: $(OUT)\multiklog.obj

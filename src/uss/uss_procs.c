@@ -18,23 +18,14 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
+#include <roken.h>
+
+#include <afs/kautils.h> /*MAXKTCREALMLEN*/
 
 #include "uss_procs.h"		/*Module interface */
 #include "uss_common.h"		/*Common defs & operations */
 #include "uss_acl.h"		/*ACL-related operations */
-#include <errno.h>		/*Unix error codes */
-#include <pwd.h>		/*Password info */
-#include <sys/stat.h>		/*Stat defs */
-#include <dirent.h>		/*Directory package */
-#include <sys/file.h>		/*O_EXCL, O_CREAT, etc */
-#ifdef	AFS_SUN5_ENV
-#include <fcntl.h>
-#endif
 
-#include <string.h>
-#include <stdarg.h>
-
-#include <afs/kautils.h> /*MAXKTCREALMLEN*/
 #undef USS_PROCS_DB
 #undef USS_PROCS_DB_INSTANCE
 #undef USS_PROCS_DB_BUILDDIR
@@ -153,12 +144,10 @@ uss_procs_BuildDir(char *a_path, char *a_mode, char *a_owner, char *a_access)
      * Use our linked list to remember this directory's true ACL setting so
      * we may set it correctly at the tail end of the account creation.
      */
-    new_dir = (struct uss_subdir *)malloc(sizeof(struct uss_subdir));
+    new_dir = malloc(sizeof(struct uss_subdir));
     new_dir->previous = uss_currentDir;
-    new_dir->path = (char *)malloc(strlen(a_path) + 1);
-    strcpy(new_dir->path, a_path);
-    new_dir->finalACL = (char *)malloc(strlen(a_access) + 1);
-    strcpy(new_dir->finalACL, a_access);
+    new_dir->path = strdup(a_path);
+    new_dir->finalACL = strdup(a_access);
     uss_currentDir = new_dir;
 
     /*

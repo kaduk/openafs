@@ -9,13 +9,9 @@
 
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
-INSTALL = @INSTALL@
-INSTALL_DATA = @INSTALL_DATA@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@
-INSTALL_SCRIPT = @INSTALL_SCRIPT@
 
 ENABLE_KERNEL_MODULE=@ENABLE_KERNEL_MODULE@
-ENABLE_PTHREADED_UBIK=@ENABLE_PTHREADED_UBIK@
+DOXYGEN=@DOXYGEN@
 
 # To compile AFS from scratch in the src tree run "make".
 #   This recursively calls "make install ..." and does not depend on the
@@ -47,6 +43,9 @@ only_libafs_tree: force
 buildtools: force
 	$(MAKE) build TARGET=build_tools COMPILE_PART2B=buildtools
 
+cscope:
+	( cd src ; cscope -b -R )
+
 generated: force buildtools
 	+${COMPILE_PART1} afs ${COMPILE_GENERATED}
 	+${COMPILE_PART1} auth ${COMPILE_GENERATED}
@@ -55,19 +54,21 @@ generated: force buildtools
 	+${COMPILE_PART1} bucoord ${COMPILE_GENERATED}
 	+${COMPILE_PART1} budb ${COMPILE_GENERATED}
 	+${COMPILE_PART1} cmd ${COMPILE_GENERATED}
-	+${COMPILE_PART1} des ${COMPILE_GENERATED}
 	+${COMPILE_PART1} fsint ${COMPILE_GENERATED}
 	+${COMPILE_PART1} kauth ${COMPILE_GENERATED}
 	+${COMPILE_PART1} ptserver ${COMPILE_GENERATED}
+	+${COMPILE_PART1} rxgk ${COMPILE_GENERATED}
 	+${COMPILE_PART1} rxkad ${COMPILE_GENERATED}
 	+${COMPILE_PART1} rxstat ${COMPILE_GENERATED}
 	+${COMPILE_PART1} sys ${COMPILE_GENERATED}
-	+${COMPILE_PART1} tests ${COMPILE_GENERATED}
 	+${COMPILE_PART1} ubik ${COMPILE_GENERATED}
 	+${COMPILE_PART1} update ${COMPILE_GENERATED}
 	+${COMPILE_PART1} vlserver ${COMPILE_GENERATED}
 	+${COMPILE_PART1} volser ${COMPILE_GENERATED}
 	+${COMPILE_PART1} config ${COMPILE_PART2A} generated_clean
+	+${COMPILE_PART1} roken ${COMPILE_PART2A} clean
+	+${COMPILE_PART1} crypto/hcrypto ${COMPILE_PART2A} clean
+	+${COMPILE_PART1} opr ${COMPILE_PART2A} clean
 
 install: all install_dirs
 	$(MAKE) build COMPILE_PART2B=install
@@ -110,7 +111,7 @@ packages: dest
 		echo Not building packages for ${SYS_NAME} ;; \
 	esac
 
-${TOP_INCDIR}/afs ${TOP_INCDIR}/rx ${TOP_INCDIR}/des ${TOP_LIBDIR} ${TOP_JLIBDIR}:
+${TOP_INCDIR}/afs ${TOP_INCDIR}/rx ${TOP_INCDIR}/hcrypto ${TOP_INCDIR}/opr ${TOP_LIBDIR} ${TOP_JLIBDIR}:
 	mkdir -p $@
 
 install_dirs: force
@@ -136,7 +137,7 @@ dest_dirs: force
 	mkdir -p ${DEST}/root.server/etc
 	mkdir -p ${DEST}/root.server/usr/afs/bin
 
-prelude: ${TOP_INCDIR}/afs ${TOP_INCDIR}/rx ${TOP_INCDIR}/des ${TOP_LIBDIR}
+prelude: ${TOP_INCDIR}/afs ${TOP_INCDIR}/rx ${TOP_INCDIR}/hcrypto ${TOP_INCDIR}/opr ${TOP_LIBDIR}
 
 project: cmd comerr 
 
@@ -146,10 +147,13 @@ tests: all
 config: prelude
 	+${COMPILE_PART1} config ${COMPILE_PART2}
 
-procmgmt: config
+procmgmt: $(DIR_roken) config
 	+${COMPILE_PART1} procmgmt ${COMPILE_PART2}
 
-util: procmgmt des lwp_depinstall rx_depinstall
+opr: config hcrypto $(DIR_roken)
+	+${COMPILE_PART1} opr ${COMPILE_PART2}
+
+util: opr $(DIR_roken) procmgmt hcrypto lwp
 	+${COMPILE_PART1} util ${COMPILE_PART2}
 
 libafscp: util afs volser vlserver rx auth fsint
@@ -158,7 +162,7 @@ libafscp: util afs volser vlserver rx auth fsint
 audit: util rx rxkad fsint
 	+${COMPILE_PART1} audit ${COMPILE_PART2} #TODO
 
-comerr: util
+comerr: util $(DIR_roken)
 	+${COMPILE_PART1} comerr ${COMPILE_PART2}
 
 cmd: comerr
@@ -169,13 +173,22 @@ cmd: comerr
 		${COMPILE_PART1} cmd ${COMPILE_PART2} ;; \
 	esac
 
-lwp: util lwp_depinstall
+hcrypto: config $(DIR_roken)
+	+${COMPILE_PART1} crypto/hcrypto ${COMPILE_PART2}
+
+rfc3961: config hcrypto
+	+${COMPILE_PART1} crypto/rfc3961 ${COMPILE_PART2}
+
+lwp: opr $(DIR_roken) lwp_depinstall
 	+${COMPILE_PART1} lwp ${COMPILE_PART2}
 
-rxgen: config
+roken: config
+	+${COMPILE_PART1} roken ${COMPILE_PART2}
+
+rxgen: $(DIR_roken) config
 	+${COMPILE_PART1} rxgen ${COMPILE_PART2}
 
-rx: config lwp rxgen rx_depinstall
+rx: config lwp rxgen rx_depinstall util
 	+${COMPILE_PART1} rx ${COMPILE_PART2}
 
 rxstat: rx rxstat_depinstall
@@ -202,29 +215,25 @@ export_build: fsint
 afs: config export comerr afs_depinstall
 	+${COMPILE_PART1} afs ${COMPILE_PART2}
 
-des: config
-	+${COMPILE_PART1} des ${COMPILE_PART2}
-
-sys: cmd comerr afs des rx rxstat fsint auth sys_depinstall
+sys: cmd comerr afs hcrypto rx rxstat fsint sys_depinstall
 	+${COMPILE_PART1} sys ${COMPILE_PART2}
 
-rxkad: cmd comerr des rx rxkad_depinstall
+rxgk: cmd comerr hcrypto rx rxgk_depinstall
+	+${COMPILE_PART1} rxgk ${COMPILE_PART2}
+
+rxkad: cmd comerr hcrypto rfc3961 rx rxkad_depinstall
 	+${COMPILE_PART1} rxkad ${COMPILE_PART2}
 
-auth: cmd comerr comerr des lwp rx rxkad audit sys_depinstall auth_depinstall
+auth: cmd comerr hcrypto lwp rx rxkad audit sys auth_depinstall
 	+${COMPILE_PART1} auth ${COMPILE_PART2}
 
 ubik: cmd comerr auth ubik_depinstall sys
 	+${COMPILE_PART1} ubik ${COMPILE_PART2}
 
-tubik: ubik libafsrpc
-	+[ yes != "$(ENABLE_PTHREADED_UBIK)" ] || case ${SYS_NAME} in \
-	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*) \
+tubik: ubik libafsrpc libafsauthent
+	+case ${SYS_NAME} in \
+	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*|*_darwin_*) \
 		${COMPILE_PART1} tubik ${COMPILE_PART2} ;; \
-	*_darwin_[1-6][0-9]) \
-		echo Not building MT ubik for ${SYS_NAME} ;; \
-	*_darwin_*) \
-		${COMPILE_PART1} tubik  ${COMPILE_PART2} ;; \
 	*) \
 		echo Not building MT ubik for ${SYS_NAME} ;; \
 	esac
@@ -235,13 +244,9 @@ ptserver: cmd comerr ubik cmd comerr auth audit ptserver_depinstall
 	+${COMPILE_PART1} ptserver ${COMPILE_PART2}
 
 tptserver: cmd comerr ptserver tubik libafsrpc libafsauthent
-	+[ yes != "$(ENABLE_PTHREADED_UBIK)" ] || case ${SYS_NAME} in \
-	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*) \
+	+case ${SYS_NAME} in \
+	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*|*_darwin_*) \
 		${COMPILE_PART1} tptserver ${COMPILE_PART2} ;; \
-	*_darwin_[1-6][0-9]) \
-		echo Not building MT ptserver for ${SYS_NAME} ;; \
-	*_darwin_*) \
-		${COMPILE_PART1} tptserver  ${COMPILE_PART2} ;; \
 	*) \
 		echo Not building MT ptserver for ${SYS_NAME} ;; \
 	esac
@@ -265,7 +270,7 @@ sgiefs:
 		echo No efs stuff for ${SYS_NAME};; \
 	esac
 
-vol: cmd comerr dir afs sgiefs
+vol: cmd comerr dir afs sgiefs $(DIR_roken)
 	+${COMPILE_PART1} vol ${COMPILE_PART2}
 
 tsalvaged: vol libafsrpc libafsauthent cmd util
@@ -283,28 +288,16 @@ vlserver: cmd comerr vol audit vlserver_depinstall
 	+${COMPILE_PART1} vlserver ${COMPILE_PART2}
 
 tvlserver: cmd comerr vol audit tubik libafsrpc libafsauthent tvlserver_depinstall
-	+[ yes != "$(ENABLE_PTHREADED_UBIK)" ] || case ${SYS_NAME} in \
-	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*) \
-		${COMPILE_PART1} tvlserver ${COMPILE_PART2} ;; \
-	*_darwin_[1-6][0-9]) \
-		echo Not building MT tvlserver for ${SYS_NAME} ;; \
-	*_darwin_*) \
-		${COMPILE_PART1} tvlserver  ${COMPILE_PART2} ;; \
-	*) \
-		echo Not building MT tvlserver for ${SYS_NAME} ;; \
-	esac
-
-
-viced: cmd comerr vlserver tvlserver audit
-	+${COMPILE_PART1} viced ${COMPILE_PART2}
-
-tviced: cmd comerr viced vlserver tvlserver libafsrpc libafsauthent
 	+case ${SYS_NAME} in \
 	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*|*_darwin_*) \
-		${COMPILE_PART1} tviced ${COMPILE_PART2} ;; \
+		${COMPILE_PART1} tvlserver ${COMPILE_PART2} ;; \
 	*) \
-		echo Not building MT viced for ${SYS_NAME} ;; \
+		echo Not building MT tvlserver for ${SYS_NAME} ;; \
 	esac
+
+
+viced: cmd comerr vlserver tvlserver libafsrpc libafsauthent audit
+	+${COMPILE_PART1} viced ${COMPILE_PART2}
 
 dviced: cmd comerr viced vlserver tvlserver libafsrpc libafsauthent
 	+case ${SYS_NAME} in \
@@ -317,18 +310,15 @@ dviced: cmd comerr viced vlserver tvlserver libafsrpc libafsauthent
 volser: cmd comerr usd kauth vlserver audit
 	+${COMPILE_PART1} volser ${COMPILE_PART2}
 
-tvolser: project tviced usd libafsrpc libafsauthent volser
+tvolser: project viced usd libafsrpc libafsauthent volser
 	+@case ${SYS_NAME} in						\
 	*_darwin_*|alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*)   \
-		${COMPILE_PART1} tvolser ${COMPILE_PART2} &&            \
-		if [ "xyes" = "x$(ENABLE_PTHREADED_UNIK)" ] ; then	\
-			$(MAKE) $(COMPILE_PART2B)_vos;  					\
-		fi;;							\
+		${COMPILE_PART1} tvolser ${COMPILE_PART2} ;;            \
 	*)                                                              \
 		echo Not building MT volser for ${SYS_NAME} ;;          \
 	esac
 
-dvolser: project tviced usd libafsrpc libafsauthent volser
+dvolser: project viced usd libafsrpc libafsauthent volser
 	+@case ${SYS_NAME} in						\
 	*_darwin_*|alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*)   \
 		${COMPILE_PART1} dvolser ${COMPILE_PART2} ;;            \
@@ -336,12 +326,15 @@ dvolser: project tviced usd libafsrpc libafsauthent volser
 		echo Not building DAFS volser for ${SYS_NAME} ;;          \
 	esac
 
+rxosdsrc: rxgen
+	+${COMPILE_PART1} rxosd ${COMPILE_PART2A} source
+
 venus: cmd comerr volser ptserver libafscp libafsauthent
 	+${COMPILE_PART1} venus ${COMPILE_PART2}
 venustests: venus
 	+${COMPILE_PART1} venus/test ${COMPILE_PART2}
 
-afsd: cmd comerr sys kauth @CLIENT_UAFS_DEP@
+afsd: cmd comerr sys kauth libafsauthent @CLIENT_UAFS_DEP@
 	+${COMPILE_PART1} afsd ${COMPILE_PART2}
 
 gtx: cmd comerr auth kauth
@@ -356,14 +349,18 @@ fsprobe: cmd comerr util fsint volser
 	+${COMPILE_PART1} fsprobe ${COMPILE_PART2}
 
 scout: cmd comerr gtx fsprobe
-	if test "@LIB_curses@"; then \
+	+if test "@LIB_curses@"; then \
 		${COMPILE_PART1} scout ${COMPILE_PART2} ; \
 	else \
 		echo Not building scout, because no curses-headers found. ; \
 	fi
 
-uss: des kauth cmd comerr rx vlserver vol volser
-	+${COMPILE_PART1} uss ${COMPILE_PART2}
+uss: hcrypto kauth cmd comerr rx vlserver vol volser
+	+if test "@BUILD_USS@" = "yes"; then \
+		${COMPILE_PART1} uss ${COMPILE_PART2} ; \
+	else \
+		echo Not building uss. ; \
+	fi
 
 bozo: cmd comerr audit auth kauth volser
 	+${COMPILE_PART1} bozo ${COMPILE_PART2}
@@ -371,13 +368,13 @@ bozo: cmd comerr audit auth kauth volser
 vfsck:	vol
 	+set -x; \
 	case ${SYS_NAME} in \
-	sgi_* | *linux* | rs_aix* | *_darwin* | ia64_hpux* | *fbsd* | *_obsd* | *_nbsd* | sun*_4* ) \
+	sgi_* | *linux* | rs_aix* | *_darwin* | ia64_hpux* | *fbsd* | *_obsd* | *_nbsd* ) \
 		echo skip vfsck for ${SYS_NAME} ;; \
 	 * ) \
 		${COMPILE_PART1} vfsck ${COMPILE_PART2} ;; \
 	esac
 
-pam: auth shlibafsauthent shlibafsrpc
+pam: auth libafsauthent
 	+set -x; \
 	if test "@HAVE_PAM@" = "yes"; then \
 		${COMPILE_PART1} pam ${COMPILE_PART2} ; \
@@ -403,7 +400,7 @@ sgistuff: cmd comerr kauth rxkad
 		echo Skipping sgistuff for ${SYS_NAME} ;; \
 	esac
 
-aklog: comerr ptserver
+aklog: auth comerr ptserver libafsauthent
 	+set -x; \
 	if test "@BUILD_KRB5@" = "yes"; then \
 		${COMPILE_PART1} aklog ${COMPILE_PART2} ; \
@@ -415,6 +412,9 @@ authtools: pam tsm41 sgistuff aklog
 
 platform: config cmd vol
 	+${COMPILE_PART1} platform ${COMPILE_PART2}
+
+tools: config audit volser vlserver
+	+${COMPILE_PART1} tools ${COMPILE_PART2}
 
 man-pages: config
 	+if test -d "doc/man-pages" ; then \
@@ -432,6 +432,9 @@ lwp_depinstall: config
 rx_depinstall: config
 	+${COMPILE_PART1} rx ${COMPILE_DEPINSTALL}
 
+rxgk_depinstall: config comerr
+	+${COMPILE_PART1} rxgk ${COMPILE_DEPINSTALL}
+
 rxkad_depinstall: config comerr
 	+${COMPILE_PART1} rxkad ${COMPILE_DEPINSTALL}
 
@@ -444,7 +447,7 @@ vlserver_depinstall: config rxgen ubik_depinstall auth_depinstall
 tvlserver_depinstall: config rxgen ubik_depinstall auth_depinstall
 	+${COMPILE_PART1} tvlserver ${COMPILE_DEPINSTALL}
 
-auth_depinstall: config comerr
+auth_depinstall: config rxgen comerr
 	+${COMPILE_PART1} auth ${COMPILE_DEPINSTALL}
 
 fsint_depinstall: config rxgen
@@ -478,13 +481,17 @@ ${DEST}/bin/dedebug: dedebug
 #
 # libafs build targets
 #
-libafs: config export lwp_depinstall rx_depinstall vlserver_depinstall tvlserver_depinstall rxkad_depinstall fsint_depinstall \
-		libacl_depinstall afs_depinstall dir_depinstall rxstat_depinstall sys_depinstall
-	src/config/config src/libafs/MakefileProto.${MKAFS_OSTYPE} src/libafs/Makefile ${SYS_NAME}
+libafs: config export rfc3961 hcrypto lwp_depinstall \
+	rx_depinstall vlserver_depinstall tvlserver_depinstall \
+	rxkad_depinstall fsint_depinstall \
+	libacl_depinstall afs_depinstall dir_depinstall \
+	rxstat_depinstall sys_depinstall auth_depinstall \
+	rxosdsrc
+	${CONFIGTOOL} src/libafs/MakefileProto.${MKAFS_OSTYPE} src/libafs/Makefile ${SYS_NAME}
 	+${COMPILE_PART1} libafs ${COMPILE_PART2}
 
 libafs_tree: export lwp_depinstall rx_depinstall vlserver_depinstall tvlserver_depinstall rxkad_depinstall fsint_depinstall \
-		libacl_depinstall afs_depinstall dir_depinstall rxstat_depinstall sys_depinstall
+		libacl_depinstall afs_depinstall dir_depinstall rxstat_depinstall sys_depinstall auth_depinstall
 	${TOP_SRCDIR}/config/make_libafs_tree.pl \
 		-sn $(SYS_NAME) \
 		-os $(MKAFS_OSTYPE) \
@@ -496,20 +503,16 @@ libafs_tree: export lwp_depinstall rx_depinstall vlserver_depinstall tvlserver_d
 # libuafs build targets
 #
 
-UKERNELDIR= \
-  des \
-  afsweb 
-
 libuafs_setup: config export
-	src/config/config src/libuafs/MakefileProto.${MKAFS_OSTYPE} src/libuafs/Makefile ${SYS_NAME}
+	${CONFIGTOOL} src/libuafs/MakefileProto.${MKAFS_OSTYPE} src/libuafs/Makefile ${SYS_NAME}
 
 libuafs: libuafs_setup vlserver_depinstall tvlserver_depinstall rx_depinstall fsint_depinstall \
 		auth_depinstall dir_depinstall libacl_depinstall rxkad_depinstall \
 		ubik_depinstall afs_depinstall kauth_depinstall ptserver_depinstall \
-		rxstat_depinstall lwp_depinstall sys_depinstall des cmd ubik
+		rxstat_depinstall lwp_depinstall sys_depinstall cmd hcrypto
 	+set -x; \
 	case ${SYS_NAME} in \
-	hp_ux102* | *_obsd* | sun*_4* | *_nbsd*| hp_ux11i | hp_ux112* | ia64_hpux112*) \
+	hp_ux102* | *_obsd* | *_nbsd*| hp_ux11i | hp_ux112* | ia64_hpux112*) \
 		echo Skipping libuafs for ${SYS_NAME} ;; \
 	* ) \
 		${COMPILE_PART1} libuafs ${COMPILE_PART2} ;; \
@@ -541,7 +544,7 @@ butc: cmd comerr bubasics butm budb bucoord cmd rxgen rx
 
 tbutc: cmd comerr bubasics butm budb bucoord cmd butc libadmin
 	+case ${SYS_NAME} in \
-	alpha_dux*|sgi_*|sun4x_*|sunx86_*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*) \
+	alpha_dux*|sgi_*|sun4x_*|sunx86_*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*_darwin_*) \
 		${COMPILE_PART1} tbutc ${COMPILE_PART2} ;; \
 	*) \
 		echo Not building MT butc for ${SYS_NAME} ;; \
@@ -550,19 +553,15 @@ tbutc: cmd comerr bubasics butm budb bucoord cmd butc libadmin
 budb: cmd comerr bubasics uss
 	+${COMPILE_PART1} budb ${COMPILE_PART2}
 
-tbudb: budb tubik libafsauthent
-	+[ yes != "$(ENABLE_PTHREADED_UBIK)" ] || case ${SYS_NAME} in \
-	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*) \
+tbudb: budb tubik
+	+case ${SYS_NAME} in \
+	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*|*_darwin_*) \
 		${COMPILE_PART1} tbudb ${COMPILE_PART2} ;; \
-	*_darwin_[1-6][0-9]) \
-		echo Not building MT budb for ${SYS_NAME} ;; \
-	*_darwin_*) \
-		${COMPILE_PART1} tbudb  ${COMPILE_PART2} ;; \
 	*) \
 		echo Not building MT budb for ${SYS_NAME} ;; \
 	esac
 
-bucoord: cmd comerr bubasics budb volser
+bucoord: cmd comerr bubasics budb volser butm
 	+${COMPILE_PART1} bucoord ${COMPILE_PART2}
 
 xstat: cmd comerr fsint viced
@@ -576,10 +575,10 @@ afsmonitor: cmd comerr gtx xstat
 		echo Not building afsmonitor, because no curses-headers found. ; \
 	fi
 
-tests: rxtests ubiktests rpctestlib
+tests: rxtests ubiktests rpctestlib viced
 
 # pthread based user space RX library
-libafsrpc: rx rxkad rxstat fsint des
+libafsrpc: comerr fsint hcrypto lwp rx rxkad rxstat sys util
 	+case ${SYS_NAME} in \
 	alpha_dux*|sgi_*|sun4x_*|sunx86_*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*) \
 	${COMPILE_PART1} libafsrpc ${COMPILE_PART2} ;; \
@@ -591,7 +590,7 @@ libafsrpc: rx rxkad rxstat fsint des
 		echo Not building MT libafsrpc for ${SYS_NAME} ;; \
 	esac
 
-libafsauthent: ubik auth kauth libafsrpc volser vlserver
+libafsauthent: audit auth kauth ubik util sys ptserver volser vlserver libafsrpc
 	+case ${SYS_NAME} in \
 	alpha_dux*|sgi_*|sun4x_*|sunx86_*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*) \
 	${COMPILE_PART1} libafsauthent ${COMPILE_PART2} ;; \
@@ -601,23 +600,6 @@ libafsauthent: ubik auth kauth libafsrpc volser vlserver
 		${COMPILE_PART1} libafsauthent  ${COMPILE_PART2} ;; \
 	*) \
 		echo Not building MT libafsauthent for ${SYS_NAME} ;; \
-	esac
-
-# pthread based user space RX library
-shlibafsrpc: rx rxstat fsint rxkad des
-	+case ${SYS_NAME} in \
-	alpha_dux*|sgi_*|sun4x_*|sunx86_*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*_darwin_1*|*nbsd*|*obsd*|*fbsd*) \
-	${COMPILE_PART1} shlibafsrpc ${COMPILE_PART2} ;; \
-	*) \
-		echo Not building shared libafsrpc for ${SYS_NAME} ;; \
-	esac
-
-shlibafsauthent: bozo ubik auth kauth shlibafsrpc
-	+case ${SYS_NAME} in \
-	alpha_dux*|sgi_*|sun4x_*|sunx86_*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*_darwin_1*|*nbsd*|*obsd*|*fbsd*) \
-	${COMPILE_PART1} shlibafsauthent ${COMPILE_PART2} ;; \
-	*) \
-		echo Not building shared libafsauthent for ${SYS_NAME} ;; \
 	esac
 
 kopenafs: config sys
@@ -661,29 +643,30 @@ jafs: libjafs
 
 jafsadm: libjafsadm
 
-build_tools: config des comerr rxgen
+build_tools: config comerr rxgen
 	+${COMPILE_PART1} util ${COMPILE_PART2A} buildtools_clean
 
 finale: project cmd comerr afsd butc tbutc tbudb @ENABLE_KERNEL_MODULE@ libuafs audit kauth log \
 	ptserver tptserver scout bu_utils ubik uss bozo @VFSCK@ volser tvolser tsalvaged \
-	dviced dvolser libafscp \
-	venus venustests update xstat afsmonitor rxdebug libafsrpc \
-	libafsauthent shlibafsrpc shlibafsauthent libadmin man-pages \
-	platform kopenafs authtools
+	dviced dvolser libafscp\
+	venus venustests update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
+	libafsauthent libadmin man-pages \
+	tools platform kopenafs authtools $(DIR_roken)
 	+${COMPILE_PART1} finale ${COMPILE_PART2}
 
 finale_nolibafs: project cmd comerr afsd butc tbutc tbudb libuafs audit kauth log \
 	ptserver tptserver scout bu_utils ubik tubik uss bozo @VFSCK@ volser tvolser tsalvaged \
 	dviced dvolser libafscp\
-	venus venustests update xstat afsmonitor rxdebug libafsrpc \
-	libafsauthent shlibafsrpc shlibafsauthent libadmin man-pages \
-	platform kopenafs authtools
+	venus venustests update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
+	libafsauthent libadmin man-pages \
+	tools platform kopenafs authtools $(DIR_roken)
 	+${COMPILE_PART1} finale ${COMPILE_PART2}
+
+rpctestlib: util fsint rx opr libafsrpc libafsauthent
+	+${TEST_PART1} rpctestlib  ${COMPILE_PART2}
 
 check test: finale
 	cd tests && $(MAKE) check
-
-# Use washtool to ensure MakefileProto is current and obj/libafs exists.
 
 force:
 
@@ -709,6 +692,7 @@ clean2:
 	-${COMPILE_PART1} config ${COMPILE_CLEAN}
 	-${COMPILE_PART1} procmgmt ${COMPILE_CLEAN}
 	-${COMPILE_PART1} util ${COMPILE_CLEAN}
+	-${COMPILE_PART1} opr ${COMPILE_CLEAN}
 	-${COMPILE_PART1} libafscp ${COMPILE_CLEAN}
 	-${COMPILE_PART1} audit ${COMPILE_CLEAN}
 	-${COMPILE_PART1} comerr ${COMPILE_CLEAN}
@@ -720,8 +704,8 @@ clean2:
 	-${COMPILE_PART1} fsint ${COMPILE_CLEAN}
 	-${COMPILE_PART1} export ${COMPILE_CLEAN}
 	-${COMPILE_PART1} afs ${COMPILE_CLEAN}
-	-${COMPILE_PART1} des ${COMPILE_CLEAN}
 	-${COMPILE_PART1} sys ${COMPILE_CLEAN}
+	-${COMPILE_PART1} rxgk ${COMPILE_CLEAN}
 	-${COMPILE_PART1} rxkad ${COMPILE_CLEAN}
 	-${COMPILE_PART1} auth ${COMPILE_CLEAN}
 	-${COMPILE_PART1} ubik ${COMPILE_CLEAN}
@@ -735,7 +719,6 @@ clean2:
 	-${COMPILE_PART1} vlserver ${COMPILE_CLEAN}
 	-${COMPILE_PART1} tvlserver ${COMPILE_CLEAN}
 	-${COMPILE_PART1} viced ${COMPILE_CLEAN}
-	-${COMPILE_PART1} tviced ${COMPILE_CLEAN}
 	-${COMPILE_PART1} dviced ${COMPILE_CLEAN}
 	-${COMPILE_PART1} volser ${COMPILE_CLEAN}
 	-${COMPILE_PART1} tvolser ${COMPILE_CLEAN}
@@ -769,13 +752,11 @@ clean2:
 	-${COMPILE_PART1} bucoord ${COMPILE_CLEAN}
 	-${COMPILE_PART1} xstat ${COMPILE_CLEAN}
 	-${COMPILE_PART1} afsmonitor ${COMPILE_CLEAN}
-	-${COMPILE_PART1} tests ${COMPILE_CLEAN}
 	-${COMPILE_PART1} rxdebug ${COMPILE_CLEAN}
 	-${COMPILE_PART1} libafsrpc ${COMPILE_CLEAN}
 	-${COMPILE_PART1} libafsauthent ${COMPILE_CLEAN}
-	-${COMPILE_PART1} shlibafsrpc ${COMPILE_CLEAN}
-	-${COMPILE_PART1} shlibafsauthent ${COMPILE_CLEAN}
 	-${COMPILE_PART1} kopenafs ${COMPILE_CLEAN}
+	-${COMPILE_PART1} tools ${COMPILE_CLEAN}
 	-${COMPILE_PART1} platform ${COMPILE_CLEAN}
 	-${COMPILE_PART1} libadmin ${COMPILE_CLEAN}
 	-${COMPILE_PART1} libadmin/adminutil ${COMPILE_CLEAN}
@@ -791,9 +772,14 @@ clean2:
 	-${COMPILE_PART1} finale ${COMPILE_CLEAN}
 	-${COMPILE_PART1} libafs ${COMPILE_CLEAN}
 	-${COMPILE_PART1} libuafs ${COMPILE_CLEAN}
+	-${COMPILE_PART1} rxosd ${COMPILE_CLEAN}
 	-${COMPILE_PART1} tests ${COMPILE_CLEAN}
+	-${COMPILE_PART1} crypto/hcrypto ${COMPILE_CLEAN}
+	-${COMPILE_PART1} roken ${COMPILE_CLEAN}
+	-${COMPILE_PART1} crypto/rfc3961 ${COMPILE_CLEAN}
+	-(cd src; /bin/rm cscope.out)
 	-(cd src/libafs; /bin/rm -rf afs afsint config rx)
-	-(cd src/libuafs; /bin/rm -rf afs afsint config rx des)
+	-(cd src/libuafs; /bin/rm -rf afs afsint config rx)
 	-/bin/rm -rf ${TOP_INCDIR} ${TOP_LIBDIR} ${TOP_JLIBDIR}
 	-/bin/rm -rf libafs_tree ${SYS_NAME}
 
@@ -803,6 +789,11 @@ dist:
 
 srpm:
 	(cd packages && ../src/packaging/RedHat/makesrpm.pl *-src.tar.bz2 *-doc.tar.bz2)
+
+dox:
+	if test "x$(DOXYGEN)" != "x"; then \
+	    mkdir -p doc/doxygen/output && $(DOXYGEN) doc/doxygen/Doxyfile; \
+	fi
 
 distclean: clean
 	/bin/rm -rf lib include packages
@@ -834,13 +825,18 @@ distclean: clean
 	src/comerr/test/Makefile \
 	src/config/Makefile \
 	src/config/Makefile.config \
+	src/config/Makefile.libtool \
+	src/config/Makefile.lwp \
+	src/config/Makefile.lwptool \
+	src/config/Makefile.pthread \
+	src/config/Makefile.shared \
 	src/config/Makefile.version \
 	src/config/Makefile.version-CML \
 	src/config/Makefile.version-NOCML \
 	src/config/shlib-build \
 	src/config/shlib-install \
-	src/des/Makefile \
-	src/des/test/Makefile \
+	src/crypto/hcrypto/Makefile \
+	src/crypto/rfc3961/Makefile \
 	src/dir/Makefile \
 	src/dir/test/Makefile \
 	src/dviced/Makefile \
@@ -878,6 +874,7 @@ distclean: clean
 	src/log/test/Makefile \
 	src/lwp/Makefile \
 	src/lwp/test/Makefile \
+	src/opr/Makefile \
 	src/packaging/Debian/changelog \
 	src/packaging/MacOS/OpenAFS-debug.Description.plist \
 	src/packaging/MacOS/OpenAFS-debug.Info.plist \
@@ -894,6 +891,7 @@ distclean: clean
 	src/procmgmt/test/Makefile \
 	src/ptserver/Makefile \
 	src/tptserver/Makefile \
+	src/roken/Makefile \
 	src/rx/Makefile \
 	src/rx/bulk.example/Makefile \
 	src/rx/bulktest/Makefile \
@@ -902,20 +900,23 @@ distclean: clean
 	src/rx/test/Makefile \
 	src/rxdebug/Makefile \
 	src/rxgen/Makefile \
+	src/rxgk/Makefile \
 	src/rxkad/Makefile \
 	src/rxkad/test/Makefile \
+	src/rxosd/Makefile \
 	src/rxstat/Makefile \
 	src/scout/Makefile \
 	src/sgistuff/Makefile \
-	src/shlibafsauthent/Makefile \
-	src/shlibafsrpc/Makefile \
 	src/sys/Makefile \
 	src/tbutc/Makefile \
 	src/tests/Makefile \
 	src/tests/run-tests \
+	src/tests/auth/Makefile \
+	src/tools/Makefile \
+	src/tools/dumpscan/Makefile \
+	src/tools/rxperf/Makefile \
 	src/tsalvaged/Makefile \
 	src/tsm41/Makefile \
-	src/tviced/Makefile \
 	src/tvolser/Makefile \
 	src/ubik/Makefile \
 	src/tubik/Makefile \
@@ -939,6 +940,13 @@ distclean: clean
 	tests/Makefile \
 	tests/rpctestlib/Makefile \
 	tests/tap/Makefile \
+	tests/auth/Makefile \
+	tests/cmd/Makefile \
+	tests/common/Makefile \
+	tests/rx/Makefile \
+	tests/opr/Makefile \
+	tests/util/Makefile \
+	tests/volser/Makefile \
 	src/helper-splint.sh
 	if test -d doc/man-pages ; then \
 	    rm -f doc/man-pages/Makefile doc/man-pages/install-man ; \

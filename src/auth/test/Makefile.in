@@ -7,21 +7,20 @@
 
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
-INSTALL = @INSTALL@
-INSTALL_DATA = @INSTALL_DATA@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@
-INSTALL_SCRIPT = @INSTALL_SCRIPT@
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
 
 LIBS= ../libauth.a ${TOP_LIBDIR}/libsys.a ${TOP_LIBDIR}/librx.a \
-	${TOP_LIBDIR}/liblwp.a ${TOP_LIBDIR}/util.a ${XLIBS}
+	${TOP_LIBDIR}/liblwp.a ${TOP_LIBDIR}/util.a ${XLIBS} \
+	$(TOP_LIBDIR)/libopr.a $(TOP_LIBDIR)/librokenafs.a
 
 tests all: testcellconf ktctest
 
 testcellconf: testcellconf.o 
-	$(CC) $(CFLAGS) -o testcellconf testcellconf.o  ${LIBS}
+	$(AFS_LDRULE) testcellconf.o  ${LIBS}
 
 ktctest: ktctest.o 
-	$(CC) $(CFLAGS) -o ktctest ktctest.o  ${LIBS}
+	$(AFS_LDRULE) ktctest.o  ${LIBS}
 
 clean:
 	$(RM) -f *.o *.a copyauth testcellconf ktctest setkey auth.h cellconfig.h acfg_errors.c ktc_errors.c core

@@ -19,16 +19,8 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
+#include <roken.h>
 
-#include <stdio.h>
-#include <afs/afsutil.h>
-#include <string.h>
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-#include <sys/types.h>
-#include <time.h>
-#include <signal.h>
 #include <afs/afsutil.h>
 #include "kauth.h"
 #include "kalog.h"

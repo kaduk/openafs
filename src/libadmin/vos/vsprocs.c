@@ -21,20 +21,15 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
+#include <roken.h>
+
+#include <afs/afs_AdminErrors.h>
 
 #include "vsprocs.h"
 #include "vosutils.h"
 #include "lockprocs.h"
 #include "../adminutil/afs_AdminInternal.h"
-#include <afs/afs_AdminErrors.h>
 #include "afs_vosAdmin.h"
-#include <string.h>
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-#ifdef AFS_NT40_ENV
-#include <io.h>
-#endif
 
 static afs_int32 GroupEntries(struct rx_connection *server, volintInfo * pntr, afs_int32 count,
              struct qHead *myQueue, afs_int32 apart);
@@ -1703,23 +1698,14 @@ UV_ReleaseVolume(afs_cell_handle_p cellHandle, afs_uint32 afromvol,
     cookie.clone = 0;
 
     nservers = entry.nServers / 2;	/* how many to do at once, excluding clone */
-    replicas =
-	(struct replica *)malloc(sizeof(struct replica) * nservers + 1);
-    times = (struct release *)malloc(sizeof(struct release) * nservers + 1);
-    toconns =
-	(struct rx_connection **)malloc(sizeof(struct rx_connection *) *
-					nservers + 1);
-    results.manyResults_val =
-	(afs_int32 *) malloc(sizeof(afs_int32) * nservers + 1);
+    replicas = calloc(nservers + 1, sizeof(struct replica));
+    times = calloc(nservers + 1, sizeof(struct release));
+    toconns = calloc(nservers + 1, sizeof(struct rx_connection *));
+    results.manyResults_val = calloc(nservers + 1, sizeof(afs_int32));
     if (!replicas || !times || !!!results.manyResults_val || !toconns) {
 	tst = ADMNOMEM;
 	goto fail_UV_ReleaseVolume;
     }
-
-    memset(replicas, 0, (sizeof(struct replica) * nservers + 1));
-    memset(times, 0, (sizeof(struct release) * nservers + 1));
-    memset(toconns, 0, (sizeof(struct rx_connection *) * nservers + 1));
-    memset(results.manyResults_val, 0, (sizeof(afs_int32) * nservers + 1));
 
     /* Create a transaction on the cloned volume */
     tst =
@@ -2008,7 +1994,7 @@ t structure!! */
     }
 #endif
     nbytes = blockSize;
-    buffer = (char *)malloc(blockSize);
+    buffer = malloc(blockSize);
     if (!buffer) {
 	return ADMNOMEM;
     }
@@ -2087,14 +2073,12 @@ UV_DumpVolume(afs_cell_handle_p cellHandle, afs_uint32 afromvol,
     struct rx_connection *fromconn;
     struct rx_call *fromcall;
     afs_int32 fromtid;
-    afs_int32 rxError;
     afs_int32 rcode;
 
     struct nvldbentry entry;
     int islocked;
 
     islocked = 0;
-    rxError = 0;
     fromconn = (struct rx_connection *)0;
     fromtid = 0;
     fromcall = (struct rx_call *)0;
@@ -2117,7 +2101,7 @@ UV_DumpVolume(afs_cell_handle_p cellHandle, afs_uint32 afromvol,
     if ((tst = DumpFunction(fromcall, filename))) {
 	goto fail_UV_DumpVolume;
     }
-    tst = rx_EndCall(fromcall, rxError);
+    tst = rx_EndCall(fromcall, 0);
     fromcall = (struct rx_call *)0;
     if (tst) {
 	goto fail_UV_DumpVolume;
@@ -2144,7 +2128,7 @@ UV_DumpVolume(afs_cell_handle_p cellHandle, afs_uint32 afromvol,
     }
 
     if (fromcall) {
-	etst = rx_EndCall(fromcall, rxError);
+	etst = rx_EndCall(fromcall, 0);
 	if (etst) {
 	    if (!tst)
 		tst = etst;
@@ -2199,7 +2183,7 @@ t structure!! */
 	blockSize = 4096;
     }
 #endif
-    buffer = (char *)malloc(blockSize);
+    buffer = malloc(blockSize);
     if (!buffer) {
 	return ADMNOMEM;
     }
@@ -2279,7 +2263,6 @@ UV_RestoreVolume(afs_cell_handle_p cellHandle, afs_int32 toserver,
     struct rx_connection *toconn, *tempconn;
     struct rx_call *tocall;
     afs_int32 totid, rcode;
-    afs_int32 rxError = 0;
     struct volser_status tstatus;
     char partName[10];
     afs_uint32 pvolid;
@@ -2386,7 +2369,7 @@ UV_RestoreVolume(afs_cell_handle_p cellHandle, afs_int32 toserver,
     if (tst) {
 	goto fail_UV_RestoreVolume;
     }
-    tst = rx_EndCall(tocall, rxError);
+    tst = rx_EndCall(tocall, 0);
     tocall = (struct rx_call *)0;
     if (tst) {
 	goto fail_UV_RestoreVolume;
@@ -2526,7 +2509,7 @@ UV_RestoreVolume(afs_cell_handle_p cellHandle, afs_int32 toserver,
   fail_UV_RestoreVolume:
 
     if (tocall) {
-	etst = rx_EndCall(tocall, rxError);
+	etst = rx_EndCall(tocall, 0);
 	if (!tst)
 	    tst = etst;
     }
@@ -3960,7 +3943,7 @@ GroupEntries(struct rx_connection *server, volintInfo * pntr, afs_int32 count,
 			error = VOLSERBADOP;
 		}
 	    } else {		/*create a fresh entry */
-		qPtr = (struct aqueue *)malloc(sizeof(struct aqueue));
+		qPtr = malloc(sizeof(struct aqueue));
 		if (pntr->type == RWVOL) {
 		    qPtr->isValid[RWVOL] = 1;
 		    qPtr->isValid[BACKVOL] = 0;

@@ -7,10 +7,8 @@
 
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
-INSTALL = @INSTALL@
-INSTALL_DATA = @INSTALL_DATA@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@
-INSTALL_SCRIPT = @INSTALL_SCRIPT@
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+
 
 all: \
 	${TOP_LIBDIR}/libdir.a \
@@ -33,7 +31,7 @@ libdir.a: buffer.o dir.o salvage.o AFS_component_version_number.o
 test: 
 	cd test; $(MAKE)
 
-buffer.o: buffer.c
+buffer.o: buffer.c dir.h
 
 dir.o: dir.c dir.h
 

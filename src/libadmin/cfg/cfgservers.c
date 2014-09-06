@@ -17,15 +17,10 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
-
-
 #include <afs/stds.h>
 
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
+#include <roken.h>
+
 #include <ctype.h>
 
 #ifdef AFS_NT40_ENV
@@ -1186,7 +1181,7 @@ cfg_UpdateServerStart(void *hostHandle,	/* host config handle */
 	    if (argsLen <= AFSDIR_PATH_MAX) {
 		args = argsBuf;
 	    } else {
-		args = (char *)malloc(argsLen);
+		args = malloc(argsLen);
 	    }
 
 	    if (args == NULL) {
@@ -1449,7 +1444,7 @@ cfg_UpdateClientStart(void *hostHandle,	/* host config handle */
 	if (argsLen <= AFSDIR_PATH_MAX) {
 	    args = argsBuf;
 	} else {
-	    args = (char *)malloc(argsLen);
+	    args = malloc(argsLen);
 	}
 
 	if (args == NULL) {
@@ -1780,7 +1775,7 @@ SimpleProcessStart(void *bosHandle, const char *instance,
     if (cmdLen <= AFSDIR_PATH_MAX) {
 	cmd = cmdBuf;
     } else {
-	cmd = (char *)malloc(cmdLen);
+	cmd = malloc(cmdLen);
     }
 
     if (cmd == NULL) {
@@ -2113,7 +2108,7 @@ UbikVoteStatusFetch(int serverAddr, unsigned short serverPort,
 	    *isWriteReady = 0;
 
 	    if (*isSyncSite) {
-		/* as of 3.5 the database is writeable if "labeled" or if all
+		/* as of 3.5 the database is writable if "labeled" or if all
 		 * prior recovery states have been achieved; see defect 9477.
 		 */
 		if (((udebugInfo.recoveryState & UBIK_RECLABELDB))
@@ -2133,7 +2128,7 @@ UbikVoteStatusFetch(int serverAddr, unsigned short serverPort,
 		*isWriteReady = 0;
 
 		if (*isSyncSite) {
-		    /* pre 3.5 the database is writeable only if "labeled" */
+		    /* pre 3.5 the database is writable only if "labeled" */
 		    if (udebugInfo.recoveryState & UBIK_RECLABELDB) {
 			*isWriteReady = 1;
 		    }

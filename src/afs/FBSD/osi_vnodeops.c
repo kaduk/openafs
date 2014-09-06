@@ -775,7 +775,7 @@ afs_vop_read(ap)
     struct vcache *avc = VTOAFS(ap->a_vp);
     AFS_GLOCK();
     osi_FlushPages(avc, ap->a_cred);	/* hold bozon lock, but not basic vnode lock */
-    code = afs_read(avc, ap->a_uio, ap->a_cred, 0, 0, 0);
+    code = afs_read(avc, ap->a_uio, ap->a_cred, 0);
     AFS_GUNLOCK();
     return code;
 }
@@ -855,7 +855,7 @@ afs_vop_getpages(struct vop_getpages_args *ap)
 
     AFS_GLOCK();
     osi_FlushPages(avc, osi_curcred());	/* hold bozon lock, but not basic vnode lock */
-    code = afs_read(avc, &uio, osi_curcred(), 0, 0, 0);
+    code = afs_read(avc, &uio, osi_curcred(), 0);
     AFS_GUNLOCK();
     pmap_qremove(kva, npages);
 
@@ -1588,7 +1588,10 @@ afs_vop_advlock(ap)
 
     AFS_GLOCK();
     error =
-	afs_lockctl(VTOAFS(ap->a_vp), ap->a_fl, ap->a_op, &cr, (int)ap->a_id);
+	afs_lockctl(VTOAFS(ap->a_vp),
+		ap->a_fl,
+		ap->a_op, &cr,
+		(int)(intptr_t)ap->a_id);	/* XXX: no longer unique! */
     AFS_GUNLOCK();
     return error;
 }

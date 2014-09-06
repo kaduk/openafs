@@ -19,7 +19,7 @@
 #include <afs/ktime.h>
 #include <afs/afsutil.h>
 #include <afs/afsutil_prototypes.h>
-#include <tap/basic.h>
+#include <tests/tap/basic.h>
 
 static struct testTime {
     char *time;
@@ -66,7 +66,6 @@ main(void)
 {
     long code;
     afs_int32 temp;
-    int errors;
     time_t t;
     struct testTime *tt;
 
@@ -76,7 +75,6 @@ main(void)
      * work in other than EST */
     putenv("TZ=EST");
 
-    errors = 0;
     for (tt = testTimes; tt->time; tt++) {
 	temp = 0;
 	code = ktime_DateToLong(tt->time, &temp);

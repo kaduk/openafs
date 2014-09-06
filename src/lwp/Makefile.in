@@ -9,17 +9,21 @@
 
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
-INSTALL = @INSTALL@
-INSTALL_DATA = @INSTALL_DATA@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@
-INSTALL_SCRIPT = @INSTALL_SCRIPT@
+include @TOP_OBJDIR@/src/config/Makefile.lwp
+include @TOP_OBJDIR@/src/config/Makefile.lwptool
 
-CFLAGS=${LWP_DBG} ${LWP_OPTMZ} ${XCFLAGS} ${ARCHFLAGS} ${COMMON_INCL}
+DBG=${LWP_DBG}
+OPTMZ=${LWP_OPTMZ}
 
-LIBOBJS=lwp.o process.o lock.o iomgr.o timer.o fasttime.o preempt.o \
-	waitkey.o threadname.o AFS_component_version_number.o
+LIBOBJS=lwp.o process.o iomgr.o timer.o preempt.o \
+	threadname.o AFS_component_version_number.o
 
-all: ${TOP_LIBDIR}/liblwp.a depinstall
+LT_objs = waitkey.lo fasttime.lo lock.lo
+LT_deps = $(top_builddir)/src/opr/liboafs_opr.la
+LT_libs = $(MT_LIBS)
+
+all: liboafs_lwpcompat.la libafsrpc_lwpcompat.la \
+	${TOP_LIBDIR}/liblwp.a depinstall
 
 depinstall: ${TOP_INCDIR}/lock.h ${TOP_INCDIR}/lwp.h ${TOP_INCDIR}/preempt.h ${TOP_INCDIR}/timer.h
 
@@ -41,10 +45,16 @@ ${TOP_INCDIR}/timer.h: timer.h
 #
 # Build rules
 #
-liblwp.a: ${LIBOBJS}
+liblwp.a: ${LIBOBJS} $(LT_objs)
 	-$(RM) -f $@
-	$(AR) crv $@ ${LIBOBJS}
+	$(AR) crv $@ ${LIBOBJS} .lwp/waitkey.o .lwp/fasttime.o .lwp/lock.o
 	$(RANLIB) $@
+
+liboafs_lwpcompat.la: liboafs_lwpcompat.la.sym $(LT_objs) $(LT_deps)
+	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
+
+libafsrpc_lwpcompat.la: $(LT_objs)
+	$(LT_LDLIB_pic) $(LT_objs)
 
 # This is required so sgi_64+ does not try to build this file.
 process.s:
@@ -73,7 +83,7 @@ process.o	: process.s process.i386.s process.amd64.s process.c lwp.o
 		$(RM) -f process.o ; \
 		CURRENTBUILDARCH="${ARCHFLAGS}"; \
 		if [ -z "$${CURRENTBUILDARCH}" ] ; then \
-		    CURRENTBUILDARCH=`$(CC) -dM -E -xc /dev/null | grep 'ppc\|i386\|x86_64\|armv6|armv7'`; \
+		    CURRENTBUILDARCH=`$(CC) -dM -E -xc /dev/null | grep 'ppc\|i386\|x86_64\|arm'`; \
 		fi; \
 		ppc=`echo $${CURRENTBUILDARCH} | grep -q ppc && echo process.ppc.o` ; \
 		i386=`echo $${CURRENTBUILDARCH} | grep -q i386 && echo process.i386.o` ; \
@@ -101,19 +111,19 @@ process.o	: process.s process.i386.s process.amd64.s process.c lwp.o
 		fi ; \
 		if [ -n "$${ppc}" ] ; then \
 			$(CC) ${LWP_DBG} ${LWP_OPTMZ} -c -arch ppc -I${TOP_INCDIR} ${srcdir}/process.s -o "$${ppc}" ; \
-			if [ -z "$${i386}" -a -z "$${amd64}" -a -z "$${arm}" ] ; then \
+			if [ -z "$${i386}" -a -z "$${amd64}" -a -z "$${armv6}" -a -z "$${armv7}" ] ; then \
 				${MV} "$${ppc}" process.o ; \
 			fi ; \
 		fi ; \
 		if [ -n "$${i386}" ] ; then \
 			$(CC) -x assembler-with-cpp -c -arch i386 -I${TOP_INCDIR} -I${srcdir} ${srcdir}/process.i386.s -o "$${i386}" ; \
-			if [ -z "$${ppc}" -a -z "$${amd64}" -a -z "$${arm}" ] ; then \
+			if [ -z "$${ppc}" -a -z "$${amd64}" -a -z "$${armv6}" -a -z "$${armv7}" ] ; then \
 				${MV} "$${i386}" process.o ; \
 			fi ; \
 		fi ; \
 		if [ -n "$${amd64}" ] ; then \
 			$(CC) -x assembler-with-cpp -c -arch x86_64 -I${TOP_INCDIR} -I${srcdir} ${srcdir}/process.amd64.s -o "$${amd64}" ; \
-			if [ -z "$${ppc}" -a -z "$${i386}" -a -z "$${arm}" ] ; then \
+			if [ -z "$${ppc}" -a -z "$${i386}" -a -z "$${armv6}" -a -z "$${armv7}" ] ; then \
 				${MV} "$${amd64}" process.o ; \
 			fi ; \
 		fi ; \
@@ -130,21 +140,31 @@ process.o	: process.s process.i386.s process.amd64.s process.c lwp.o
 		${CCOBJ} -DIGNORE_STDS_H -E -I${srcdir} -I${TOP_INCDIR} process.S > process.ss ; \
 		${AS} process.ss -o process.o ;  \
 		$(RM) -f process.S ;;\
-	ncrx86_* | sunx86_*) \
+	ncrx86_* | sunx86_58 | sunx86_59 ) \
 		$(PATH_CPP) -P -D__sun -D__i386 -DIGNORE_STDS_H -I${TOP_INCDIR} -I${srcdir} ${srcdir}/process.i386.s > process.ss; \
 		${AS} -o process.o process.ss; \
+		$(RM) process.ss ;; \
+	sunx86_510 | sunx86_511) \
+		if [ "${ASFLAGS}" = "-m64" ] ; then \
+			CURRENTBUILDARCH=amd64 ; \
+		else \
+			XCPPFLAGS="-D__i386" ; \
+			CURRENTBUILDARCH=i386 ; \
+		fi ; \
+		$(PATH_CPP) $${XCPPFLAGS} -P -D__sun -DIGNORE_STDS_H -I${TOP_INCDIR} -I${srcdir} ${srcdir}/process.$${CURRENTBUILDARCH}.s > process.ss ; \
+		${AS} ${ASFLAGS} -o process.o process.ss ; \
 		$(RM) process.ss ;; \
 	alpha_nbsd* ) \
 		$(PATH_CPP) -DASSEMBLER -P -I${TOP_INCDIR} ${srcdir}/process.s > process.ss; \
 		${AS} -o process.o process.ss; \
 		$(RM) process.ss ;; \
 	hp* | *_linux* | *_umlinux* | sgi_64 | sgi_65 ) \
-		${CCOBJ} ${CFLAGS} -c ${srcdir}/process.c;; \
+		$(AFS_CCRULE_NOQ) -c ${srcdir}/process.c;; \
 	alpha_osf1 | alpha_osf20 |  alpha_osf30 | alpha_osf32 | alpha_osf32c | alpha_dux?? ) \
 		${AS} -v  -P -DOSF -I${TOP_INCDIR} -DASSEMBLER ${srcdir}/process.s; \
 		${AS} -v process.i -o process.o;; \
 	ia64_hpux11* | hp_ux11* ) \
-		${CC} ${CFLAGS} -c ${srcdir}/process.c;; \
+		$(AFS_CCRULE_NOQ) -c ${srcdir}/process.c;; \
 	i386_*) \
 		$(PATH_CPP) -P -I${TOP_INCDIR} -I${srcdir} ${srcdir}/process.i386.s > process.ss; \
 		${AS} process.ss -o process.o; \
@@ -156,19 +176,17 @@ process.o	: process.s process.i386.s process.amd64.s process.c lwp.o
 	esac
 
 iomgr.o		: iomgr.c lwp.h timer.h
-		${CCOBJ} -c ${CFLAGS} ${srcdir}/iomgr.c
-
 preempt.o	: preempt.c lwp.h preempt.h
 lwp.o		: lwp.c lwp.h
 	case "$(SYS_NAME)" in \
 		rs_aix*) \
 			$(CCOBJ) ${LWP_DBG} ${LWP_OPTMZ} -I${srcdir} -I. -I${TOP_OBJDIR}/src/config -I${TOP_INCDIR} -c ${srcdir}/lwp.c;; \
 		*)  \
-			$(CCOBJ) ${CFLAGS} -c ${srcdir}/lwp.c;; \
+			$(AFS_CCRULE_NOQ) ${srcdir}/lwp.c;; \
 		esac
-lock.o		: lock.c lock.h lwp.h
+lock.lo		: lock.c lock.h lwp.h
 timer.o		: timer.c
-fasttime.o	: fasttime.c
+fasttime.lo	: fasttime.c
 threadname.o    : threadname.c
 
 exc_handling.o	: exc_handling.c
@@ -176,12 +194,8 @@ exc_handling.o	: exc_handling.c
 #
 # tests
 #
-rw: rw.o liblwp.a $(TOP_LIBDIR)/util.a
-	${CC} ${CFLAGS} -o rw rw.o liblwp.a $(TOP_LIBDIR)/util.a
-
-rw.o: rw.c
-	${CC} ${CFLAGS} -c ${srcdir}/rw.c
-
+rw: rw.o liblwp.a $(TOP_LIBDIR)/util.a $(TOP_LIBDIR)/libopr.a
+	$(AFS_LDRULE) rw.o liblwp.a $(TOP_LIBDIR)/util.a $(TOP_LIBDIR)/libopr.a
 
 #
 # Install targets
@@ -204,10 +218,13 @@ dest: liblwp.a lock.h lwp.h preempt.h timer.h
 	${INSTALL_DATA} ${srcdir}/preempt.h ${DEST}/include/preempt.h
 	${INSTALL_DATA} ${srcdir}/timer.h ${DEST}/include/timer.h
 
+buildtools: ${TOP_LIBDIR}/liblwp.a depinstall
+
 #
 # Misc. targets
 #
 clean:
+	$(LT_CLEAN)
 	$(RM) -f *.o *.a core AFS_component_version_number.c
 
 include ../config/Makefile.version

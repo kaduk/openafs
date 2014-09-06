@@ -10,29 +10,17 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
+#include <afs/procmgmt.h>
+#include <roken.h>
+#include <afs/opr.h>
 
-#include <sys/types.h>
 #include <lwp.h>
 #include <rx/rx.h>
-#include <errno.h>
-#include <stdio.h>
-#ifdef	AFS_SUN5_ENV
-#include <fcntl.h>
-#endif
-#ifdef AFS_NT40_ENV
-#include <io.h>
-#include <fcntl.h>
-#else
-#include <sys/file.h>
-
-#include <string.h>
-#include <stdlib.h>
-
-#endif /* AFS_NT40_ENV */
-#include <sys/stat.h>
-#include <afs/procmgmt.h>	/* signal(), kill(), wait(), etc. */
 #include <afs/afsutil.h>
+#include <opr/queue.h>
+
 #include "bnode.h"
+#include "bnode_internal.h"
 #include "bosprototypes.h"
 
 extern char *DoPidFiles;
@@ -305,7 +293,7 @@ SetSalFlag(struct fsbnode *abnode, int aflag)
     if (abnode->salsrvcmd == NULL) {
 	abnode->needsSalvage = aflag;
 	strcompose(tbuffer, AFSDIR_PATH_MAX, AFSDIR_SERVER_LOCAL_DIRPATH, "/",
-		   SALFILE, abnode->b.name, NULL);
+		   SALFILE, abnode->b.name, (char *)NULL);
 	if (aflag) {
 	    fd = open(tbuffer, O_CREAT | O_TRUNC | O_RDWR, 0666);
 	    close(fd);
@@ -327,7 +315,7 @@ RestoreSalFlag(struct fsbnode *abnode)
 	abnode->needsSalvage = 0;
     } else {
 	strcompose(tbuffer, AFSDIR_PATH_MAX, AFSDIR_SERVER_LOCAL_DIRPATH, "/",
-		   SALFILE, abnode->b.name, NULL);
+		   SALFILE, abnode->b.name, (char *)NULL);
 	if (access(tbuffer, 0) == 0) {
 	    /* file exists, so need to salvage */
 	    abnode->needsSalvage = 1;
@@ -336,15 +324,6 @@ RestoreSalFlag(struct fsbnode *abnode)
 	}
     }
     return 0;
-}
-
-char *
-copystr(char *a)
-{
-    char *b;
-    b = (char *)malloc(strlen(a) + 1);
-    strcpy(b, a);
-    return b;
 }
 
 static int
@@ -453,12 +432,11 @@ fs_create(char *ainstance, char *afilecmd, char *avolcmd, char *asalcmd,
 	}
     }
 
-    te = (struct fsbnode *)malloc(sizeof(struct fsbnode));
+    te = calloc(1, sizeof(struct fsbnode));
     if (te == NULL) {
 	bailout = 1;
 	goto done;
     }
-    memset(te, 0, sizeof(struct fsbnode));
     te->filecmd = fileCmdpath;
     te->volcmd = volCmdpath;
     te->salsrvcmd = NULL;
@@ -582,12 +560,11 @@ dafs_create(char *ainstance, char *afilecmd, char *avolcmd,
 	}
     }
 
-    te = (struct fsbnode *)malloc(sizeof(struct fsbnode));
+    te = calloc(1, sizeof(struct fsbnode));
     if (te == NULL) {
 	bailout = 1;
 	goto done;
     }
-    memset(te, 0, sizeof(struct fsbnode));
     te->filecmd = fileCmdpath;
     te->volcmd = volCmdpath;
     te->salsrvcmd = salsrvCmdpath;

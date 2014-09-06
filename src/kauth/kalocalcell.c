@@ -10,20 +10,16 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
+#include <roken.h>
+#include <afs/opr.h>
+
 #include <afs/pthread_glock.h>
-#include <sys/types.h>
-#ifdef AFS_NT40_ENV
-#include <winsock2.h>
-#else
-#include <netinet/in.h>
-#endif
-#include <string.h>
 #include <afs/cellconfig.h>
 #include <rx/xdr.h>
 #include <rx/rx.h>
+
 #include "kauth.h"
 #include "kautils.h"
-#include <afs/afsutil.h>
 
 #ifdef UKERNEL
 #include "afs_usrops.h"
@@ -134,6 +130,8 @@ int
 ka_CellToRealm(char *cell, char *realm, int *local)
 {
     int code = 0;
+
+    opr_Assert(realm != NULL);
 
     LOCK_GLOBAL_MUTEX;
     code = ka_ExpandCell(cell, realm, local);

@@ -10,35 +10,23 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
+#include <roken.h>
+
 #ifdef IGNORE_SOME_GCC_WARNINGS
 # pragma GCC diagnostic warning "-Wimplicit-function-declaration"
 #endif
 
-#include <sys/types.h>
-#include <string.h>
-#ifdef HAVE_STDINT_H
-# include <stdint.h>
-#endif
 #ifdef AFS_NT40_ENV
-#include <fcntl.h>
-#include <io.h>
-#include <winsock2.h>
 #include <WINNT/afsreg.h>
-#else
-#include <sys/time.h>
-#include <sys/file.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #endif
-#include <sys/stat.h>
+
 #ifdef AFS_AIX_ENV
 #include <sys/statfs.h>
 #endif
-#include <errno.h>
 
 #include <lock.h>
 #include <afs/stds.h>
+#include <rx/rx_queue.h>
 #include <rx/xdr.h>
 #include <rx/rx.h>
 #include <rx/rx_globals.h>
@@ -60,9 +48,6 @@
 #include "dump.h"
 #include "lockdata.h"
 
-#ifdef	AFS_AIX32_ENV
-#include <signal.h>
-#endif
 #include "volser_internal.h"
 #include "volser_prototypes.h"
 #include "vsutils_prototypes.h"
@@ -89,11 +74,13 @@ struct tqHead {
 
 #define COMMONPARMS     cmd_Seek(ts, 12);\
 cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cell name");\
+cmd_AddParmAlias(ts, 12, "-c");   /* original -cell option */ \
 cmd_AddParm(ts, "-noauth", CMD_FLAG, CMD_OPTIONAL, "don't authenticate");\
 cmd_AddParm(ts, "-localauth",CMD_FLAG,CMD_OPTIONAL,"use server tickets");\
 cmd_AddParm(ts, "-verbose", CMD_FLAG, CMD_OPTIONAL, "verbose");\
 cmd_AddParm(ts, "-encrypt", CMD_FLAG, CMD_OPTIONAL, "encrypt commands");\
 cmd_AddParm(ts, "-noresolve", CMD_FLAG, CMD_OPTIONAL, "don't resolve addresses"); \
+cmd_AddParm(ts, "-config", CMD_SINGLE, CMD_OPTIONAL, "config location"); \
 
 #define ERROR_EXIT(code) do { \
     error = (code); \
@@ -101,8 +88,6 @@ cmd_AddParm(ts, "-noresolve", CMD_FLAG, CMD_OPTIONAL, "don't resolve addresses")
 } while (0)
 
 int rxInitDone = 0;
-struct rx_connection *tconn;
-afs_uint32 tserver;
 extern struct ubik_client *cstruct;
 const char *confdir;
 
@@ -121,7 +106,7 @@ qPut(struct tqHead *ahead, afs_uint32 volid)
 {
     struct tqElem *elem;
 
-    elem = (struct tqElem *)malloc(sizeof(struct tqElem));
+    elem = malloc(sizeof(struct tqElem));
     elem->next = ahead->next;
     elem->volid = volid;
     ahead->next = elem;
@@ -150,7 +135,7 @@ FileExists(char *filename)
 {
     usd_handle_t ufd;
     int code;
-    afs_hyper_t size;
+    afs_int64 size;
 
     code = usd_Open(filename, USD_OPEN_RDONLY, 0, &ufd);
     if (code) {
@@ -168,7 +153,7 @@ FileExists(char *filename)
 static int
 VolNameOK(char *name)
 {
-    int total;
+    size_t total;
 
 
     total = strlen(name);
@@ -185,7 +170,8 @@ VolNameOK(char *name)
 static int
 IsNumeric(char *name)
 {
-    int result, len, i;
+    int result, i;
+    size_t len;
     char *ptr;
 
     result = 1;
@@ -222,7 +208,7 @@ GetServerNoresolve(char *aname)
 	return 0;
 }
 /*
- * Parse a server name/address and return the address in network byte order
+ * Parse a server name/address and return a non-loopback address in network byte order
  */
 afs_uint32
 GetServer(char *aname)
@@ -231,25 +217,50 @@ GetServer(char *aname)
     afs_uint32 addr; /* in network byte order */
     afs_int32 code;
     char hostname[MAXHOSTCHARS];
+    int i;
 
-    if ((addr = GetServerNoresolve(aname)) == 0) {
-	th = gethostbyname(aname);
-	if (!th)
+    addr = GetServerNoresolve(aname);
+    if (addr != 0) {
+	if (!rx_IsLoopbackAddr(ntohl(addr)))
+	    return addr;
+	else
 	    return 0;
-	memcpy(&addr, th->h_addr, sizeof(addr));
     }
 
-    if (rx_IsLoopbackAddr(ntohl(addr))) {	/* local host */
+    th = gethostbyname(aname);
+    if (th != NULL) {
+	for (i=0; i < th->h_length; i++) {
+	    if (!rx_IsLoopbackAddr(ntohl(*(afs_uint32 *)th->h_addr_list[i]))) {
+		memcpy(&addr, th->h_addr_list[i], sizeof(addr));
+		return addr;
+	    }
+	}
+
+	/*
+	 * If we reach this point all of the addresses returned by
+	 * gethostbyname() are loopback addresses.  We assume that means
+	 * that the name is supposed to describe the machine this code
+	 * is executing on.  Try gethostname() to and check to see if
+	 * that name can provide us a non-loopback address.
+	 */
 	code = gethostname(hostname, MAXHOSTCHARS);
-	if (code)
-	    return 0;
-	th = gethostbyname(hostname);
-	if (!th)
-	    return 0;
-	memcpy(&addr, th->h_addr, sizeof(addr));
+	if (code == 0) {
+	    th = gethostbyname(hostname);
+	    if (th != NULL) {
+		for (i=0; i < th->h_length; i++) {
+		    if (!rx_IsLoopbackAddr(ntohl(*(afs_uint32 *)th->h_addr_list[i]))) {
+			memcpy(&addr, th->h_addr_list[i], sizeof(addr));
+			return addr;
+		    }
+		}
+	    }
+	}
     }
 
-    return (addr);
+    /*
+     * No non-loopback address could be obtained for 'aname'.
+     */
+    return 0;
 }
 
 afs_int32
@@ -295,26 +306,24 @@ SendFile(usd_handle_t ufd, struct rx_call *call, long blksize)
 {
     char *buffer = (char *)0;
     afs_int32 error = 0;
-    int done = 0;
     afs_uint32 nbytes;
 
-    buffer = (char *)malloc(blksize);
+    buffer = malloc(blksize);
     if (!buffer) {
 	fprintf(STDERR, "malloc failed\n");
 	return -1;
     }
 
-    while (!error && !done) {
-#ifndef AFS_NT40_ENV		/* NT csn't select on non-socket fd's */
+    while (!error) {
+#if !defined(AFS_NT40_ENV) && !defined(AFS_PTHREAD_ENV)
+	/* Only for this for non-NT, non-pthread. For NT, we can't select on
+	 * non-socket FDs. For pthread environments, we don't need to select at
+	 * all, since the following read() will block. */
 	fd_set in;
 	FD_ZERO(&in);
 	FD_SET((intptr_t)(ufd->handle), &in);
 	/* don't timeout if read blocks */
-#if defined(AFS_PTHREAD_ENV)
-	select(((intptr_t)(ufd->handle)) + 1, &in, 0, 0, 0);
-#else
 	IOMGR_Select(((intptr_t)(ufd->handle)) + 1, &in, 0, 0, 0);
-#endif
 #endif
 	error = USD_READ(ufd, buffer, blksize, &nbytes);
 	if (error) {
@@ -322,10 +331,10 @@ SendFile(usd_handle_t ufd, struct rx_call *call, long blksize)
 	            afs_error_message(error));
 	    break;
 	}
-	if (nbytes == 0) {
-	    done = 1;
+
+	if (nbytes == 0)
 	    break;
-	}
+
 	if (rx_Write(call, buffer, nbytes) != nbytes) {
 	    error = -1;
 	    break;
@@ -346,7 +355,7 @@ WriteData(struct rx_call *call, void *rock)
     long blksize;
     afs_int32 error, code;
     int ufdIsOpen = 0;
-    afs_hyper_t filesize, currOffset;
+    afs_int64 currOffset;
     afs_uint32 buffer;
     afs_uint32 got;
 
@@ -369,19 +378,15 @@ WriteData(struct rx_call *call, void *rock)
 	    goto wfail;
 	}
 	/* test if we have a valid dump */
-	hset64(filesize, 0, 0);
-	USD_SEEK(ufd, filesize, SEEK_END, &currOffset);
-	hset64(filesize, hgethi(currOffset), hgetlo(currOffset)-sizeof(afs_uint32));
-	USD_SEEK(ufd, filesize, SEEK_SET, &currOffset);
+	USD_SEEK(ufd, 0, SEEK_END, &currOffset);
+	USD_SEEK(ufd, currOffset - sizeof(afs_uint32), SEEK_SET, &currOffset);
 	USD_READ(ufd, (char *)&buffer, sizeof(afs_uint32), &got);
 	if ((got != sizeof(afs_uint32)) || (ntohl(buffer) != DUMPENDMAGIC)) {
 	    fprintf(STDERR, "Signature missing from end of file '%s'\n", filename);
 	    error = VOLSERBADOP;
 	    goto wfail;
 	}
-	/* rewind, we are done */
-	hset64(filesize, 0, 0);
-	USD_SEEK(ufd, filesize, SEEK_SET, &currOffset);
+	USD_SEEK(ufd, 0, SEEK_SET, &currOffset);
     }
     code = SendFile(ufd, call, blksize);
     if (code) {
@@ -412,7 +417,7 @@ ReceiveFile(usd_handle_t ufd, struct rx_call *call, long blksize)
     afs_uint32 bytesleft, w;
     afs_int32 error = 0;
 
-    buffer = (char *)malloc(blksize);
+    buffer = malloc(blksize);
     if (!buffer) {
 	fprintf(STDERR, "memory allocation failed\n");
 	ERROR_EXIT(-1);
@@ -420,16 +425,15 @@ ReceiveFile(usd_handle_t ufd, struct rx_call *call, long blksize)
 
     while ((bytesread = rx_Read(call, buffer, blksize)) > 0) {
 	for (bytesleft = bytesread; bytesleft; bytesleft -= w) {
-#ifndef AFS_NT40_ENV		/* NT csn't select on non-socket fd's */
+#if !defined(AFS_NT40_ENV) && !defined(AFS_PTHREAD_ENV)
+	    /* Only for this for non-NT, non-pthread. For NT, we can't select
+	     * on non-socket FDs. For pthread environments, we don't need to
+	     * select at all, since the following write() will block. */
 	    fd_set out;
 	    FD_ZERO(&out);
 	    FD_SET((intptr_t)(ufd->handle), &out);
 	    /* don't timeout if write blocks */
-#if defined(AFS_PTHREAD_ENV)
-	    select(((intptr_t)(ufd->handle)) + 1, &out, 0, 0, 0);
-#else
 	    IOMGR_Select(((intptr_t)(ufd->handle)) + 1, 0, &out, 0, 0);
-#endif
 #endif
 	    error =
 		USD_WRITE(ufd, &buffer[bytesread - bytesleft], bytesleft, &w);
@@ -453,7 +457,7 @@ DumpFunction(struct rx_call *call, void *rock)
     char *filename = (char *)rock;
     usd_handle_t ufd;		/* default is to stdout */
     afs_int32 error = 0, code;
-    afs_hyper_t size;
+    afs_int64 size;
     long blksize;
     int ufdIsOpen = 0;
 
@@ -467,7 +471,7 @@ DumpFunction(struct rx_call *call, void *rock)
 	    usd_Open(filename, USD_OPEN_CREATE | USD_OPEN_RDWR, 0666, &ufd);
 	if (code == 0) {
 	    ufdIsOpen = 1;
-	    hzero(size);
+	    size = 0;
 	    code = USD_IOCTL(ufd, USD_IOCTL_SETSIZE, &size);
 	}
 	if (code == 0) {
@@ -1494,7 +1498,9 @@ static void
 VolumeStats_int(volintInfo *pntr, struct nvldbentry *entry, afs_uint32 server,
 	     afs_int32 part, int voltype)
 {
-    int totalOK, totalNotOK, totalBusy;
+    int totalOK = 0;
+    int totalNotOK = 0;
+    int totalBusy = 0;
 
     DisplayFormat(pntr, server, part, &totalOK, &totalNotOK, &totalBusy, 0, 1,
 		  1);
@@ -1731,6 +1737,7 @@ SetFields(struct cmd_syndesc *as, void *arock)
     afs_uint32 aserver;
     afs_int32 apart;
     int previdx = -1;
+    int have_field = 0;
 
     volid = vsu_GetVolumeID(as->parms[0].items->data, cstruct, &err);	/* -id */
     if (volid == 0) {
@@ -1764,6 +1771,7 @@ SetFields(struct cmd_syndesc *as, void *arock)
 
     if (as->parms[1].items) {
 	/* -max <quota> */
+	have_field = 1;
 	code = util_GetHumanInt32(as->parms[1].items->data, &info.maxquota);
 	if (code) {
 	    fprintf(STDERR, "invalid quota value\n");
@@ -1772,11 +1780,17 @@ SetFields(struct cmd_syndesc *as, void *arock)
     }
     if (as->parms[2].items) {
 	/* -clearuse */
+	have_field = 1;
 	info.dayUse = 0;
     }
     if (as->parms[3].items) {
 	/* -clearVolUpCounter */
+	have_field = 1;
 	info.spare2 = 0;
+    }
+    if (!have_field) {
+	fprintf(STDERR,"Nothing to set.\n");
+	return (1);
     }
     code = UV_SetVolumeInfo(aserver, apart, volid, &info);
     if (code)
@@ -1929,6 +1943,7 @@ CreateVolume(struct cmd_syndesc *as, void *arock)
     struct nvldbentry entry;
     afs_int32 vcode;
     afs_int32 quota;
+    afs_uint32 tserver;
 
     arovolid = &rovolid;
 
@@ -2855,13 +2870,15 @@ ReleaseVolume(struct cmd_syndesc *as, void *arock)
     afs_uint32 avolid;
     afs_uint32 aserver;
     afs_int32 apart, vtype, code, err;
-    int force = 0;
-    int stayUp = 0;
+    int flags = 0;
 
-    if (as->parms[1].items)
-	force = 1;
-    if (as->parms[2].items)
-	stayUp = 1;
+    if (as->parms[1].items) /* -force */
+	flags |= (REL_COMPLETE | REL_FULLDUMPS);
+    if (as->parms[2].items) /* -stayonline */
+	flags |= REL_STAYUP;
+    if (as->parms[3].items) /* -force-reclone */
+        flags |= REL_COMPLETE;
+
     avolid = vsu_GetVolumeID(as->parms[0].items->data, cstruct, &err);
     if (avolid == 0) {
 	if (err)
@@ -2887,7 +2904,7 @@ ReleaseVolume(struct cmd_syndesc *as, void *arock)
 	return E2BIG;
     }
 
-    code = UV_ReleaseVolume(avolid, aserver, apart, force, stayUp);
+    code = UV_ReleaseVolume(avolid, aserver, apart, flags);
 
     if (code) {
 	PrintDiagnostics("release", code);
@@ -2913,8 +2930,8 @@ DumpVolumeCmd(struct cmd_syndesc *as, void *arock)
 	if (rxConn == 0)
 	    break;
 	rx_SetConnDeadTime(rxConn, rx_connDeadTime);
-	if (rxConn->service)
-	    rxConn->service->connDeadTime = rx_connDeadTime;
+	if (rx_ServiceOf(rxConn))
+	    rx_ServiceOf(rxConn)->connDeadTime = rx_connDeadTime;
     }
 
     avolid = vsu_GetVolumeID(as->parms[0].items->data, cstruct, &err);
@@ -3805,6 +3822,7 @@ SyncVldb(struct cmd_syndesc *as, void *arock)
     char part[10];
     int flags = 0;
     char *volname = 0;
+    afs_uint32 tserver;
 
     tserver = 0;
     if (as->parms[0].items) {
@@ -3885,6 +3903,7 @@ SyncServer(struct cmd_syndesc *as, void *arock)
 {
     afs_int32 pnum, code;	/* part name */
     char part[10];
+    afs_uint32 tserver;
 
     int flags = 0;
 
@@ -4296,7 +4315,8 @@ DeleteEntry(struct cmd_syndesc *as, void *arock)
 			    itp->data);
 		continue;
 	    }
-	    if (as->parms[4].items) {	/* -noexecute */
+	    if (as->parms[4].items || as->parms[5].items) {
+		/* -noexecute (hidden) or -dryrun */
 		fprintf(STDOUT, "Would have deleted VLDB entry for %s \n",
 			itp->data);
 		fflush(STDOUT);
@@ -4406,7 +4426,8 @@ DeleteEntry(struct cmd_syndesc *as, void *arock)
 	    }
 	}
 
-	if (as->parms[4].items) {	/* -noexecute */
+	if (as->parms[4].items || as->parms[5].items) {
+	    /* -noexecute (hidden) or -dryrun */
 	    fprintf(STDOUT, "Would have deleted VLDB entry for %s \n",
 		    vllist->name);
 	    fflush(STDOUT);
@@ -4489,7 +4510,6 @@ static int
 ListVLDB(struct cmd_syndesc *as, void *arock)
 {
     afs_int32 apart;
-    afs_uint32 aserver;
     afs_int32 code;
     afs_int32 vcode;
     struct VldbListByAttributes attributes;
@@ -4503,7 +4523,6 @@ ListVLDB(struct cmd_syndesc *as, void *arock)
     int quiet, sort, lock;
     afs_int32 thisindex, nextindex;
 
-    aserver = 0;
     apart = 0;
 
     attributes.Mask = 0;
@@ -4530,6 +4549,8 @@ ListVLDB(struct cmd_syndesc *as, void *arock)
 
     /* Server specified */
     if (as->parms[1].items) {
+	afs_uint32 aserver;
+
 	aserver = GetServer(as->parms[1].items->data);
 	if (aserver == 0) {
 	    fprintf(STDERR, "vos: server '%s' not found in host table\n",
@@ -4617,9 +4638,7 @@ ListVLDB(struct cmd_syndesc *as, void *arock)
 	    } else {
 		/* Grow the tarray to keep the extra entries */
 		parraysize = (centries * sizeof(struct nvldbentry));
-		ttarray =
-		    (struct nvldbentry *)realloc(tarray,
-						 tarraysize + parraysize);
+		ttarray = realloc(tarray, tarraysize + parraysize);
 		if (!ttarray) {
 		    fprintf(STDERR,
 			    "Could not allocate enough space for  the VLDB entries\n");
@@ -5318,9 +5337,12 @@ ListAddrs(struct cmd_syndesc *as, void *arock)
     afsUUID m_uuid, askuuid;
     afs_int32 m_nentries;
 
-    memset(&m_attrs, 0, sizeof(struct ListAddrByAttributes));
-    m_attrs.Mask = VLADDR_INDEX;
+    if (as->parms[0].items && as->parms[1].items) {
+        fprintf(STDERR, "vos: Can't use the -uuid and -host flags together\n");
+        exit(-1);
+    }
 
+    memset(&m_attrs, 0, sizeof(struct ListAddrByAttributes));
     memset(&askuuid, 0, sizeof(afsUUID));
     if (as->parms[0].items) {
 	/* -uuid */
@@ -5331,8 +5353,7 @@ ListAddrs(struct cmd_syndesc *as, void *arock)
 	}
 	m_attrs.Mask = VLADDR_UUID;
 	m_attrs.uuid = askuuid;
-    }
-    if (as->parms[1].items) {
+    } else if (as->parms[1].items) {
 	/* -host */
 	struct hostent *he;
 	afs_uint32 saddr;
@@ -5345,7 +5366,11 @@ ListAddrs(struct cmd_syndesc *as, void *arock)
 	memcpy(&saddr, he->h_addr, 4);
 	m_attrs.Mask = VLADDR_IPADDR;
 	m_attrs.ipaddr = ntohl(saddr);
+    } else {
+        /* by index */
+        m_attrs.Mask = VLADDR_INDEX;
     }
+
     if (as->parms[2].items) {
 	printuuid = 1;
     }
@@ -5362,48 +5387,44 @@ ListAddrs(struct cmd_syndesc *as, void *arock)
 	goto out;
     }
 
-    m_nentries = 0;
-    i = 1;
-    while (1) {
-	m_attrs.index = i;
+    for (i = 1, m_nentries = 0; nentries; i++) {
+        m_attrs.index = i;
 
-	xdr_free((xdrproc_t)xdr_bulkaddrs, &m_addrs); /* reset addr list */
-	vcode =
-	    ubik_VL_GetAddrsU(cstruct, UBIK_CALL_NEW, &m_attrs, &m_uuid,
-			      &m_uniq, &m_nentries, &m_addrs);
+        xdr_free((xdrproc_t)xdr_bulkaddrs, &m_addrs); /* reset addr list */
+        vcode =
+            ubik_VL_GetAddrsU(cstruct, UBIK_CALL_NEW, &m_attrs, &m_uuid,
+                              &m_uniq, &m_nentries, &m_addrs);
+        switch (vcode) {
+        case 0: /* success */
+            print_addrs(&m_addrs, &m_uuid, m_nentries, printuuid);
+            nentries--;
+            break;
 
-	if (vcode == VL_NOENT) {
-  	    if (m_attrs.Mask == VLADDR_UUID) {
-	        fprintf(STDERR, "vos: no entry for UUID '%s' found in VLDB\n",
-			as->parms[0].items->data);
-		exit(-1);
-	    } else if (m_attrs.Mask == VLADDR_IPADDR) {
-	        fprintf(STDERR, "vos: no entry for host '%s' [0x%08x] found in VLDB\n",
-			as->parms[1].items->data, m_attrs.ipaddr);
-		exit(-1);
-	    } else {
-	        i++;
-		nentries++;
-		continue;
-	    }
-	}
+        case VL_NOENT:
+            if (m_attrs.Mask == VLADDR_UUID) {
+                fprintf(STDERR, "vos: no entry for UUID '%s' found in VLDB\n",
+                        as->parms[0].items->data);
+                exit(-1);
+            } else if (m_attrs.Mask == VLADDR_IPADDR) {
+                fprintf(STDERR, "vos: no entry for host '%s' [0x%08x] found in VLDB\n",
+                        as->parms[1].items->data, m_attrs.ipaddr);
+                exit(-1);
+            }
+            continue;
 
-	if (vcode == VL_INDEXERANGE) {
-	    vcode = 0; /* not an error, just means we're done */
-	    goto out;
-	}
+        case VL_INDEXERANGE:
+            vcode = 0; /* not an error, just means we're done */
+            goto out;
 
-	if (vcode) {
-	    fprintf(STDERR, "vos: could not list the server addresses\n");
-	    PrintError("", vcode);
-	    goto out;
-	}
+        default: /* any other error */
+            fprintf(STDERR, "vos: could not list the server addresses\n");
+            PrintError("", vcode);
+            goto out;
+        }
 
-	print_addrs(&m_addrs, &m_uuid, m_nentries, printuuid);
-	i++;
-
-	if ((as->parms[1].items) || (as->parms[0].items) || (i > nentries))
-	    goto out;
+        /* if -uuid or -host, only list one response */
+        if (as->parms[1].items || as->parms[0].items)
+            break;
     }
 
 out:
@@ -5510,16 +5531,13 @@ ConvertRO(struct cmd_syndesc *as, void *arock)
     afs_uint32 volid;
     afs_uint32 server;
     afs_int32 code, i, same;
-    struct nvldbentry entry, checkEntry, storeEntry;
+    struct nvldbentry entry;
     afs_int32 vcode;
-    afs_int32 rwindex = 0;
     afs_uint32 rwserver = 0;
     afs_int32 rwpartition = 0;
-    afs_int32 roindex = 0;
     afs_uint32 roserver = 0;
     afs_int32 ropartition = 0;
     int force = 0;
-    struct rx_connection *aconn;
     int c, dc;
 
     server = GetServer(as->parms[0].items->data);
@@ -5572,7 +5590,6 @@ ConvertRO(struct cmd_syndesc *as, void *arock)
     MapHostToNetwork(&entry);
     for (i = 0; i < entry.nServers; i++) {
 	if (entry.serverFlags[i] & ITSRWVOL) {
-	    rwindex = i;
 	    rwserver = entry.serverNumber[i];
 	    rwpartition = entry.serverPartition[i];
 	    if (roserver)
@@ -5586,7 +5603,6 @@ ConvertRO(struct cmd_syndesc *as, void *arock)
 		return ENOENT;
 	    }
 	    if (same) {
-		roindex = i;
 		roserver = entry.serverNumber[i];
 		ropartition = entry.serverPartition[i];
 		if (rwserver)
@@ -5620,110 +5636,8 @@ ConvertRO(struct cmd_syndesc *as, void *arock)
 	}
     }
 
-    vcode =
-	ubik_VL_SetLock(cstruct, 0, entry.volumeId[RWVOL], RWVOL,
-		  VLOP_MOVE);
-    if (vcode) {
-	fprintf(STDERR,
-		"Unable to lock volume %lu, code %d\n",
-		(unsigned long)entry.volumeId[RWVOL],vcode);
-	PrintError("", vcode);
-	return -1;
-    }
+    code = UV_ConvertRO(server, partition, volid, &entry);
 
-    /* make sure the VLDB entry hasn't changed since we started */
-    memset(&checkEntry, 0, sizeof(checkEntry));
-    vcode = VLDB_GetEntryByID(volid, -1, &checkEntry);
-    if (vcode) {
-	fprintf(STDERR,
-                "Could not fetch the entry for volume %lu from VLDB\n",
-                (unsigned long)volid);
-	PrintError("convertROtoRW ", vcode);
-	code = vcode;
-	goto error_exit;
-    }
-
-    MapHostToNetwork(&checkEntry);
-    entry.flags &= ~VLOP_ALLOPERS;  /* clear any stale lock operation flags */
-    entry.flags |= VLOP_MOVE;        /* set to match SetLock operation above */
-    if (memcmp(&entry, &checkEntry, sizeof(entry)) != 0) {
-        fprintf(STDERR,
-                "VLDB entry for volume %lu has changed; please reissue the command.\n",
-                (unsigned long)volid);
-        code = -1;
-        goto error_exit;
-    }
-
-    aconn = UV_Bind(server, AFSCONF_VOLUMEPORT);
-    code = AFSVolConvertROtoRWvolume(aconn, partition, volid);
-    if (code) {
-	fprintf(STDERR,
-		"Converting RO volume %lu to RW volume failed with code %d\n",
-		(unsigned long)volid, code);
-	PrintError("convertROtoRW ", code);
-	goto error_exit;
-    }
-    /* Update the VLDB to match what we did on disk as much as possible.  */
-    /* If the converted RO was in the VLDB, make it look like the new RW. */
-    if (roserver) {
-	entry.serverFlags[roindex] = ITSRWVOL;
-    } else {
-	/* Add a new site entry for the newly created RW.  It's possible
-	 * (but unlikely) that we are already at MAXNSERVERS and that this
-	 * new site will invalidate the whole VLDB entry;  however,
-	 * VLDB_ReplaceEntry will detect this and return VL_BADSERVER,
-	 * so we need no extra guard logic here.
-	 */
-	afs_int32 newrwindex = entry.nServers;
-	(entry.nServers)++;
-	entry.serverNumber[newrwindex] = server;
-	entry.serverPartition[newrwindex] = partition;
-	entry.serverFlags[newrwindex] = ITSRWVOL;
-    }
-    entry.flags |= RW_EXISTS;
-    entry.flags &= ~BACK_EXISTS;
-
-    /* if the old RW was in the VLDB, remove it by decrementing the number */
-    /* of servers, replacing the RW entry with the last entry, and zeroing */
-    /* out the last entry. */
-    if (rwserver) {
-	(entry.nServers)--;
-	if (rwindex != entry.nServers) {
-	    entry.serverNumber[rwindex] = entry.serverNumber[entry.nServers];
-	    entry.serverPartition[rwindex] =
-		entry.serverPartition[entry.nServers];
-	    entry.serverFlags[rwindex] = entry.serverFlags[entry.nServers];
-	    entry.serverNumber[entry.nServers] = 0;
-	    entry.serverPartition[entry.nServers] = 0;
-	    entry.serverFlags[entry.nServers] = 0;
-	}
-    }
-    entry.flags &= ~RO_EXISTS;
-    for (i = 0; i < entry.nServers; i++) {
-	if (entry.serverFlags[i] & ITSROVOL) {
-	    if (!(entry.serverFlags[i] & (RO_DONTUSE | NEW_REPSITE)))
-		entry.flags |= RO_EXISTS;
-	}
-    }
-    MapNetworkToHost(&entry, &storeEntry);
-    code =
-	VLDB_ReplaceEntry(entry.volumeId[RWVOL], RWVOL, &storeEntry,
-			  (LOCKREL_OPCODE | LOCKREL_AFSID |
-			   LOCKREL_TIMESTAMP));
-    if (code) {
-	fprintf(STDERR,
-		"Warning: volume converted, but vldb update failed with code %d!\n",
-		code);
-    }
-
-  error_exit:
-    vcode = UV_LockRelease(entry.volumeId[RWVOL]);
-    if (vcode) {
-	fprintf(STDERR,
-		"Unable to unlock volume %lu, code %d\n",
-		(unsigned long)entry.volumeId[RWVOL],vcode);
-	PrintError("", vcode);
-    }
     return code;
 }
 
@@ -5742,8 +5656,8 @@ Sizes(struct cmd_syndesc *as, void *arock)
 	if (rxConn == 0)
 	    break;
 	rx_SetConnDeadTime(rxConn, rx_connDeadTime);
-	if (rxConn->service)
-	    rxConn->service->connDeadTime = rx_connDeadTime;
+	if (rx_ServiceOf(rxConn))
+	    rx_ServiceOf(rxConn)->connDeadTime = rx_connDeadTime;
     }
 
     avolid = vsu_GetVolumeID(as->parms[0].items->data, cstruct, &err);
@@ -5792,11 +5706,7 @@ Sizes(struct cmd_syndesc *as, void *arock)
     fprintf(STDOUT, "Volume: %s\n", as->parms[0].items->data);
 
     if (as->parms[3].items) {	/* do the dump estimate */
-#ifdef AFS_64BIT_ENV
 	vol_size.dump_size = 0;
-#else
-   FillInt64(vol_size.dump_size,0, 1);
-#endif
 	code = UV_GetSize(avolid, aserver, apart, fromdate, &vol_size);
 	if (code) {
 	    PrintDiagnostics("size", code);
@@ -5850,13 +5760,20 @@ EndTrans(struct cmd_syndesc *as, void *arock)
 int
 PrintDiagnostics(char *astring, afs_int32 acode)
 {
-    if (acode == EACCES) {
+    switch (acode) {
+    case EACCES:
 	fprintf(STDERR,
 		"You are not authorized to perform the 'vos %s' command (%d)\n",
 		astring, acode);
-    } else {
+	break;
+    case EXDEV:
+	fprintf(STDERR, "Error in vos %s command.\n", astring);
+	fprintf(STDERR, "Clone volume is not in the same partition as the read-write volume.\n");
+	break;
+    default:
 	fprintf(STDERR, "Error in vos %s command.\n", astring);
 	PrintError("", acode);
+	break;
     }
     return 0;
 }
@@ -5890,27 +5807,37 @@ MyBeforeProc(struct cmd_syndesc *as, void *arock)
 {
     char *tcell;
     afs_int32 code;
-    afs_int32 sauth;
+    int secFlags;
 
     /* Initialize the ubik_client connection */
     rx_SetRxDeadTime(90);
-    cstruct = (struct ubik_client *)0;
+    cstruct = NULL;
+    secFlags = AFSCONF_SECOPTS_FALLBACK_NULL;
 
-    sauth = 0;
     tcell = NULL;
     if (as->parms[12].items)	/* if -cell specified */
 	tcell = as->parms[12].items->data;
-    if (as->parms[14].items)	/* -serverauth specified */
-	sauth = 1;
+
+    if (as->parms[13].items)
+	secFlags |= AFSCONF_SECOPTS_NOAUTH;
+
+    if (as->parms[14].items) {	/* -localauth specified */
+	secFlags |= AFSCONF_SECOPTS_LOCALAUTH;
+	confdir = AFSDIR_SERVER_ETC_DIRPATH;
+    }
+
     if (as->parms[16].items     /* -encrypt specified */
 #ifdef AFS_NT40_ENV
         || win32_enableCrypt()
 #endif /* AFS_NT40_ENV */
          )
-	vsu_SetCrypt(1);
-    if ((code =
-	 vsu_ClientInit((as->parms[13].items != 0), confdir, tcell, sauth,
-			&cstruct, UV_SetSecurity))) {
+	secFlags |= AFSCONF_SECOPTS_ALWAYSENCRYPT;
+
+    if (as->parms[18].items)   /* -config flag set */
+	confdir = as->parms[18].items->data;
+
+    if ((code = vsu_ClientInit(confdir, tcell, secFlags, UV_SetSecurity,
+			       &cstruct))) {
 	fprintf(STDERR, "could not initialize VLDB library (code=%lu) \n",
 		(unsigned long)code);
 	exit(1);
@@ -5924,6 +5851,7 @@ MyBeforeProc(struct cmd_syndesc *as, void *arock)
 	noresolve = 1;
     else
 	noresolve = 0;
+
     return 0;
 }
 
@@ -6063,9 +5991,12 @@ main(int argc, char **argv)
     ts = cmd_CreateSyntax("release", ReleaseVolume, NULL, "release a volume");
     cmd_AddParm(ts, "-id", CMD_SINGLE, 0, "volume name or ID");
     cmd_AddParm(ts, "-force", CMD_FLAG, CMD_OPTIONAL,
-		"force a complete release");
+		"force a complete release and full dumps");
+    cmd_AddParmAlias(ts, 1, "-f"); /* original force option */
     cmd_AddParm(ts, "-stayonline", CMD_FLAG, CMD_OPTIONAL,
 		"release to cloned temp vol, then clone back to repsite RO");
+    cmd_AddParm(ts, "-force-reclone", CMD_FLAG, CMD_OPTIONAL,
+		"force a reclone and complete release with incremental dumps");
     COMMONPARMS;
 
     ts = cmd_CreateSyntax("dump", DumpVolumeCmd, NULL, "dump a volume");
@@ -6155,14 +6086,14 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-server", CMD_SINGLE, CMD_OPTIONAL, "machine name");
     cmd_AddParm(ts, "-partition", CMD_SINGLE, CMD_OPTIONAL, "partition name");
     cmd_AddParm(ts, "-volume", CMD_SINGLE, CMD_OPTIONAL, "volume name or ID");
-    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL, "report without updating");
+    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL, "list what would be done, don't do it");
     COMMONPARMS;
 
     ts = cmd_CreateSyntax("syncserv", SyncServer, NULL,
 			  "synchronize server with VLDB");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-partition", CMD_SINGLE, CMD_OPTIONAL, "partition name");
-    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL, "report without updating");
+    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL, "list what would be done, don't do it");
     COMMONPARMS;
 
     ts = cmd_CreateSyntax("examine", ExamineVolume, NULL,
@@ -6240,7 +6171,7 @@ main(int argc, char **argv)
 		"exclude common prefix volumes");
     cmd_AddParm(ts, "-xprefix", CMD_LIST, CMD_OPTIONAL,
 		"negative prefix on volume(s)");
-    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL, "no action");
+    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL, "list what would be done, don't do it");
     COMMONPARMS;
 
     ts = cmd_CreateSyntax("delentry", DeleteEntry, NULL,
@@ -6250,8 +6181,9 @@ main(int argc, char **argv)
 		"prefix of the volume whose VLDB entry is to be deleted");
     cmd_AddParm(ts, "-server", CMD_SINGLE, CMD_OPTIONAL, "machine name");
     cmd_AddParm(ts, "-partition", CMD_SINGLE, CMD_OPTIONAL, "partition name");
-    cmd_AddParm(ts, "-noexecute", CMD_FLAG, CMD_OPTIONAL,
-		"no execute");
+    cmd_AddParm(ts, "-noexecute", CMD_FLAG, CMD_OPTIONAL|CMD_HIDDEN, "");
+    cmd_AddParm(ts, "-dryrun", CMD_FLAG, CMD_OPTIONAL,
+		"list what would be done, don't do it");
     COMMONPARMS;
 
     ts = cmd_CreateSyntax("partinfo", PartitionInfo, NULL,

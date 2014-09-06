@@ -172,7 +172,7 @@ afsrename(struct vcache *aodp, char *aname1, struct vcache *andp,
     if (!AFS_IS_DISCON_RW) {
     	/* Connected. */
 	do {
-	  tc = afs_Conn(&aodp->f.fid, areq, SHARED_LOCK, &rxconn);
+	    tc = afs_Conn(&aodp->f.fid, areq, SHARED_LOCK, &rxconn);
 	    if (tc) {
 	    	XSTATS_START_TIME(AFS_STATS_FS_RPCIDX_RENAME);
 	    	RX_AFS_GUNLOCK();
@@ -191,7 +191,7 @@ afsrename(struct vcache *aodp, char *aname1, struct vcache *andp,
 	    	code = -1;
 
 	} while (afs_Analyze
-		 (tc, rxconn, code, &andp->f.fid, areq, AFS_STATS_FS_RPCIDX_RENAME,
+	     (tc, rxconn, code, &andp->f.fid, areq, AFS_STATS_FS_RPCIDX_RENAME,
 	      SHARED_LOCK, NULL));
 
     } else {

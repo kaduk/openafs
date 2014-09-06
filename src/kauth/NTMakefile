@@ -33,8 +33,9 @@ KAUTH_LIBOBJS =\
 	$(OUT)\kauth.cs.obj \
 	$(OUT)\kaaux.obj \
 	$(OUT)\client.obj \
+	$(OUT)\crypt.obj \
 	$(OUT)\authclient.obj \
-	$(OUT)\token.obj \
+	$(OUT)\katoken.obj \
 	$(OUT)\kautils.obj \
 	$(OUT)\kalocalcell.obj \
 	$(OUT)\kaerrors.obj \
@@ -56,7 +57,7 @@ KAUTH_KRB_LIBOBJS =\
 	$(OUT)\kaaux.obj \
 	$(OUT)\client.obj \
 	$(OUT)\authclient.obj \
-	$(OUT)\token.obj \
+	$(OUT)\katoken.obj \
 	$(OUT)\kautils.obj \
 	$(OUT)\kalocalcell.obj \
 	$(OUT)\kaerrors.obj \
@@ -86,14 +87,17 @@ AFSLIBS =  \
 	$(AFSLIBDIR)\afsaudit.lib \
 	$(DESTDIR)\lib\afs\afsreg.lib \
 	$(DESTDIR)\lib\afslwp.lib \
-	$(DESTDIR)\lib\afsdes.lib \
 	$(DESTDIR)\lib\afsrxstat.lib \
 	$(DESTDIR)\lib\afsrx.lib \
 	$(DESTDIR)\lib\afsubik.lib \
 	$(DESTDIR)\lib\afs\afseventlog.lib \
 	$(DESTDIR)\lib\afsrxkad.lib \
-	$(DESTDIR)\lib\libafsconf.lib
-	
+	$(DESTDIR)\lib\libafsconf.lib \
+	$(DESTDIR)\lib\opr.lib \
+	$(DESTDIR)\lib\afshcrypto.lib \
+	$(DESTDIR)\lib\afsroken.lib \
+	$(DESTDIR)\lib\afsrfc3961.lib
+
 TOKENLIB = $(DESTDIR)\lib\afs\afspioctl.lib
 
 ############################################################################
@@ -145,7 +149,7 @@ KAS_OBJS =\
 	$(OUT)\admin_tools.obj \
 	$(OUT)\kkids.obj \
 	$(OUT)\kas.res
-	
+
 $(KAS): $(KAS_OBJS) $(AFSLIBS) $(KAUTH_LIBFILE) $(TOKENLIB)
 	$(EXECONLINK) dnsapi.lib mpr.lib iphlpapi.lib shell32.lib
         $(_VC_MANIFEST_EMBED_EXE)
@@ -250,4 +254,3 @@ clean::
 	$(DEL) kaerrors.c
 
 mkdir:
-	

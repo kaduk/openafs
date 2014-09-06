@@ -7,10 +7,8 @@
 
 srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
-INSTALL = @INSTALL@
-INSTALL_DATA = @INSTALL_DATA@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@
-INSTALL_SCRIPT = @INSTALL_SCRIPT@
+include @TOP_OBJDIR@/src/config/Makefile.pthread
+
 
 OSXSDK = @OSXSDK@
 
@@ -50,7 +48,7 @@ afscell:
 	esac
 
 afssettings: afssettings.m 
-	${CC} ${CFLAGS} -o afssettings $? -framework Foundation
+	${CC} ${AFS_CFLAGS} -o afssettings $? -framework Foundation
 
 install: \
 	${DESTDIR}${sbindir}/afssettings

@@ -35,10 +35,8 @@
 #include <afsconfig.h>
 #include <afs/param.h>
 
+#include <roken.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "rpc_scan.h"
 #include "rpc_parse.h"
 #include "rpc_util.h"
@@ -163,7 +161,11 @@ print_ifarg(char *arg)
 static void
 print_ifarg_with_cast(int ptr_to, char *type, char *arg)
 {
-    f_print(fout, ptr_to ? ", (%s *) %s" : ", (%s) %s", type, arg);
+    if (streq(type, "bool")) {
+	f_print(fout, ptr_to ? ", (bool_t *) %s" : ", (bool_t) %s", arg);
+    } else {
+	f_print(fout, ptr_to ? ", (%s *) %s" : ", (%s) %s", type, arg);
+    }
 }
 
 static void
@@ -521,16 +523,15 @@ print_param(declaration * dec)
 	} else if (streq(type, "opaque")) {
 	    alt = "opaque";
 	}
-	if (alt) {
+	if (alt)
 	    print_rxifopen(alt);
-	    print_rxifarg(amp, objname, 0);
-	} else {
+	else
 	    print_rxifopen("vector");
-	    print_rxifarg(amp, "(char *)", 0);
-	    sprintf(temp, "%s", objname);
-	    strcat(Proc_list->code, temp);
-	    strcat(Proc_list->scode, temp);
-	}
+
+	print_rxifarg(amp, "(char *)", 0);
+	sprintf(temp, "%s", objname);
+	strcat(Proc_list->code, temp);
+	strcat(Proc_list->scode, temp);
 	print_rxifarg("", amax, 1);
 	if (!alt) {
 	    print_rxifsizeof(prefix, type);
@@ -549,7 +550,7 @@ print_param(declaration * dec)
 		Proc_list->pl.param_flag |= OUT_STRING;
 		print_rxifarg("", objname, 0);
 	    } else
-		print_rxifarg("&", objname, 0);
+		print_rxifarg("(char **) &", objname, 0);
 /*			print_rxifarg(amp, objname, 0);	*/
 	    print_rxifarg("", amax, 1);
 	    if (!alt) {

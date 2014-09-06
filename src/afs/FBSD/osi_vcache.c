@@ -24,27 +24,46 @@
 #endif
 
 int
-osi_TryEvictVCache(struct vcache *avc, int *slept, int defersleep) {
+osi_TryEvictVCache(struct vcache *avc, int *slept, int defersleep)
+{
+    struct vnode *vp;
+    int code;
 
-    /*
-     * essentially all we want to do here is check that the
-     * vcache is not in use, then call vgone() (which will call
-     * inactive and reclaim as needed).  This requires some
-     * kind of complicated locking, which we already need to implement
-     * for FlushVCache, so just call that routine here and check
-     * its return value for whether the vcache was evict-able.
-     */
-    if (osi_VM_FlushVCache(avc, slept) != 0)
+    vp = AFSTOV(avc);
+
+    if (!VI_TRYLOCK(vp))
 	return 0;
-    else
+    code = osi_fbsd_checkinuse(avc);
+    if (code != 0) {
+	VI_UNLOCK(vp);
+	return 0;
+    }
+
+    if ((vp->v_iflag & VI_DOOMED) != 0) {
+	VI_UNLOCK(vp);
 	return 1;
+    }
+
+    /* must hold the vnode before calling vgone()
+     * This code largely copied from vfs_subr.c:vlrureclaim() */
+    vholdl(vp);
+    AFS_GUNLOCK();
+    *slept = 1;
+    /* use the interlock while locking, so no one else can DOOM this */
+    ma_vn_lock(vp, LK_INTERLOCK|LK_EXCLUSIVE|LK_RETRY, curthread);
+    vgone(vp);
+    MA_VOP_UNLOCK(vp, 0, curthread);
+    vdrop(vp);
+
+    AFS_GLOCK();
+    return 1;
 }
 
 struct vcache *
 osi_NewVnode(void) {
     struct vcache *tvc;
 
-    tvc = (struct vcache *)afs_osi_Alloc(sizeof(struct vcache));
+    tvc = afs_osi_Alloc(sizeof(struct vcache));
     tvc->v = NULL; /* important to clean this, or use memset 0 */
 
     return tvc;
@@ -58,7 +77,9 @@ osi_PrePopulateVCache(struct vcache *avc) {
 void
 osi_AttachVnode(struct vcache *avc, int seq) {
     struct vnode *vp;
+#if !defined(AFS_FBSD80_ENV)
     struct thread *p = curthread;
+#endif
 
     ReleaseWriteLock(&afs_xvcache);
     AFS_GUNLOCK();

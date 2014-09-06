@@ -22,26 +22,19 @@
 
 #include <afsconfig.h>
 #include <afs/param.h>
-
-
 #include <afs/stds.h>
-#include <sys/types.h>
-#include <stdio.h>
-#ifdef AFS_NT40_ENV
-#include <winsock2.h>
-#else
-#include <netinet/in.h>
-#endif
-#include <string.h>
+
+#include <roken.h>
+
 #include <lock.h>
 #include <ubik.h>
 #include <rx/xdr.h>
 #include <afs/com_err.h>
 #include <afs/cellconfig.h>
+
 #include "ptserver.h"
 #include "pterror.h"
 #include "ptprototypes.h"
-#include <stdlib.h>
 
 /* Foreign cells are represented by the group system:authuser@cell*/
 #define AUTHUSER_GROUP "system:authuser"
@@ -200,7 +193,7 @@ CorrectUserName(char *name)
 static afs_int32
 CorrectGroupName(struct ubik_trans *ut, char aname[PR_MAXNAMELEN],	/* name for group */
 		 afs_int32 cid,		/* caller id */
-		 afs_int32 oid,		/* owner of group */
+		 afs_int32 *oid,		/* owner of group */
 		 char cname[PR_MAXNAMELEN])	/* correct name for group */
 {
     afs_int32 code;
@@ -214,14 +207,14 @@ CorrectGroupName(struct ubik_trans *ut, char aname[PR_MAXNAMELEN],	/* name for g
 	return PRBADNAM;
     admin = pr_noAuth || IsAMemberOf(ut, cid, SYSADMINID);
 
-    if (oid == 0)
-	oid = cid;
+    if (((*oid == 0) || (*oid == ANONYMOUSID)) && !admin)
+	*oid = cid;
 
     /* Determine the correct prefix for the name. */
-    if (oid == SYSADMINID)
+    if (*oid == SYSADMINID)
 	prefix = "system";
     else {
-	afs_int32 loc = FindByID(ut, oid);
+	afs_int32 loc = FindByID(ut, *oid);
 	if (loc == 0) {
 	    /* let admin create groups owned by non-existent ids (probably
 	     * setting a group to own itself).  Check that they look like
@@ -250,6 +243,13 @@ CorrectGroupName(struct ubik_trans *ut, char aname[PR_MAXNAMELEN],	/* name for g
 
     strcpy(name, aname);	/* in case aname & cname are same */
     suffix = strchr(name, ':');
+    /* let e.g. pt_util create groups with "wrong" names (like
+     * an orphan whose parent ID was reused).  Check that they look like
+     * groups (with a colon) or otherwise are good user names. */
+    if (pr_noAuth) {
+	strcpy(cname, aname);
+	goto done;
+    }
     if (suffix == 0) {
 	/* sysadmin can make groups w/o ':', but they must still look like
 	 * legal user names. */
@@ -339,11 +339,8 @@ CreateEntry(struct ubik_trans *at, char aname[PR_MAXNAMELEN], afs_int32 *aid, af
 
     memset(&tentry, 0, sizeof(tentry));
 
-    if ((oid == 0) || (oid == ANONYMOUSID))
-	oid = creator;
-
     if (flag & PRGRP) {
-	code = CorrectGroupName(at, aname, creator, oid, tentry.name);
+	code = CorrectGroupName(at, aname, creator, &oid, tentry.name);
 	if (code)
 	    return code;
 	if (strcmp(aname, tentry.name) != 0)
@@ -360,9 +357,7 @@ CreateEntry(struct ubik_trans *at, char aname[PR_MAXNAMELEN], afs_int32 *aid, af
     newEntry = AllocBlock(at);
     if (!newEntry)
 	return PRDBFAIL;
-#ifdef PR_REMEMBER_TIMES
     tentry.createTime = time(0);
-#endif
 
     if (flag & PRGRP) {
 	tentry.flags = PRGRP;
@@ -414,10 +409,7 @@ CreateEntry(struct ubik_trans *at, char aname[PR_MAXNAMELEN], afs_int32 *aid, af
 	/* To create the user <name>@<cell> the group AUTHUSER_GROUP@<cell>
 	 * must exist.
 	 */
-	cellGroup =
-	    (char *)malloc(strlen(AUTHUSER_GROUP) + strlen(atsign) + 1);
-	strcpy(cellGroup, AUTHUSER_GROUP);
-	strcat(cellGroup, atsign);
+	asprintf(&cellGroup, "%s%s", AUTHUSER_GROUP, atsign);
 	pos = FindByName(at, cellGroup, &centry);
 	free(cellGroup);
 	if (!pos)
@@ -617,9 +609,7 @@ RemoveFromEntry(struct ubik_trans *at, afs_int32 aid, afs_int32 bid)
     code = pr_ReadEntry(at, 0, temp, &tentry);
     if (code != 0)
 	return code;
-#ifdef PR_REMEMBER_TIMES
     tentry.removeTime = time(0);
-#endif
     for (i = 0; i < PRSIZE; i++) {
 	if (tentry.entries[i] == aid) {
 	    tentry.entries[i] = PRBADID;
@@ -775,9 +765,7 @@ RemoveFromSGEntry(struct ubik_trans *at, afs_int32 aid, afs_int32 bid)
     code = pr_ReadEntry(at, 0, temp, &tentry);
     if (code != 0)
 	return code;
-#ifdef PR_REMEMBER_TIMES
     tentry.removeTime = time(NULL);
-#endif
     tentryg = (struct prentryg *)&tentry;
     for (i = 0; i < SGSIZE; i++) {
 	if (tentryg->supergroup[i] == aid) {
@@ -1016,9 +1004,7 @@ AddToEntry(struct ubik_trans *tt, struct prentry *entry, afs_int32 loc, afs_int3
 
     if (entry->id == aid)
 	return PRINCONSISTENT;
-#ifdef PR_REMEMBER_TIMES
     entry->addTime = time(0);
-#endif
     for (i = 0; i < PRSIZE; i++) {
 	if (entry->entries[i] == aid)
 	    return PRIDEXIST;
@@ -1130,9 +1116,7 @@ AddToSGEntry(struct ubik_trans *tt, struct prentry *entry, afs_int32 loc, afs_in
 
     if (entry->id == aid)
 	return PRINCONSISTENT;
-#ifdef PR_REMEMBER_TIMES
     entry->addTime = time(NULL);
-#endif
     entryg = (struct prentryg *)entry;
     for (i = 0; i < SGSIZE; i++) {
 	if (entryg->supergroup[i] == aid)
@@ -1226,20 +1210,19 @@ AddToSGEntry(struct ubik_trans *tt, struct prentry *entry, afs_int32 loc, afs_in
 afs_int32
 AddToPRList(prlist *alist, int *sizeP, afs_int32 id)
 {
-    char *tmp;
+    afs_int32 *tmp;
     int count;
 
     if (alist->prlist_len >= *sizeP) {
 	count = alist->prlist_len + 100;
 	if (alist->prlist_val) {
-	    tmp =
-		(char *)realloc(alist->prlist_val, count * sizeof(afs_int32));
+	    tmp = realloc(alist->prlist_val, count * sizeof(afs_int32));
 	} else {
-	    tmp = (char *)malloc(count * sizeof(afs_int32));
+	    tmp = malloc(count * sizeof(afs_int32));
 	}
 	if (!tmp)
 	    return (PRNOMEM);
-	alist->prlist_val = (afs_int32 *) tmp;
+	alist->prlist_val = tmp;
 	*sizeP = count;
     }
     alist->prlist_val[alist->prlist_len++] = id;
@@ -1907,9 +1890,7 @@ ChangeEntry(struct ubik_trans *at, afs_int32 aid, afs_int32 cid, char *name, afs
     if (tentry.owner != cid && !IsAMemberOf(at, cid, SYSADMINID)
 	&& !IsAMemberOf(at, cid, tentry.owner) && !pr_noAuth)
 	return PRPERM;
-#ifdef PR_REMEMBER_TIMES
     tentry.changeTime = time(0);
-#endif
 
     /* we're actually trying to change the id */
     if (newid && (newid != aid)) {
@@ -2104,7 +2085,7 @@ ChangeEntry(struct ubik_trans *at, afs_int32 aid, afs_int32 cid, char *name, afs
 	    /* don't let foreign cell groups change name */
 	    if (atsign != NULL)
 		return PRPERM;
-	    code = CorrectGroupName(at, name, cid, tentry.owner, tentry.name);
+	    code = CorrectGroupName(at, name, cid, &tentry.owner, tentry.name);
 	    if (code)
 		return code;
 
