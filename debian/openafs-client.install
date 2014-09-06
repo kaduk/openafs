@@ -82,7 +82,7 @@ debian/tmp/usr/share/man/man1/fs_setclientaddrs.1     usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_setcrypt.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_setquota.1           usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_setserverprefs.1     usr/share/man/man1
-debian/tmp/usr/share/man/man1/fs_seterify.1           usr/share/man/man1
+debian/tmp/usr/share/man/man1/fs_setverify.1          usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_setvol.1             usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_storebehind.1        usr/share/man/man1
 debian/tmp/usr/share/man/man1/fs_sysname.1            usr/share/man/man1
