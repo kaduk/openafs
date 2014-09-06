@@ -47,22 +47,6 @@ Description: AFS distributed file system experimental FUSE client
  started manually, but may be of interest in situations where read-only
  access is sufficient and the kernel module cannot be built.
 
-Package: openafs-kpasswd
-Priority: extra
-Architecture: alpha amd64 arm armel armhf i386 ia64 powerpc powerpcspe ppc64 s390 s390x sparc
-Depends: ${shlibs:Depends}, ${misc:Depends},
- openafs-client (= ${binary:Version})
-Conflicts: krb5-user, heimdal-clients, kerberos4kth-clients
-Description: AFS distributed filesystem old password changing
- AFS is a distributed filesystem allowing cross-platform sharing of
- files among multiple computers.  Facilities are provided for access
- control, authentication, backup and administrative management.
- .
- This package provides kpasswd and kas, utilities needed by the OpenAFS
- kaserver to create users and change passwords.  Only install this package
- if you are already using kaserver; generally you should not install this
- package for new cells or for cells using Kerberos v5.
-
 Package: openafs-fileserver
 Architecture: alpha amd64 arm armel armhf i386 ia64 powerpc powerpcspe ppc64 s390 s390x sparc
 Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base, openafs-client
