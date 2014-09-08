@@ -9,6 +9,12 @@ srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
 include @TOP_OBJDIR@/src/config/Makefile.libtool
 
+# Increment these according to libtool's versioning rules (look them up!)
+# The library output looks like libafsrpc.so.<current - age>.<revision>
+LT_current = 2
+LT_revision = 0
+LT_age = 0
+
 LT_objs = \
 	$(top_builddir)/src/fsint/libfsint_pic.la \
 	$(top_builddir)/src/rx/librx_pic.la \
@@ -45,28 +51,22 @@ libafsrpc.la: libafsrpc.la.sym $(LT_objs) $(LT_deps) libafsrpc_pic.la
 libafsrpc_pic.la: $(LT_objs)
 	$(LT_LDLIB_pic) $(LT_objs)
 
-# AIX needs libafsrpc to also be linked against the syscall import list
-libafsrpc.a: $(LT_objs) libafsrpc.la
-	$(LT_LDLIB_static) $(LT_objs)
-	@set -e; set -x; case "${SYS_NAME}" in \
-	    rs_aix*) \
-		$(AR) crv $@ ../sys/afsl.exp;; \
-	esac
-
-${TOP_LIBDIR}/libafsrpc.a: libafsrpc.a
-	${INSTALL_DATA} $? $@
+${TOP_LIBDIR}/libafsrpc.a: libafsrpc.la
+	${INSTALL_DATA} .libs/libafsrpc.a $@
 
 ${TOP_LIBDIR}/libafsrpc_pic.a: libafsrpc_pic.la
 	${INSTALL_DATA} .libs/libafsrpc_pic.a $@
 
-install: libafsrpc.a libafsrpc_pic.la
+install: libafsrpc.la libafsrpc_pic.la
 	${INSTALL} -d ${DESTDIR}${libdir}
-	$(INSTALL_DATA) libafsrpc.a $(DESTDIR)$(libdir)/libafsrpc.a
+	$(LT_INSTALL_DATA) libafsrpc.la $(DESTDIR)$(libdir)/libafsrpc.la
+	$(RM) $(DESTDIR)$(libdir)/libafsrpc.la
 	$(INSTALL_DATA) .libs/libafsrpc_pic.a $(DESTDIR)$(libdir)/libafsrpc_pic.a
 
-dest: libafsrpc.a
+dest: libafsrpc.la
 	${INSTALL} -d ${DEST}/lib
-	${INSTALL_DATA} libafsrpc.a ${DEST}/lib/libafsrpc.a
+	${INSTALL_DATA} libafsrpc.la ${DEST}/lib/libafsrpc.la
+	${RM} ${DEST}/lib/libafsrpc.la
 	${INSTALL_DATA} .libs/libafsrpc_pic.a ${DEST}/lib/libafsrpc_pic.a
 
 clean:
