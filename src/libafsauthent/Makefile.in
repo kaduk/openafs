@@ -11,6 +11,12 @@ srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
 include @TOP_OBJDIR@/src/config/Makefile.libtool
 
+# Increment these according to libtool's rules (look them up!)
+# The output looks something like libafsrpc.so.<current - age>.<revision>
+LT_current=2
+LT_revision=0
+LT_age=0
+
 LT_objs = \
 	$(top_builddir)/src/audit/libauthent_audit.la \
 	$(top_builddir)/src/auth/libauthent_auth.la   \
@@ -38,11 +44,8 @@ libafsauthent.la: libafsauthent.la.sym $(LT_objs) $(LT_deps) libafsauthent_pic.l
 libafsauthent_pic.la: $(LT_objs)
 	$(LT_LDLIB_pic) $(LT_objs)
 
-libafsauthent.a: $(LT_objs) libafsauthent.la
-	$(LT_LDLIB_static) $(LT_objs)
-
-${TOP_LIBDIR}/libafsauthent.a: libafsauthent.a
-	${INSTALL_DATA} $? $@
+${TOP_LIBDIR}/libafsauthent.a: libafsauthent.la
+	${INSTALL_DATA} .libs/libafsauthent.a $@
 
 ${TOP_LIBDIR}/libafsauthent_pic.a: libafsauthent_pic.la
 	${INSTALL_DATA} .libs/libafsauthent_pic.a $@
@@ -53,9 +56,12 @@ clean:
 
 install: libafsauthent.a libafsauthent_pic.la
 	${INSTALL} -d ${DESTDIR}${libdir}
-	${INSTALL_DATA}  libafsauthent.a ${DESTDIR}${libdir}/libafsauthent.a
+	${LT_INSTALL_DATA} libafsauthent.la ${DESTDIR}${libdir}/libafsauthent.la
+	${RM} ${DESTDIR}${libdir}/libafsauthent.la
 	${INSTALL_DATA}  .libs/libafsauthent_pic.a ${DESTDIR}${libdir}/libafsauthent_pic.a
 
 dest: libafsauthent.a
 	${INSTALL} -d ${DEST}/lib
 	${INSTALL_DATA} libafsauthent.a ${DEST}/lib/libafsauthent.a
+	${LT_INSTALL_DATA} libafsauthent.la ${DEST}/lib/libafsauthent.la
+	${RM} ${DEST}/lib/libafsauthent.la
