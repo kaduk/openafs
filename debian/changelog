@@ -1,4 +1,4 @@
-openafs (1.8.0~~bleeding2-1) UNRELEASED; urgency=low
+openafs (1.8.0~~bleeding3-1) UNRELEASED; urgency=low
 
   * New upstream branch (but I'm faking the release to jumpstart packaging)
   * Do not upload this; do not even push it to the official repo.
