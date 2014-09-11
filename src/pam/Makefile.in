@@ -63,7 +63,8 @@ pam_afs.la: $(LT_objs) $(LT_deps) \
 		pam_afs.map pam_afs.krb.la
 	$(LIBTOOL) --quiet --mode=link --tag=CC $(MT_CC) $(XLDFLAGS) -rpath $(libdir) \
 		-module -no-undefined -o pam_afs.la \
-		afs_setcred.lo afs_auth.lo afs_util.lo $(LT_objs) $(LT_deps) \
+		afs_setcred.lo afs_auth.lo afs_util.lo ktc.lo \
+		$(LT_objs) $(LT_deps) \
 		$(PAM_LIBS) $(LDFLAGS_hcrypto) $(LDFLAGS_roken) \
 		$(LIB_hcrypto) $(LIB_roken)
 
