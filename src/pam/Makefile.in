@@ -11,9 +11,12 @@ include @TOP_OBJDIR@/src/config/Makefile.pthread
 include @TOP_OBJDIR@/src/config/Makefile.libtool
 
 LT_objs = afs_account.lo afs_session.lo afs_password.lo \
-	  afs_pam_msg.lo afs_message.lo AFS_component_version_number.lo
-LT_deps = $(top_builddir)/src/kauth/liboafs_kauth.la \
-	  $(top_builddir)/src/auth/liboafs_auth.la
+	  afs_pam_msg.lo afs_message.lo AFS_component_version_number.lo \
+	  $(top_builddir)/src/kauth/libauthent_kauth.la \
+	  $(top_builddir)/src/auth/libauthent_auth.la
+
+# Our dependencies aren't installed libraries yet
+LT_deps =
 
 MODULE_CFLAGS=${PAM_CFLAGS}
 
