@@ -25,11 +25,12 @@ LT_objs = \
 	$(top_builddir)/src/sys/libauthent_sys.la \
 	$(top_builddir)/src/ptserver/libauthent_ptserver.la \
 	$(top_builddir)/src/volser/libauthent_volser.la \
-	$(top_builddir)/src/vlserver/libauthent_vlserver.la
+	$(top_builddir)/src/vlserver/libauthent_vlserver.la \
+	$(top_builddir)/src/opr/libopr_pic.la \
+	$(top_builddir)/src/util/libafsutil_pic.la
 
+# deps are for shared libraries upon which we depend, which get installed.
 LT_deps = \
-	$(top_builddir)/src/opr/liboafs_opr.la \
-	$(top_builddir)/src/util/liboafs_util.la \
 	$(top_builddir)/src/libafsrpc/libafsrpc.la
 
 LT_libs = $(LIB_hcrypto) $(LIB_roken) $(LIB_crypt) $(LIB_AFSDB) $(MT_LIBS)
