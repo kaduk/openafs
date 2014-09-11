@@ -24,10 +24,11 @@ LT_objs = \
 	$(top_builddir)/src/util/libafsrpc_util.la \
 	$(top_builddir)/src/rxstat/libafsrpc_rxstat.la \
 	$(top_builddir)/src/sys/libafsrpc_sys.la \
-	$(top_builddir)/src/lwp/libafsrpc_lwpcompat.la
+	$(top_builddir)/src/lwp/libafsrpc_lwpcompat.la \
+	$(top_builddir)/src/opr/libopr_pic.la
 
-LT_deps = \
-	$(top_builddir)/src/opr/liboafs_opr.la
+# LT_deps is for shared libraries upon which we depend, which are installed.
+LT_deps =
 
 LT_libs = $(LIB_hcrypto) $(LIB_roken) $(MT_LIBS)
 
