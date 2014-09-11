@@ -11,7 +11,17 @@ include @TOP_OBJDIR@/src/config/Makefile.pthread
 include @TOP_OBJDIR@/src/config/Makefile.libtool
 
 LT_objs = afs_account.lo afs_session.lo afs_password.lo \
-	  afs_pam_msg.lo afs_message.lo AFS_component_version_number.lo \
+	  afs_pam_msg.lo afs_message.lo AFS_component_version_number.lo
+# These are our convenience libraries; they are not user-visible
+LT_libs = $(top_builddir)/src/opr/libopr_pic.la \
+	  $(top_builddir)/src/comerr/libafsrpc_comerr.la \
+	  $(top_builddir)/src/rx/libafsrpc_rx.la \
+	  $(top_builddir)/src/rxkad/libafsrpc_rxkad.la \
+	  $(top_builddir)/src/audit/libauthent_audit.la \
+	  $(top_builddir)/src/util/libafsutil_pic.la \
+	  $(top_builddir)/src/sys/libauthent_sys.la \
+	  $(top_builddir)/src/ubik/libauthent_ubik.la \
+	  $(top_builddir)/src/ptserver/libauthent_ptserver.la \
 	  $(top_builddir)/src/kauth/libauthent_kauth.la \
 	  $(top_builddir)/src/auth/libpam_auth.la
 
