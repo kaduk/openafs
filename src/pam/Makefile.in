@@ -53,6 +53,7 @@ afs_util_krb.lo: afs_util.c afs_pam_msg.h afs_message.h afs_util.h
 ktc.lo: ${srcdir}/../auth/ktc.c ${TOP_INCDIR}/afs/cellconfig.h \
 		${TOP_INCDIR}/afs/auth.h ${srcdir}/../auth/keys.h \
 		${TOP_INCDIR}/afs/vice.h
+	$(LT_CCRULE) $(srcdir)/../auth/ktc.c
 ktc_krb.lo: ${srcdir}/../auth/ktc.c ${TOP_INCDIR}/afs/cellconfig.h \
 		${TOP_INCDIR}/afs/auth.h ${srcdir}/../auth/keys.h \
 		${TOP_INCDIR}/afs/vice.h
@@ -60,7 +61,7 @@ ktc_krb.lo: ${srcdir}/../auth/ktc.c ${TOP_INCDIR}/afs/cellconfig.h \
 
 pam_afs.la: $(LT_objs) $(LT_deps) \
 		afs_setcred.lo afs_auth.lo afs_util.lo ktc.lo \
-		pam_afs.map pam_afs.krb.la
+		pam_afs.map
 	$(LIBTOOL) --quiet --mode=link --tag=CC $(MT_CC) $(XLDFLAGS) -rpath $(libdir) \
 		-module -no-undefined -o pam_afs.la \
 		afs_setcred.lo afs_auth.lo afs_util.lo ktc.lo \
