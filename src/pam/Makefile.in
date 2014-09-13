@@ -11,7 +11,7 @@ include @TOP_OBJDIR@/src/config/Makefile.pthread
 include @TOP_OBJDIR@/src/config/Makefile.libtool
 
 LT_objs = afs_account.lo afs_session.lo afs_password.lo \
-	  afs_pam_msg.lo afs_message.lo AFS_component_version_number.lo \
+	  afs_pam_msg.lo afs_message.lo \
 	  $(top_builddir)/src/opr/libopr_pic.la \
 	  $(top_builddir)/src/comerr/libcomerr_pic.la \
 	  $(top_builddir)/src/rx/librx_pic.la \
@@ -22,7 +22,7 @@ LT_objs = afs_account.lo afs_session.lo afs_password.lo \
 	  $(top_builddir)/src/ubik/libauthent_ubik.la \
 	  $(top_builddir)/src/ptserver/libprot_pic.la \
 	  $(top_builddir)/src/kauth/libkauth_pic.la \
-	  $(top_builddir)/src/auth/libauth_pic.la
+	  $(top_builddir)/src/auth/libpam_auth.la
 LT_deps =
 
 MODULE_CFLAGS=${PAM_CFLAGS}
