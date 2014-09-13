@@ -101,7 +101,7 @@ libauth.krb.a: $(KRB_objs)
 liboafs_auth.la: liboafs_auth.la.sym $(LT_objs) $(LT_deps)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_deps) $(LT_libs)
 
-libauthent_auth.la: $(LT_objs)
+libauth_pic.la: $(LT_objs)
 	$(LT_LDLIB_pic) $(LT_objs)
 
 libpam_auth.la: $(BASE_objs)
@@ -177,7 +177,7 @@ dest: libauth.a libauth.krb.a auth.h cellconfig.h
 #
 # Misc. targets
 #
-test: 
+test:
 	cd test; $(MAKE)
 
 clean:

@@ -11,21 +11,18 @@ include @TOP_OBJDIR@/src/config/Makefile.pthread
 include @TOP_OBJDIR@/src/config/Makefile.libtool
 
 LT_objs = afs_account.lo afs_session.lo afs_password.lo \
-	  afs_pam_msg.lo afs_message.lo AFS_component_version_number.lo
-# These are our convenience libraries; they are not user-visible
-LT_libs = $(top_builddir)/src/opr/libopr_pic.la \
-	  $(top_builddir)/src/comerr/libafsrpc_comerr.la \
-	  $(top_builddir)/src/rx/libafsrpc_rx.la \
-	  $(top_builddir)/src/rxkad/libafsrpc_rxkad.la \
-	  $(top_builddir)/src/audit/libauthent_audit.la \
+	  afs_pam_msg.lo afs_message.lo AFS_component_version_number.lo \
+	  $(top_builddir)/src/opr/libopr_pic.la \
+	  $(top_builddir)/src/comerr/libcomerr_pic.la \
+	  $(top_builddir)/src/rx/librx_pic.la \
+	  $(top_builddir)/src/rxkad/librxkad_pic.la \
+	  $(top_builddir)/src/audit/libaudit_pic.la \
 	  $(top_builddir)/src/util/libafsutil_pic.la \
-	  $(top_builddir)/src/sys/libauthent_sys.la \
+	  $(top_builddir)/src/sys/libsys_pic.la \
 	  $(top_builddir)/src/ubik/libauthent_ubik.la \
-	  $(top_builddir)/src/ptserver/libauthent_ptserver.la \
-	  $(top_builddir)/src/kauth/libauthent_kauth.la \
-	  $(top_builddir)/src/auth/libpam_auth.la
-
-# Our dependencies aren't installed libraries yet
+	  $(top_builddir)/src/ptserver/libprot_pic.la \
+	  $(top_builddir)/src/kauth/libkauth_pic.la \
+	  $(top_builddir)/src/auth/libauth_pic.la
 LT_deps =
 
 MODULE_CFLAGS=${PAM_CFLAGS}
@@ -50,10 +47,6 @@ afs_util.lo: afs_util.c afs_pam_msg.h afs_message.h afs_util.h
 afs_util_krb.lo: afs_util.c afs_pam_msg.h afs_message.h afs_util.h
 	$(LT_CCRULE) ${srcdir}/afs_util.c
 
-ktc.lo: ${srcdir}/../auth/ktc.c ${TOP_INCDIR}/afs/cellconfig.h \
-		${TOP_INCDIR}/afs/auth.h ${srcdir}/../auth/keys.h \
-		${TOP_INCDIR}/afs/vice.h
-	$(LT_CCRULE) $(srcdir)/../auth/ktc.c
 ktc_krb.lo: ${srcdir}/../auth/ktc.c ${TOP_INCDIR}/afs/cellconfig.h \
 		${TOP_INCDIR}/afs/auth.h ${srcdir}/../auth/keys.h \
 		${TOP_INCDIR}/afs/vice.h
