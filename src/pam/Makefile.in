@@ -47,6 +47,10 @@ afs_util.lo: afs_util.c afs_pam_msg.h afs_message.h afs_util.h
 afs_util_krb.lo: afs_util.c afs_pam_msg.h afs_message.h afs_util.h
 	$(LT_CCRULE) ${srcdir}/afs_util.c
 
+ktc.lo: ${srcdir}/../auth/ktc.c ${TOP_INCDIR}/afs/cellconfig.h \
+		${TOP_INCDIR}/afs/auth.h ${srcdir}/../auth/keys.h \
+		${TOP_INCDIR}/afs/vice.h
+	$(LT_CCRULE) $(srcdir)/../auth/ktc.c
 ktc_krb.lo: ${srcdir}/../auth/ktc.c ${TOP_INCDIR}/afs/cellconfig.h \
 		${TOP_INCDIR}/afs/auth.h ${srcdir}/../auth/keys.h \
 		${TOP_INCDIR}/afs/vice.h
