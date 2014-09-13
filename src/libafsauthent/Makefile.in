@@ -44,7 +44,7 @@ libafsauthent.la: libafsauthent.la.sym $(LT_objs) $(LT_deps) libafsauthent_pic.l
 libafsauthent_pic.la: $(LT_objs)
 	$(LT_LDLIB_pic) $(LT_objs)
 
-${TOP_LIBDIR}/libafsauthent.a: libafsauthent.a
+${TOP_LIBDIR}/libafsauthent.a: libafsauthent.la
 	${INSTALL_DATA} .libs/libafsauthent.a $@
 
 ${TOP_LIBDIR}/libafsauthent_pic.a: libafsauthent_pic.la
