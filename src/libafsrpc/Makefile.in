@@ -9,25 +9,24 @@ srcdir=@srcdir@
 include @TOP_OBJDIR@/src/config/Makefile.config
 include @TOP_OBJDIR@/src/config/Makefile.libtool
 
-# Increment these according to libtool's rules (look them up!)
-# The output looks something like libafsrpc.so.<current - age>.<revision>
-LT_current=2
-LT_revision=0
-LT_age=0
+# Increment these according to libtool's versioning rules (look them up!)
+# The library output looks like libafsrpc.so.<current - age>.<revision>
+LT_current = 2
+LT_revision = 0
+LT_age = 0
 
 LT_objs = \
-	$(top_builddir)/src/fsint/libafsrpc_fsint.la \
-	$(top_builddir)/src/rx/libafsrpc_rx.la \
-	$(top_builddir)/src/rxkad/libafsrpc_rxkad.la \
-	$(top_builddir)/src/crypto/rfc3961/libafsrpc_rfc3961.la \
-	$(top_builddir)/src/comerr/libafsrpc_comerr.la \
+	$(top_builddir)/src/fsint/libfsint_pic.la \
+	$(top_builddir)/src/rx/librx_pic.la \
+	$(top_builddir)/src/rxkad/librxkad_pic.la \
+	$(top_builddir)/src/crypto/rfc3961/librfc3961_pic.la \
+	$(top_builddir)/src/comerr/libcomerr_pic.la \
 	$(top_builddir)/src/util/libafsrpc_util.la \
-	$(top_builddir)/src/rxstat/libafsrpc_rxstat.la \
+	$(top_builddir)/src/rxstat/librxstat_pic.la \
 	$(top_builddir)/src/sys/libafsrpc_sys.la \
-	$(top_builddir)/src/lwp/libafsrpc_lwpcompat.la \
+	$(top_builddir)/src/lwp/liblwpcompat_pic.la \
 	$(top_builddir)/src/opr/libopr_pic.la
 
-# LT_deps is for shared libraries upon which we depend, which are installed.
 LT_deps =
 
 LT_libs = $(LIB_hcrypto) $(LIB_roken) $(MT_LIBS)
@@ -64,10 +63,10 @@ install: libafsrpc.la libafsrpc_pic.la
 	$(RM) $(DESTDIR)$(libdir)/libafsrpc.la
 	$(INSTALL_DATA) .libs/libafsrpc_pic.a $(DESTDIR)$(libdir)/libafsrpc_pic.a
 
-dest: libafsrpc.la libafsrpc.a libafsrpc_pic.la
+dest: libafsrpc.la
 	${INSTALL} -d ${DEST}/lib
-	$(LT_INSTALL_DATA) libafsrpc.la $(DEST)/lib/libafsrpc.la
-	$(RM) $(DEST)/lib/libafsrpc.la
+	${INSTALL_DATA} libafsrpc.la ${DEST}/lib/libafsrpc.la
+	${RM} ${DEST}/lib/libafsrpc.la
 	${INSTALL_DATA} .libs/libafsrpc_pic.a ${DEST}/lib/libafsrpc_pic.a
 
 clean:
