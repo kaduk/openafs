@@ -1983,8 +1983,8 @@ OPENAFS_HAVE_STRUCT_FIELD(struct rusage, ru_idrss,
 #endif])
 
 dnl Eventually, this will look for the system one, or for OpenSSL
-LIB_hcrypto="-lafshcrypto"
-LDFLAGS_hcrypto="-L\$(TOP_OBJDIR)/src/crypto/hcrypto/.libs"
+LIB_hcrypto="\$(TOP_OBJDIR)/src/crypto/hcrypto/libafshcrypto.la"
+LDFLAGS_hcrypto=""
 AC_SUBST(LIB_hcrypto)
 AC_SUBST(LDFLAGS_hcrypto)
 
