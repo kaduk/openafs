@@ -2,8 +2,8 @@
 AC_DEFUN([_OPENAFS_ROKEN_INTERNAL], [
   DIR_roken=roken
   CPPFLAGS_roken=
-  LDFLAGS_roken=
-  LIB_roken="\$(TOP_OBJDIR)/src/roken/librokenafs.la"
+  LDFLAGS_roken="-L\$(TOP_OBJDIR)/src/roken/.libs"
+  LIB_roken="-lrokenafs"
 ])
 
 dnl _OPENAFS_ROKEN_PATHS()
