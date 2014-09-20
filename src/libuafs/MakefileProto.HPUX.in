@@ -31,14 +31,4 @@ TEST_CFLAGS= -Wp,-H200000 -D_POSIX_C_SOURCE=199506L -DAFS_PTHREAD_ENV -Dhpux -DA
 TEST_LDFLAGS=
 TEST_LIBS=-lnsl -lm -lpthread -ldld -lc
 
-LIBUAFS = libuafs.a
-
 include Makefile.common
-
-$(LIBUAFS): $(UAFSOBJ)
-	-$(RM) -f $(LIBUAFS)
-	$(AR) $(ARFLAGS) $(LIBUAFS) $(UAFSOBJ)
-
-libuafs_pic.a: $(PICUAFSOBJ)
-	-$(RM) -f libuafs_pic.a
-	$(AR) $(ARFLAGS) libuafs_pic.a $(PICUAFSOBJ)
