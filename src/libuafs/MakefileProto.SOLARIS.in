@@ -21,14 +21,4 @@ TEST_CFLAGS=-mt -DAFS_PTHREAD_ENV -Dsolaris -DAFS_SUN5_ENV $(XCFLAGS)
 TEST_LDFLAGS=
 TEST_LIBS=-lsocket -lnsl -lthread -lm -ldl
 
-LIBUAFS = libuafs.a
-
 include Makefile.common
-
-$(LIBUAFS): $(UAFSOBJ)
-	-$(RM) -f $(LIBUAFS)
-	$(AR) $(ARFLAGS) $(LIBUAFS) $(UAFSOBJ)
-
-libuafs_pic.a: $(PICUAFSOBJ)
-	-$(RM) -f libuafs_pic.a
-	$(AR) $(ARFLAGS) libuafs_pic.a $(PICUAFSOBJ)
