@@ -106,12 +106,12 @@ bosoprocs.o: bosoprocs.c ${INCLS}
 bos.o: bos.c ${INCLS} AFS_component_version_number.o
 
 bos: bos.o $(LIBS) libbos.a
-	$(AFS_LDRULE) bos.o libbos.a $(LIBS) $(LIB_roken) $(LIB_crypt) ${XLIBS}
+	$(AFS_LDRULE) bos.o libbos.a $(LIBS) $(TOP_LIBDIR)/librokenafs.a $(LIB_crypt) ${XLIBS}
 
 bos_util.o: bos_util.c ${INCLS} AFS_component_version_number.o ${TOP_INCDIR}/afs/bnode.h
 
 bos_util: bos_util.o  $(LIBS)
-	$(AFS_LDRULE) bos_util.o $(LIBS) $(LIB_roken) $(LIB_crypt) ${XLIBS}
+	$(AFS_LDRULE) bos_util.o $(LIBS) $(TOP_LIBDIR)/librokenafs.a $(LIB_crypt) ${XLIBS}
 
 ezbnodeops.o: ezbnodeops.c ${INCLS}
 
@@ -124,12 +124,12 @@ libbos.a: bosint.xdr.o bosint.cs.o boserr.o AFS_component_version_number.o
 
 bosserver: $(OBJS) $(LIBS)
 	$(AFS_LDRULE) $(OBJS) \
-		$(LIBS) $(LIB_roken) $(LIB_crypt) ${XLIBS}
+		$(LIBS) $(TOP_LIBDIR)/librokenafs.a $(LIB_crypt) ${XLIBS}
 
 smail-notifier.o: smail-notifier.c ${INCLS}
 
 smail-notifier: smail-notifier.o $(LIBS)
-	$(AFS_LDRULE) smail-notifier.o $(LIBS) $(LIB_roken) ${XLIBS}
+	$(AFS_LDRULE) smail-notifier.o $(LIBS) $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 #
 # Install targets

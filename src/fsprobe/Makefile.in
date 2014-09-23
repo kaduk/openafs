@@ -51,7 +51,7 @@ fsprobe_callback.o: fsprobe_callback.c ${INCLS}
 
 fsprobe_test: fsprobe_test.o libfsprobe.a ${LIBS}
 	$(AFS_LDRULE) fsprobe_test.o libfsprobe.a \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 #
 # Install targets

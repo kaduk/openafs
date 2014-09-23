@@ -56,7 +56,7 @@ SOBJS=dbentries.o tcprocs.o lwps.o tcmain.o list.o recoverDb.o tcudbprocs.o \
 all: butc read_tape
 
 butc_test: ${TESTOBJS} ${LIBS} ${INCLS} ${HACKS}
-	$(AFS_LDRULE) ${TESTOBJS} ${LIBS} $(LIB_roken) ${XLIBS}
+	$(AFS_LDRULE) ${TESTOBJS} ${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 tdump: tdump.c AFS_component_version_number.c
 	$(CC) $(AFS_CPPFLAGS) $(AFS_CFLAGS) $(AFS_LDFLAGS) \
@@ -64,9 +64,9 @@ tdump: tdump.c AFS_component_version_number.c
 
 butc: ${SOBJS} ${LIBS} ${INCLS} ${HACKS}
 	@case ${SYS_NAME} in \
-	  rs_aix*) $(AFS_LDRULE_NOQ) ${SOBJS} ${LIBS} $(LIB_roken) ${XLIBS} \
+	  rs_aix*) $(AFS_LDRULE_NOQ) ${SOBJS} ${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS} \
 	  	/usr/lib/libc_r.a ;; \
-	  *)       $(AFS_LDRULE_NOQ) ${SOBJS} ${LIBS} $(LIB_roken) ${XLIBS} ;; \
+	  *)       $(AFS_LDRULE_NOQ) ${SOBJS} ${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS} ;; \
 	esac
 
 tcmain.o: tcmain.c ${INCLS} AFS_component_version_number.c
@@ -85,7 +85,7 @@ read_tape: read_tape.c
 		-o read_tape ${srcdir}/read_tape.c \
 		${TOP_LIBDIR}/libcmd.a ${TOP_LIBDIR}/libusd.a \
 		${TOP_LIBDIR}/util.a $(TOP_LIBDIR)/libopr.a \
-		$(LIB_roken) $(XLIBS)
+		$(TOP_LIBDIR)/librokenafs.a $(XLIBS)
 
 # Errors
 CFLAGS_tcudbprocs.o=@CFLAGS_NOERROR@

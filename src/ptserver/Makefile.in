@@ -106,7 +106,7 @@ ${TOP_INCDIR}/afs/ptserver.h: ptserver.h
 #
 ptserver: ptserver.o ptutils.o ptprocs.o ptint.ss.o ptint.xdr.lo utils.o $(LIBS) map.o
 	$(AFS_LDRULE) ptserver.o ptutils.o ptprocs.o ptint.ss.o .lwp/ptint.xdr.o \
-		utils.o map.o $(LIBS) $(LIB_roken) ${XLIBS}
+		utils.o map.o $(LIBS) $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 ptserver.o: ptserver.c ${INCLS} AFS_component_version_number.c
 
@@ -152,11 +152,11 @@ db_verify.o: db_verify.c ${INCLS} AFS_component_version_number.c
 
 db_verify: db_verify.o libprot.a $(LIBS)
 	$(AFS_LDRULE) db_verify.o libprot.a \
-		$(LIBS) $(LIB_roken) ${XLIBS}
+		$(LIBS) $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 ptclient: ptclient.o libprot.a $(LIBS)
 	$(AFS_LDRULE) ptclient.o libprot.a \
-		$(LIBS) $(LIB_roken) ${XLIBS}
+		$(LIBS) $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 ptclient.o: ptclient.c ${INCLS} AFS_component_version_number.c
 
@@ -191,19 +191,19 @@ libprot.a: $(LT_objs)
 
 pts: pts.o libprot.a ${TOP_LIBDIR}/libcmd.a $(LIBS)
 	$(AFS_LDRULE) pts.o ${TOP_LIBDIR}/libcmd.a libprot.a \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 pts.o: pts.c ${LINCLS} ${TOP_INCDIR}/afs/cmd.h AFS_component_version_number.c
 
 readgroup: readgroup.o libprot.a $(LIBS)
 	$(AFS_LDRULE) readgroup.o libprot.a \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 readgroup.o: readgroup.c ${LINCLS} AFS_component_version_number.c
 
 readpwd: readpwd.o libprot.a $(LIBS)
 	$(AFS_LDRULE) readpwd.o libprot.a \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 readpwd.o: readpwd.c ${LINCLS} AFS_component_version_number.c
 
@@ -211,17 +211,17 @@ testpt: testpt.o libprot.a ${TOP_LIBDIR}/libcmd.a $(LIBS)
 	case "$(SYS_NAME)" in \
 	*_darwin_12 ) \
 		$(AFS_LDRULE_NOQ) testpt.o ${TOP_LIBDIR}/libcmd.a \
-			libprot.a $(LIBS) $(LIB_roken) ;; \
+			libprot.a $(LIBS) $(TOP_LIBDIR)/librokenafs.a ;; \
 	* ) \
 		$(AFS_LDRULE_NOQ) testpt.o -lm ${TOP_LIBDIR}/libcmd.a \
-			libprot.a $(LIBS) $(LIB_roken) ${XLIBS} ;; \
+			libprot.a $(LIBS) $(TOP_LIBDIR)/librokenafs.a ${XLIBS} ;; \
 	esac
 
 testpt.o: testpt.c ${INCLS} ${TOP_INCDIR}/afs/cmd.h AFS_component_version_number.c
 
 pt_util: pt_util.o ptutils.o ptubik.o utils.o map.o libprot.a $(LIBS)
 	$(AFS_LDRULE) pt_util.o ptutils.o ptubik.o utils.o map.o libprot.a \
-		${TOP_LIBDIR}/libcmd.a $(LIBS) $(LIB_roken) ${XLIBS}
+		${TOP_LIBDIR}/libcmd.a $(LIBS) $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 ptubik.o: ptubik.c ${INCLS}
 

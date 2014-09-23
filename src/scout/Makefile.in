@@ -54,7 +54,7 @@ all: scout
 scout.o: scout.c ${INCLS} AFS_component_version_number.c
 
 scout: scout.o $(LIBS)
-	$(AFS_LDRULE) scout.o $(LIBS) $(LIB_roken) ${LIB_curses} ${XLIBS}
+	$(AFS_LDRULE) scout.o $(LIBS) $(TOP_LIBDIR)/librokenafs.a ${LIB_curses} ${XLIBS}
 
 #
 # Installation targets

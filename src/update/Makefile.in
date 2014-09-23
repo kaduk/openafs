@@ -31,11 +31,11 @@ generated: update.cs.c update.ss.c update.xdr.c update.h
 #
 upclient: client.o update.cs.o utils.o ${LIBS}
 	$(AFS_LDRULE) client.o update.cs.o utils.o \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 upserver: server.o utils.o update.ss.o ${LIBS}
 	$(AFS_LDRULE) server.o utils.o update.ss.o \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 utils.o: utils.c update.h global.h
 

@@ -68,7 +68,7 @@ all: fs up fstrace cmdebug livesys kdump-build cacheout afsio
 # Build targets
 #
 cacheout: cacheout.o
-	$(AFS_LDRULE) cacheout.o ${LIBS} $(LIB_roken) ${XLIBS} ${CMLIBS}
+	$(AFS_LDRULE) cacheout.o ${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS} ${CMLIBS}
 
 cacheout.o: cacheout.c
 
@@ -76,13 +76,13 @@ cacheout.o: cacheout.c
 up.o: up.c AFS_component_version_number.c
 
 up: up.o
-	$(AFS_LDRULE) up.o ${LIBS} $(LIB_roken) ${XLIBS}
+	$(AFS_LDRULE) up.o ${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 fs.o: fs.c ${INCLS} AFS_component_version_number.c
 
 fs: fs.o $(LIBS)
 	$(AFS_LDRULE) fs.o ${TOP_LIBDIR}/libprot.a $(LIBS) \
-		$(LIB_roken) ${XLIBS}
+		$(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 afsio.o: afsio.c ${AFSIO_INCLS} AFS_component_version_number.c
 	${PTH_CCRULE} ${srcdir}/afsio.c
@@ -98,31 +98,31 @@ afsio: afsio.o afscbint.ss.o ${AFSIO_LIBS}
 livesys.o: livesys.c ${INCLS} AFS_component_version_number.c
 
 livesys: livesys.o $(LIBS)
-	$(AFS_LDRULE) livesys.o $(LIBS) $(LIB_roken) ${XLIBS}
+	$(AFS_LDRULE) livesys.o $(LIBS) $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 twiddle: twiddle.o $(LIBS)
-	$(AFS_LDRULE) twiddle.o $(LIBS) $(LIB_roken) ${XLIBS}
+	$(AFS_LDRULE) twiddle.o $(LIBS) $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 gcpags: gcpags.o $(LIBS)
-	$(AFS_LDRULE) gcpags.o $(LIBS) $(LIB_roken) ${XLIBS}
+	$(AFS_LDRULE) gcpags.o $(LIBS) $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 whatfid.o: whatfid.c ${INCLS} AFS_component_version_number.c
 
 whatfid: whatfid.o ${LIBS}
-	$(AFS_LDRULE) whatfid.o ${LIBS} $(LIB_roken) ${XLIBS}
+	$(AFS_LDRULE) whatfid.o ${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 fstrace: fstrace.o
-	$(AFS_LDRULE) fstrace.o $(LIBS) $(LIB_roken) ${XLIBS}
+	$(AFS_LDRULE) fstrace.o $(LIBS) $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 cmdebug.o: cmdebug.c ${INCLS} AFS_component_version_number.c
 
 cmdebug: cmdebug.o ${CMLIBS}
-	$(AFS_LDRULE) cmdebug.o ${CMLIBS} $(LIB_roken) ${XLIBS}
+	$(AFS_LDRULE) cmdebug.o ${CMLIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 dedebug.o: dedebug.c ${INCLS} AFS_component_version_number.c
 
 dedebug: dedebug.o ${CMLIBS}
-	$(AFS_LDRULE) dedebug.o ${CMLIBS} $(LIB_roken) ${XLIBS}
+	$(AFS_LDRULE) dedebug.o ${CMLIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 #
 # Kernel info dumper - these are done with submakes so that

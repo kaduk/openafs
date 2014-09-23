@@ -185,7 +185,7 @@ vlib.a:	${VLIBOBJS} AFS_component_version_number.o
 # new salvager:  remove references to /vice by linking with novice.o
 salvager: vol-salvage.o physio.o vlib.a salvager.o ${LIBS}
 	$(AFS_LDRULE) vol-salvage.o physio.o salvager.o \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 salvager.o: salvager.c AFS_component_version_number.c
 
@@ -216,23 +216,23 @@ gi: ${TOP_LIBDIR}/libsys.a
 
 namei_map: ${TOP_LIBDIR}/libsys.a namei_map.o
 	$(AFS_LDRULE) namei_map.o ${TOP_LIBDIR}/libafsutil.a \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 volinfo: volinfo-main.o vol-info.o physio.o ihandle.o ${LIBS}
 	$(AFS_LDRULE) volinfo-main.o vol-info.o physio.o ihandle.o \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 volscan: volscan-main.o vol-info.o physio.o ihandle.o ${LIBS}
 	$(AFS_LDRULE) volscan-main.o vol-info.o physio.o ihandle.o \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 fssync-debug: fssync-debug.o physio.o AFS_component_version_number.c ${LIBS}
 	$(AFS_LDRULE) fssync-debug.o physio.o \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 vol-bless: vol-bless.o physio.o ihandle.o ${LIBS}
 	$(AFS_LDRULE) vol-bless.o physio.o \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 xfs_size_check: xfs_size_check.o
 	$(AFS_LDRULE) xfs_size_check.o

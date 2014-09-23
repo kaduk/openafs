@@ -24,7 +24,7 @@ LIBS=\
 	${TOP_LIBDIR}/util.a \
 	$(TOP_LIBDIR)/libopr.a \
 	${TOP_LIBDIR}/libafscom_err.a \
-	$(LIB_roken) \
+	$(TOP_LIBDIR)/librokenafs.a \
 	${XLIBS}
 
 OBJS_afsdump_scan    = afsdump_scan.o repair.o

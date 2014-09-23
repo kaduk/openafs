@@ -61,7 +61,7 @@ xstat_fs_test.o: xstat_fs_test.c ${FSINCLS} AFS_component_version_number.c
 
 xstat_fs_test: xstat_fs_test.o libxstat_fs.a ${LIBS}
 	$(AFS_LDRULE) xstat_fs_test.o libxstat_fs.a \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 #
 # Cache Manager data collection
@@ -79,7 +79,7 @@ xstat_cm_test.o: xstat_cm_test.c ${CMINCLS} AFS_component_version_number.c
 
 xstat_cm_test: xstat_cm_test.o libxstat_cm.a ${LIBS}
 	$(AFS_LDRULE) xstat_cm_test.o libxstat_cm.a \
-		${LIBS} $(LIB_roken) ${XLIBS}
+		${LIBS} $(TOP_LIBDIR)/librokenafs.a ${XLIBS}
 
 #
 # Installation targets

@@ -46,7 +46,7 @@ LIBS=${TOP_LIBDIR}/libubik.a \
 all: translate_et
 
 translate_et: translate_et.o ${INCLS}
-	$(AFS_LDRULE) translate_et.o ${LIBS} $(LIB_roken)
+	$(AFS_LDRULE) translate_et.o ${LIBS} $(TOP_LIBDIR)/librokenafs.a
 
 translate_et.o: AFS_component_version_number.c
 

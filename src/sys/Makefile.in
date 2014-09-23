@@ -171,7 +171,7 @@ Krmtsys.h: rmtsys.xg
 	${RXGEN} -A -k -h -o Krmtsys.h ${srcdir}/rmtsys.xg
 
 rmtsysd: rmtsysd.o libsys.a
-	$(AFS_LDRULE) rmtsysd.o ${LIBS} $(LIB_roken)
+	$(AFS_LDRULE) rmtsysd.o ${LIBS} $(TOP_LIBDIR)/librokenafs.a
 
 
 

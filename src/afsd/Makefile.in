@@ -47,7 +47,7 @@ afsd.fuse: afsd_fuse.o $(UAFSLIBS) $(AFSD_LIBS)
 
 vsys: vsys.o
 	${AFS_LDRULE} vsys.o ${TOP_LIBDIR}/libsys.a \
-		$(LIB_roken) $(MT_LIBS) ${XLIBS}
+		$(TOP_LIBDIR)/librokenafs.a $(MT_LIBS) ${XLIBS}
 
 #
 # Objects
