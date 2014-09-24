@@ -48,7 +48,7 @@ HTML_XSL   = /usr/share/xml/docbook/stylesheet/nwalsh/html/chunk.xsl
 # /usr/share/doc/openafs-client.  Any package on this list must depend on
 # openafs-client.  This variable is used as options to dh_installdocs with
 # the --link-doc option.
-DOC_PACKAGES = -plibpam-openafs-kaserver -popenafs-fuse -popenafs-kpasswd
+DOC_PACKAGES = -popenafs-fuse -popenafs-kpasswd
 
 # These are files that we know we don't want to install.  List them so that we
 # can use dh_install --fail-missing and catch anything new that shows up.
@@ -60,7 +60,7 @@ IGNORE = -XAuthLog -Xaklog_dynamic_auth.8 -Xcopyauth -Xdlog -Xdpass	\
 	-Xxfs_size_check -Xfs_disconn.1
 
 # Installed via other means since we have to rename them.
-IGNORE += -Xafsd.fuse.8 -Xpam_afs
+IGNORE += -Xafsd.fuse.8
 
 # These variables are used by get-orig-source, to construct dkms.conf, and
 # to set the build version.  You will need to change TAG to package stable
@@ -169,11 +169,6 @@ override_dh_install-arch:
 	    debian/openafs-client/usr/share/man/man1/klog.afs.1
 	mv debian/openafs-client/usr/bin/up \
 	    debian/openafs-client/usr/bin/afs-up
-
-	install -m 644 -c debian/tmp/usr/lib/pam_afs.so \
-	    debian/libpam-openafs-kaserver/lib/security/pam_afs.so
-	install -m 644 -c debian/tmp/usr/lib/pam_afs.krb.so \
-	    debian/libpam-openafs-kaserver/lib/security/pam_afs.krb.so
 
 	install -d debian/openafs-dbserver/usr/share/man/man8
 	( cd debian && pod2man --section 8 --center "Debian GNU/Linux"	\

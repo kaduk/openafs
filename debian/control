@@ -5,7 +5,7 @@ Maintainer: Benjamin Kaduk <kaduk@mit.edu>
 Uploaders: Russ Allbery <rra@debian.org>, Sam Hartman <hartmans@debian.org>
 Build-Depends: debhelper (>= 9), autoconf, automake, bison, comerr-dev,
  cpio, flex, hardening-wrapper, libfuse-dev, libkrb5-dev, libncurses5-dev,
- libpam0g-dev, libxml2-utils, perl, pkg-config
+ libxml2-utils, perl, pkg-config
 Build-Depends-Indep: dblatex, dkms (>= 2.1.1.1), docbook-xsl, doxygen,
  xsltproc, libtool, heimdal-multidev
 Standards-Version: 3.9.5
@@ -183,22 +183,6 @@ Description: AFS distributed filesystem kernel module DKMS source
  .
  This package contains the source for the AFS kernel module, packaged with
  appropriate configuration for DKMS to build new modules dynamically.
-
-Package: libpam-openafs-kaserver
-Architecture: alpha amd64 arm armel armhf i386 ia64 powerpc powerpcspe ppc64 s390 s390x sparc
-Section: admin
-Priority: extra
-Depends: ${shlibs:Depends}, ${misc:Depends},
- openafs-client (= ${binary:Version})
-Description: AFS distributed filesystem kaserver PAM module
- AFS is a distributed filesystem allowing cross-platform sharing of
- files among multiple computers.  Facilities are provided for access
- control, authentication, backup and administrative management.
- .
- This package provides a PAM module for existing  sites using the AFS
- kaserver for authentication.  New sites should use a Kerberos v5
- implementation, a Kerberos v5 PAM module such as libpam-krb5, and
- libpam-afs-session.
 
 Package: openafs-dbg
 Section: debug
