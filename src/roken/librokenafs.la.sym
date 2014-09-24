@@ -36,6 +36,7 @@ rk_unsetenv
 rk_vasprintf
 rk_vasnprintf
 rk_vsnprintf
+rk_vsyslog
 verr
 verrx
 vwarn
