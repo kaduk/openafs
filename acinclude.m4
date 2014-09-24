@@ -76,9 +76,9 @@ AC_ARG_WITH([afs-sysname],
 
 dnl General feature options.
 AC_ARG_ENABLE([pam],
-    [AS_HELP_STRING([--disable-pam], [disable PAM support])],
+    [AS_HELP_STRING([--enable-pam], [enable PAM (kaserver) support])],
     ,
-    [enable_pam="yes"])
+    [enable_pam="no"])
 AC_ARG_ENABLE([gtx],
     AS_HELP_STRING([--disable-gtx], [disable gtx curses-based terminal tools]))
 AC_ARG_ENABLE([uss],
@@ -111,11 +111,11 @@ AC_ARG_ENABLE([tivoli-tsm],
     , 
     [enable_tivoli_tsm="no"])
 AC_ARG_ENABLE([pthreaded-ubik],
-    [AS_HELP_STRING([--enable-pthreaded-ubik],
-        [enable installation of pthreaded ubik applications (defaults to
-         disabled)])],
+    [AS_HELP_STRING([--disable-pthreaded-ubik],
+        [disable installation of pthreaded ubik applications (defaults to
+         enabled)])],
     ,
-    [enable_pthreaded_ubik="no"])
+    [enable_pthreaded_ubik="yes"])
 
 dnl Kernel module build options.
 AC_ARG_WITH([linux-kernel-headers],
@@ -1561,6 +1561,7 @@ AC_CHECK_FUNCS([ \
 ])
 
 OPENAFS_ROKEN()
+OPENAFS_HCRYPTO()
 OPENAFS_C_ATTRIBUTE()
 
 dnl Functions that Heimdal's libroken provides, but that we
@@ -1981,12 +1982,6 @@ OPENAFS_HAVE_STRUCT_FIELD(struct rusage, ru_idrss,
 [#ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
 #endif])
-
-dnl Eventually, this will look for the system one, or for OpenSSL
-LIB_hcrypto="-lafshcrypto"
-LDFLAGS_hcrypto="-L\$(TOP_LIBDIR)"
-AC_SUBST(LIB_hcrypto)
-AC_SUBST(LDFLAGS_hcrypto)
 
 dnl Check for UUID library
 AC_CHECK_HEADERS([uuid/uuid.h])

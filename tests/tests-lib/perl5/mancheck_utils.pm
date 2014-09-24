@@ -35,8 +35,6 @@ sub lookup_sub_commands {
     while (<HELPOUT>) {
         # Skip the header thingy
         next if /Commands are/;
-        # Skip the version subcommand, it's always present but not interesting
-        next if /^version/;
         @comm = split();
         push(@subcommlist, $comm[0]);
     }

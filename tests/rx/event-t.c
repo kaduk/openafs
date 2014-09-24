@@ -105,7 +105,7 @@ main(void)
     pthread_mutex_init(&eventMutex, NULL);
     pthread_cond_init(&eventCond, NULL);
 
-    memset(events, 0, sizeof(events));
+    memset(events, sizeof(events), 0);
     pthread_mutex_init(&eventListMutex, NULL);
 
     /* Start up the event system */
