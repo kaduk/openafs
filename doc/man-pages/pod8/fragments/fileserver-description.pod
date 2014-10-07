@@ -6,13 +6,15 @@ display the contents of the log file.
 
 The command's arguments enable the administrator to control many aspects
 of the File Server's performance, as detailed in L</OPTIONS>.  By default
-the File Server sets values for many arguments that are suitable
-for a medium-sized file server machine. To set values suitable for a small
-or large file server machine, use the B<-S> or B<-L> flag
-respectively. The following list describes the parameters and
+the File Server sets values for many arguments that were suitable
+for 1995-vintage hardware, with the B<-S> and B<-L> flags reflecting
+appropriate configurations for machines considered small or large at that
+time.  These defaults and presets are no longer appropriate for modern
+hardware.  The B<-X> flag is intended to provide a set of preset values
+appropriate for a system with gigabytes of RAM available.
+The following list describes the parameters and
 corresponding argument for which the File Server sets default
-values, and the table below summarizes the setting for each of the three
-machine sizes.
+values, and the table below summarizes the setting for each of the presets.
 
 =over 4
 
@@ -35,11 +37,17 @@ The maximum number of large vnodes the File Server caches in memory for
 tracking directory elements; corresponds to the B<-l> argument. Each large
 vnode consumes 292 bytes of memory.
 
+Under most circumstances, the number of large vnodes will be tuned
+automatically at runtime.
+
 =item *
 
 The maximum number of small vnodes the File Server caches in memory for
 tracking file elements; corresponds to the B<-s> argument.  Each small
 vnode consumes 100 bytes of memory.
+
+Under most circumstances, the number of small vnodes will be tuned
+automatically at runtime.
 
 =item *
 
@@ -58,22 +66,34 @@ consumes 16 bytes of memory.
 The maximum number of Rx packets the File Server uses; corresponds to the
 B<-rxpck> argument. Each packet consumes 1544 bytes of memory.
 
+Under most circumstances, the number of rx packets will be tuned
+automatically at runtime.
+
 =back
 
 The default values are:
 
-  Parameter (Argument)               Small (-S)     Medium   Large (-L)
-  ---------------------------------------------------------------------
-  Number of LWPs (-p)                        6           9          128
-  Number of cached dir blocks (-b)          70          90          120
-  Number of cached large vnodes (-l)       200         400          600
-  Number of cached small vnodes (-s)       200         400          600
-  Maximum volume cache size (-vc)          200         400          600
-  Number of callbacks (-cb)             20,000      60,000       64,000
-  Number of Rx packets (-rxpck)            100         150          200
+  Parameter (Argument)                  -S  default      -L         -X
+  ----------------------------------------------------------------------
+  Number of LWPs (-p)                    6        9     128       2048
+  Number of cached dir blocks (-b)      70       90     120       2049
+  Number of cached large vnodes (-l)   200      400     600          -
+  Number of cached small vnodes (-s)   200      400     600          -
+  Maximum volume cache size (-vc)      200      400     600        600
+  Number of callbacks (-cb)         20,000   60,000  64,000  1,024,000
+  Number of Rx packets (-rxpck)        100      150     200          -
+
+The C<-> entries indicate that the actual value used will be tuned
+automatically at runtime.  In addition to the above values, with B<-X>
+(but not with the others), the busy threshold is set to 30, the
+size of the UDP buffer is set to 127k, the number of volume attach
+threads is set to 128, the number of volume hash buckets is set to
+2**15, the maximum number of volumes which can be soft detached in
+a single pass of the scanner is set to 127 volumes, and the offline
+timeout is set to 600 seconds (five minutes).
 
 To override any of the values, provide the indicated argument (which can
-be combined with the B<-S> or B<-L> flag).
+be combined with the B<-X> flag).
 
 The amount of memory required for the File Server varies. The approximate
 default memory usage is 751 KB when the B<-S> flag is used (small

@@ -26,6 +26,7 @@ B<dafileserver>
     S<<< [B<-jumbo>] >>>
     S<<< [B<-rxbind>] >>>
     S<<< [B<-allow-dotted-principals>] >>>
+    S<<< [B<-X>] >>>
     S<<< [B<-L>] >>>
     S<<< [B<-S>] >>>
     S<<< [B<-k> <I<stack size>>] >>>

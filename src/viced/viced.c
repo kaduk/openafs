@@ -162,7 +162,7 @@ int numberofcbs = 60000;	/* 60000 */
 int lwps = 9;			/* 6 */
 int buffs = 90;			/* 70 */
 int novbc = 0;			/* Enable Volume Break calls */
-int busy_threshold = 600;
+int busy_threshold;
 int abort_threshold = 10;
 int udpBufSize = 0;		/* UDP buffer size for receive */
 int sendBufSize = 16384;	/* send buffer size */
@@ -919,6 +919,7 @@ max_fileserver_thread(void)
 extern ih_init_params vol_io_params;
 
 enum optionsList {
+    OPT_xlarge,
     OPT_large,
     OPT_small,
     OPT_banner,
@@ -983,7 +984,8 @@ static int
 ParseArgs(int argc, char *argv[])
 {
     int code;
-    int optval;
+    int optval, vhashsize = 0, vlrumax = 0;
+    int presets = 0;
     char *optstring = NULL;
     struct cmd_item *optlist;
     struct cmd_syndesc *opts;
@@ -999,10 +1001,15 @@ ParseArgs(int argc, char *argv[])
     opts = cmd_CreateSyntax(NULL, NULL, NULL, NULL);
 
     /* fileserver options */
+    cmd_AddParmAtOffset(opts, OPT_large, "-X", CMD_FLAG,
+			CMD_OPTIONAL,
+			"defaults for a reasonable 2014-vintage server");
     cmd_AddParmAtOffset(opts, OPT_large, "-L", CMD_FLAG,
-			CMD_OPTIONAL, "defaults for a 'large' server");
+			CMD_OPTIONAL,
+			"for historical compatibility with servers from 2008");
     cmd_AddParmAtOffset(opts, OPT_small, "-S", CMD_FLAG,
-			CMD_OPTIONAL, "defaults for a 'small' server");
+			CMD_OPTIONAL,
+			"for historical compatibility with servers from 1995");
 
     cmd_AddParmAtOffset(opts, OPT_banner, "-banner", CMD_FLAG,
 			CMD_OPTIONAL, "print regular banners to log");
@@ -1168,9 +1175,14 @@ ParseArgs(int argc, char *argv[])
     cmd_OpenConfigFile(AFSDIR_SERVER_CONFIG_FILE_FILEPATH);
     cmd_SetCommandName("fileserver");
 
-    if (cmd_OptionPresent(opts, OPT_large)
-	&& cmd_OptionPresent(opts, OPT_small)) {
-	printf("Only one of -L or -S must be specified\n");
+    if (cmd_OptionPresent(opts, OPT_large))
+	presets++;
+    if (cmd_OptionPresent(opts, OPT_small))
+	presets++;
+    if (cmd_OptionPresent(opts, OPT_xlarge))
+	presets++;
+    if (presets > 1) {
+	printf("Only one of -X, -L, or -S must be specified\n");
 	return -1;
     }
 
@@ -1180,7 +1192,33 @@ ParseArgs(int argc, char *argv[])
 	return -1;
     }
 
+    if (cmd_OptionPresent(opts, OPT_xlarge)) {
+	/* The packet allocation is auto-tuned at runtime, but this variable
+	 * is used to set the busy threshold later in the file.  This sets the
+	 * busy threshold to 30. */
+	rxpackets = 20;
+	/* nSmallVns gets tuned automatically based on the number of threads */
+	/* large gets tuned by the same logic */
+	numberofcbs = 1024000;
+	lwps = 2048;	/* maximum allowed is 16384 */
+	buffs = 2049;	/* really should be larger than lwps */
+	/* This is probably overkill, but seems harmless enough (RAM usage). */
+	volcache = 600;
+	/* We greedily try to use this at runtime, scaling by 1/2 until it
+	 * is allowed by the kernel.  Make it pretty large. */
+	udpBufSize = 127 * 1024;
+	vol_attach_threads = 128;
+	vhashsize = 15;
+	vlrumax = 128;
+	offline_timeout = 600;
+	/* offline-shutdown-timeout defaults to offline_timeout. */
+    }
+
     if (cmd_OptionPresent(opts, OPT_large)) {
+	ViceLog(0,
+	    ("The -L option is at best an appropriate preset for a server\n"
+	     "from 2008.  Please consider retuning the server invocation,\n"
+	     "possibly using the -X option.\n"));
 	rxpackets = 200;
 	nSmallVns = 600;
 	large = 600;
@@ -1191,6 +1229,10 @@ ParseArgs(int argc, char *argv[])
     }
 
     if (cmd_OptionPresent(opts, OPT_small)) {
+	ViceLog(0,
+	    ("The -S option is at best an appropriate preset for a server\n"
+	     "from 2000.  Please consider retuning the server invocation,\n"
+	     "possibly using the -X option.\n"));
 	rxpackets = 100;
 	nSmallVns = 200;
 	large = 200;
@@ -1318,10 +1360,11 @@ ParseArgs(int argc, char *argv[])
 	    return -1;
 	}
     }
-    if (cmd_OptionAsInt(opts, OPT_vhashsize, &optval) == 0) {
-	if (VSetVolHashSize(optval)) {
+    cmd_OptionAsInt(opts, OPT_vhashsize, &vhashsize);
+    if (vhashsize > 0) {
+	if (VSetVolHashSize(vhashsize)) {
 	    fprintf(stderr, "specified -vhashsize (%d) is invalid or out "
-		            "of range\n", optval);
+		            "of range\n", vhashsize);
 	    return -1;
 	}
     }
@@ -1331,8 +1374,9 @@ ParseArgs(int argc, char *argv[])
 	VLRU_SetOptions(VLRU_SET_THRESH, 60*optval);
     if (cmd_OptionAsInt(opts, OPT_vlruinterval, &optval) == 0)
 	VLRU_SetOptions(VLRU_SET_INTERVAL, optval);
-    if (cmd_OptionAsInt(opts, OPT_vlrumax, &optval) == 0)
-	VLRU_SetOptions(VLRU_SET_MAX, optval);
+    cmd_OptionAsInt(opts, OPT_vlrumax, &vlrumax);
+    if (vlrumax > 0)
+	VLRU_SetOptions(VLRU_SET_MAX, vlrumax);
     cmd_OptionAsFlag(opts, OPT_unsafe_nosalvage, &unsafe_attach);
 #endif /* AFS_DEMAND_ATTACH_FS */
 

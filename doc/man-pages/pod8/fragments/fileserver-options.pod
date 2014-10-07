@@ -192,19 +192,19 @@ user.admin PTS entry. Sites whose Kerberos realms don't have these collisions
 between principal names may disable this check by starting the server
 with this option.
 
+=item B<-X>
+
+Sets values for many arguments in a manner suitable for a file server
+with gigabytes of memory available to it.  Combine this flag with any
+option except the B<-L> or B<-S> flags.
+
 =item B<-L>
 
-Sets values for many arguments in a manner suitable for a large file
-server machine. Combine this flag with any option except the B<-S> flag;
-omit both flags to set values suitable for a medium-sized file server
-machine.
+Present for historical compatibility.  Consider B<-X>.
 
 =item B<-S>
 
-Sets values for many arguments in a manner suitable for a small file
-server machine. Combine this flag with any option except the B<-L> flag;
-omit both flags to set values suitable for a medium-sized file server
-machine.
+Present for historical compatibility.  Consider B<-X>.
 
 =item B<-realm> <I<Kerberos realm name>>
 
