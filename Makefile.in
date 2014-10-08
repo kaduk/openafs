@@ -780,6 +780,7 @@ clean2:
 	-(cd src; /bin/rm cscope.out)
 	-(cd src/libafs; /bin/rm -rf afs afsint config rx)
 	-(cd src/libuafs; /bin/rm -rf afs afsint config rx)
+	-(cd tests ${COMPILE_CLEAN})
 	-/bin/rm -rf ${TOP_INCDIR} ${TOP_LIBDIR} ${TOP_JLIBDIR}
 	-/bin/rm -rf libafs_tree ${SYS_NAME}
 
@@ -949,10 +950,101 @@ distclean: clean
 	tests/volser/Makefile \
 	src/helper-splint.sh
 	if test -d doc/man-pages ; then \
-	    rm -f doc/man-pages/Makefile doc/man-pages/install-man ; \
+	    /bin/rm -f doc/man-pages/Makefile doc/man-pages/install-man ; \
+	fi
+	if test -d doc/doxygen ; then \
+	    /bin/rm -f doc/doxygen/Doxyfile ; \
 	fi
 
 pristine: distclean
-	/bin/rm -f src/config/afsconfig.h.in configure configure-libafs aclocal.m4
+	/bin/rm -f src/config/afsconfig.h.in configure configure-libafs \
+	aclocal.m4 \
+	libtool \
+	build-tools/ltmain.sh \
+	src/cf/libtool.m4 \
+	src/cf/ltoptions.m4 \
+	src/cf/ltsugar.m4 \
+	src/cf/ltversion.m4 \
+	src/cf/lt~obsolete.m4
+	if test -d doc/xml ; then \
+	    /bin/rm -f doc/xml/mobi-fixup.xsl ; \
+	fi
+	if test -d doc/man-pages ; then \
+	    /bin/rm -rf doc/man-pages/man1 \
+		doc/man-pages/man3 \
+		doc/man-pages/man8 ; \
+	fi
+	if test -d doc/man-pages/pod1 ; then \
+	    /bin/rm -f \
+		doc/man-pages/pod1/fs_listquota.pod \
+		doc/man-pages/pod1/fs_quota.pod \
+		doc/man-pages/pod1/fs_setquota.pod \
+		doc/man-pages/pod1/fs_setvol.pod \
+		doc/man-pages/pod1/pts_adduser.pod \
+		doc/man-pages/pod1/pts_chown.pod \
+		doc/man-pages/pod1/pts_creategroup.pod \
+		doc/man-pages/pod1/pts_createuser.pod \
+		doc/man-pages/pod1/pts_delete.pod \
+		doc/man-pages/pod1/pts_examine.pod \
+		doc/man-pages/pod1/pts_interactive.pod \
+		doc/man-pages/pod1/pts_listentries.pod \
+		doc/man-pages/pod1/pts_listmax.pod \
+		doc/man-pages/pod1/pts_listowned.pod \
+		doc/man-pages/pod1/pts_membership.pod \
+		doc/man-pages/pod1/pts_quit.pod \
+		doc/man-pages/pod1/pts_removeuser.pod \
+		doc/man-pages/pod1/pts_rename.pod \
+		doc/man-pages/pod1/pts_setfields.pod \
+		doc/man-pages/pod1/pts_setmax.pod \
+		doc/man-pages/pod1/pts_sleep.pod \
+		doc/man-pages/pod1/pts_source.pod \
+		doc/man-pages/pod1/vos.pod \
+		doc/man-pages/pod1/vos_addsite.pod \
+		doc/man-pages/pod1/vos_backup.pod \
+		doc/man-pages/pod1/vos_backupsys.pod \
+		doc/man-pages/pod1/vos_changeaddr.pod \
+		doc/man-pages/pod1/vos_changeloc.pod \
+		doc/man-pages/pod1/vos_clone.pod \
+		doc/man-pages/pod1/vos_convertROtoRW.pod \
+		doc/man-pages/pod1/vos_copy.pod \
+		doc/man-pages/pod1/vos_create.pod \
+		doc/man-pages/pod1/vos_delentry.pod \
+		doc/man-pages/pod1/vos_dump.pod \
+		doc/man-pages/pod1/vos_endtrans.pod \
+		doc/man-pages/pod1/vos_examine.pod \
+		doc/man-pages/pod1/vos_listaddrs.pod \
+		doc/man-pages/pod1/vos_listpart.pod \
+		doc/man-pages/pod1/vos_listvldb.pod \
+		doc/man-pages/pod1/vos_listvol.pod \
+		doc/man-pages/pod1/vos_lock.pod \
+		doc/man-pages/pod1/vos_move.pod \
+		doc/man-pages/pod1/vos_offline.pod \
+		doc/man-pages/pod1/vos_online.pod \
+		doc/man-pages/pod1/vos_partinfo.pod \
+		doc/man-pages/pod1/vos_release.pod \
+		doc/man-pages/pod1/vos_remove.pod \
+		doc/man-pages/pod1/vos_remsite.pod \
+		doc/man-pages/pod1/vos_rename.pod \
+		doc/man-pages/pod1/vos_restore.pod \
+		doc/man-pages/pod1/vos_setaddrs.pod \
+		doc/man-pages/pod1/vos_setfields.pod \
+		doc/man-pages/pod1/vos_shadow.pod \
+		doc/man-pages/pod1/vos_size.pod \
+		doc/man-pages/pod1/vos_status.pod \
+		doc/man-pages/pod1/vos_syncserv.pod \
+		doc/man-pages/pod1/vos_syncvldb.pod \
+		doc/man-pages/pod1/vos_unlock.pod \
+		doc/man-pages/pod1/vos_unlockvldb.pod \
+		doc/man-pages/pod1/vos_zap.pod ; \
+	fi
+	if test -d doc/man-pages/pod8 ; then \
+	    /bin/rm -f \
+		doc/man-pages/pod8/dafileserver.pod \
+		doc/man-pages/pod8/dasalvager.pod \
+		doc/man-pages/pod8/davolserver.pod \
+		doc/man-pages/pod8/fileserver.pod \
+		doc/man-pages/pod8/salvager.pod \
+		doc/man-pages/pod8/volserver.pod ; \
+	fi
 
 maintainer-clean: pristine
