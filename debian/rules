@@ -141,7 +141,7 @@ override_dh_auto_clean:
 	done
 	[ ! -f debian/changelog.in ] \
 	    || cp debian/changelog debian/changelog.save
-	$(MAKE) maintainer-clean
+	dh_auto_clean
 	[ -f debian/changelog ] || mv debian/changelog.save debian/changelog
 
 # We have to use a non-standard install target and then do some fiddling
