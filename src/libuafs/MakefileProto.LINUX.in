@@ -30,4 +30,14 @@ TEST_CFLAGS=-pthread -D_REENTRANT -DAFS_PTHREAD_ENV -DAFS_LINUX22_ENV $(XCFLAGS)
 TEST_LDFLAGS=
 TEST_LIBS=-lpthread @LIB_crypt@
 
+LIBUAFS = libuafs.a
+
 include Makefile.common
+
+$(LIBUAFS): $(UAFSOBJ)
+	-$(RM) -f $(LIBUAFS)
+	$(AR) $(ARFLAGS) $(LIBUAFS) $(UAFSOBJ)
+
+libuafs_pic.a: $(PICUAFSOBJ)
+	-$(RM) -f libuafs_pic.a
+	$(AR) $(ARFLAGS) libuafs_pic.a $(PICUAFSOBJ)

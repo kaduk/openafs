@@ -18,7 +18,7 @@ AC_DEFUN([_OPENAFS_HCRYPTO_PATHS], [
   AS_IF([test x"$hcrypto_includedir" != x],
     [CPPFLAGS_hcrypto="-I$hcrypto_includedir -I$hcrypto_includedir/hcrypto"],
     [AS_IF([test x"$hcrypto_root" != x],
-      [CPPFLAGS_hcrypto="-I$hcrypto_root/include"])])
+      [CPPFLAGS_hcrypto="-I$hcrypto_root/include -I$hcrypto_root/include/hcrypto"])])
   LIB_hcrypto="-lhcrypto"
   hcrypto_all_target="all-lwp"
   hcrypto_install_target=

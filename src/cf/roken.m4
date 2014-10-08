@@ -24,11 +24,11 @@ dnl _OPENAFS_ROKEN_CHECK($action-if-found,
 dnl 			 $action-if-not-found)
 dnl Find a roken library using $roken_root, $roken_libdir, and $roken_includedir
 dnl
-dnl If $path is not specified,
+dnl If none of the three paths are specified,
 dnl try to find one in the standard locations on the system.
 dnl
-dnl If we fail, and $path was given, then error out. Otherwise,
-dnl fall back to the internal roken implementation
+dnl If we fail, and at least one path was given, then error out. Otherwise,
+dnl fall back to the internal roken implementation.
 AC_DEFUN([_OPENAFS_ROKEN_CHECK], [
 
   _OPENAFS_ROKEN_PATHS
