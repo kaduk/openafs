@@ -27,6 +27,8 @@ TEST_CFLAGS=-DAFS_PTHREAD_ENV -Daix -DAFS_AIX_ENV $(XCFLAGS)
 TEST_LDFLAGS=
 TEST_LIBS=-lm -lpthreads
 
+LIBUAFS = libuafs.a
+
 AFS_OS_CLEAN = \
 	*.exp \
 	export.h
@@ -36,3 +38,13 @@ AFS_OS_CLEAN = \
 OPTF=${OPTMZ} -qlanglvl=stdc99
 
 include Makefile.common
+
+$(LIBUAFS): $(UAFSOBJ)
+	-$(RM) -f $(LIBUAFS)
+	$(AR) $(ARFLAGS) $(LIBUAFS) $(UAFSOBJ) $(AFS)/afsl.exp
+	$(RANLIB) libuafs.a
+
+libuafs_pic.a: $(PICUAFSOBJ)
+	-$(RM) -f libuafs_pic.a
+	$(AR) $(ARFLAGS) libuafs_pic.a $(PICUAFSOBJ) $(AFS)/afsl.exp
+	$(RANLIB) libuafs_pic.a
