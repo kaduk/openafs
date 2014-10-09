@@ -950,10 +950,10 @@ distclean: clean
 	tests/volser/Makefile \
 	src/helper-splint.sh
 	if test -d doc/man-pages ; then \
-	    rm -f doc/man-pages/Makefile doc/man-pages/install-man ; \
+	    /bin/rm -rf doc/man-pages/Makefile doc/man-pages/install-man ; \
 	fi
 	if test -d doc/doxygen ; then \
-	    rm -f doc/doxygen/Doxyfile ; \
+	    /bin/rm -f doc/doxygen/Doxyfile ; \
 	fi
 
 pristine: distclean
@@ -967,13 +967,15 @@ pristine: distclean
 	src/cf/ltversion.m4 \
 	src/cf/lt~obsolete.m4
 	if test -d doc/xml ; then \
-	    rm -f doc/xml/mobi-fixup.xsl ; \
+	    /bin/rm -f doc/xml/mobi-fixup.xsl ; \
 	fi
 	if test -d doc/man-pages ; then \
-	    rm -f doc/man-pages/man1 doc/man-pages/man3 doc/man-pages/man8 ; \
+	    /bin/rm -f doc/man-pages/man1 \
+		doc/man-pages/man3 \
+		doc/man-pages/man8 ; \
 	fi
 	if test -d doc/man-pages/pod1 ; then \
-	    rm -f \
+	    /bin/rm -f \
 		doc/man-pages/pod1/fs_listquota.pod \
 		doc/man-pages/pod1/fs_quota.pod \
 		doc/man-pages/pod1/fs_setquota.pod \
@@ -1036,7 +1038,7 @@ pristine: distclean
 		doc/man-pages/pod1/vos_zap.pod ; \
 	fi
 	if test -d doc/man-pages/pod8 ; then \
-	    rm -f \
+	    /bin/rm -f \
 		doc/man-pages/pod8/dafileserver.pod \
 		doc/man-pages/pod8/dasalvager.pod \
 		doc/man-pages/pod8/davolserver.pod \
