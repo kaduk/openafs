@@ -972,6 +972,7 @@ pristine: distclean
 	if test -d doc/man-pages ; then \
 	    /bin/rm -rf doc/man-pages/man1 \
 		doc/man-pages/man3 \
+		doc/man-pages/man5 \
 		doc/man-pages/man8 ; \
 	fi
 	if test -d doc/man-pages/pod1 ; then \
