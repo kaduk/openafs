@@ -952,6 +952,9 @@ distclean: clean
 	if test -d doc/man-pages ; then \
 	    rm -f doc/man-pages/Makefile doc/man-pages/install-man ; \
 	fi
+	if test -d doc/doxygen ; then \
+	    rm -f doc/doxygen/Doxyfile ; \
+	fi
 
 pristine: distclean
 	/bin/rm -f src/config/afsconfig.h.in configure configure-libafs \
@@ -965,6 +968,9 @@ pristine: distclean
 	src/cf/lt~obsolete.m4
 	if test -d doc/xml ; then \
 	    rm -f doc/xml/mobi-fixup.xsl ; \
+	fi
+	if test -d doc/man-pages ; then \
+	    rm -f doc/man-pages/man1 doc/man-pages/man3 doc/man-pages/man8 ; \
 	fi
 	if test -d doc/man-pages/pod1 ; then \
 	    rm -f \
@@ -1009,12 +1015,14 @@ pristine: distclean
 		doc/man-pages/pod1/vos_listvldb.pod \
 		doc/man-pages/pod1/vos_listvol.pod \
 		doc/man-pages/pod1/vos_lock.pod \
+		doc/man-pages/pod1/vos_move.pod \
 		doc/man-pages/pod1/vos_offline.pod \
 		doc/man-pages/pod1/vos_online.pod \
 		doc/man-pages/pod1/vos_partinfo.pod \
 		doc/man-pages/pod1/vos_release.pod \
 		doc/man-pages/pod1/vos_remove.pod \
 		doc/man-pages/pod1/vos_remsite.pod \
+		doc/man-pages/pod1/vos_rename.pod \
 		doc/man-pages/pod1/vos_restore.pod \
 		doc/man-pages/pod1/vos_setaddrs.pod \
 		doc/man-pages/pod1/vos_setfields.pod \
