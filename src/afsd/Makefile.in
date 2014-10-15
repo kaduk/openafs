@@ -27,7 +27,7 @@ AFSLIBS=$(top_builddir)/src/auth/liboafs_auth.la \
 	$(top_builddir)/src/opr/liboafs_opr.la
 
 UAFSLIBS=$(top_builddir)/src/cmd/liboafs_cmd.la \
-	 ${TOP_LIBDIR}/libuafs.a \
+	 $(top_builddir)/src/libuafs/libuafs.la \
 	 $(top_builddir)/src/cmd/liboafs_cmd.la \
 	 $(top_builddir)/src/util/liboafs_util.la \
 	 $(top_builddir)/src/opr/liboafs_opr.la
@@ -41,7 +41,7 @@ afsd: afsd.o afsd_kernel.o $(AFSLIBS) $(AFSD_LIBS)
 
 LDFLAGS_afsd.fuse = $(AFSD_LDFLAGS)
 afsd.fuse: afsd_fuse.o $(UAFSLIBS) $(AFSD_LIBS)
-	$(LT_LDRULE_static) afsd_fuse.o $(NON_SHARED) \
+	$(LT_LDRULE) afsd_fuse.o \
 		$(UAFSLIBS) $(LIB_hcrypto) $(LIB_roken) $(MT_LIBS) $(LIB_crypt) \
 		${XLIBS} ${FUSE_LIBS} ${AFSD_LIBS}
 
