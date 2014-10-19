@@ -984,7 +984,10 @@ static int
 ParseArgs(int argc, char *argv[])
 {
     int code;
-    int optval, vhashsize = 0, vlrumax = 0;
+    int optval;
+#ifdef AFS_DEMAND_ATTACH_FS
+    int vhashsize = 0, vlrumax = 0;
+#endif
     int presets = 0;
     char *optstring = NULL;
     struct cmd_item *optlist;
@@ -1208,8 +1211,10 @@ ParseArgs(int argc, char *argv[])
 	 * is allowed by the kernel.  Make it pretty large. */
 	udpBufSize = 127 * 1024;
 	vol_attach_threads = 128;
+#ifdef AFS_DEMAND_ATTACH_FS
 	vhashsize = 15;
 	vlrumax = 128;
+#endif
 	offline_timeout = 600;
 	/* offline-shutdown-timeout defaults to offline_timeout. */
     }
