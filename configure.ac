@@ -57,11 +57,13 @@ AS_IF([test x"$KRB5_LIBS" != x],
 	encode_krb5_ticket \
 	krb5_524_conv_principal \
 	krb5_allow_weak_crypto \
+	krb5_anonymous_principal \
 	krb5_c_encrypt \
 	krb5_decode_ticket \
 	krb5_enctype_enable \
 	krb5_get_init_creds_opt_alloc \
 	krb5_get_prompt_types \
+	krb5_make_principal \
 	krb5_princ_size \
 	krb5_principal_get_comp_string])
      AC_CHECK_FUNCS([krb5_524_convert_creds], [],
