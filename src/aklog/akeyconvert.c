@@ -341,7 +341,8 @@ convert_kt(struct afsconf_dir *dir, krb5_context ctx, krb5_keytab_entry *ents,
     code = 0;
     printf("Wrote %i keys\n", n);
 out:
-    /* afsconf_typedKey_put(&key); */ /* XXX */
+    if (key != NULL)
+	afsconf_typedKey_put(&key);
     return code;
 }
 
