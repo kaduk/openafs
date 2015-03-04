@@ -313,7 +313,7 @@ convert_kt(struct afsconf_dir *dir, krb5_context ctx, krb5_keytab_entry *ents,
 	   int nents, int do_all)
 {
     int i, n;
-    krb5_const_principal old_princ;
+    krb5_principal old_princ;
     struct afsconf_typedKey *key = NULL;
     afsconf_keyType type;
     afs_int32 best_kvno = 0, code;
