@@ -76,9 +76,15 @@
 #endif
 
 /* XXX MIT-specific */
+#if 0
 #define	deref_entry_keylen(x)	((x).key.length)
 #define	deref_entry_keyval(x)	((x).key.contents)
 #define	deref_entry_enctype(x)	((x).key.enctype)
+#else
+#define deref_entry_keylen(x)	((x).keyblock.keyvalue.length)
+#define deref_entry_keyval(x)	((x).keyblock.keyvalue.data)
+#define deref_entry_enctype(x)	((x).keyblock.keytype)
+#endif
 
 /*
  * Convert keytab entry to the AFS typedKey format, allocating
@@ -305,8 +311,16 @@ convert_kt(struct afsconf_dir *dir, krb5_context ctx, krb5_keytab_entry *ents,
     afsconf_keyType type;
     afs_int32 best_kvno = 0, code;
 
-    /* XXX MIT-specific */
+#if HAVE_KRB5_ANONYMOUS_PRINCIPAL
     old_princ = krb5_anonymous_principal();
+#elif HAVE_KRB5_MAKE_PRINCIPAL
+    code = krb5_make_principal(ctx, &old_princ, KRB5_WELLKNOWN_REALM,
+			       KRB5_WELLKNOWN_NAME, KRB5_ANON_NAME, NULL);
+    if (code)
+	goto out;
+#else
+# error "no way to produce sigil principal"
+#endif
     n = 0;
     for (i = 0; i < nents; ++i) {
 	if (!krb5_principal_compare(ctx, old_princ, ents[i].principal)) {
