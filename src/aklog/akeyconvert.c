@@ -64,7 +64,9 @@
 #include <stdio.h>
 
 #define KERBEROS_APPLE_DEPRECATED(x)
-#include <krb5/krb5.h>
+/* krb5_free_unparsed_name() is deprecated; it's unclear why. */
+#define KRB5_DEPRECATED_FUNCTION(x)
+#include <krb5.h>
 #ifdef HAVE_COM_ERR_H
 # include <com_err.h>
 #elif HAVE_ET_COM_ERR_H
@@ -84,6 +86,10 @@
 #define deref_entry_keylen(x)	((x).keyblock.keyvalue.length)
 #define deref_entry_keyval(x)	((x).keyblock.keyvalue.data)
 #define deref_entry_enctype(x)	((x).keyblock.keytype)
+#define krb5_free_keytab_entry_contents krb5_kt_free_entry
+#endif
+#ifndef KRB5_ANON_REALM
+# define KRB5_ANON_REALM	"WELLKNOWN:ANONYMOUS"
 #endif
 
 /*
@@ -201,12 +207,13 @@ slurp_keytab(krb5_context ctx, char *kt_path, krb5_keytab_entry **ents_out,
 {
     krb5_keytab kt = NULL;
     krb5_keytab_entry entry, *ents;
-    krb5_kt_cursor cursor = NULL;
+    krb5_kt_cursor cursor;
     afs_int32 code;
     int n = 0, i;
 
     *ents_out = NULL;
     *nents = 0;
+    memset(&cursor, 0, sizeof(cursor));
 
     code = krb5_kt_resolve(ctx, kt_path, &kt);
     if (code)
@@ -314,7 +321,7 @@ convert_kt(struct afsconf_dir *dir, krb5_context ctx, krb5_keytab_entry *ents,
 #if HAVE_KRB5_ANONYMOUS_PRINCIPAL
     old_princ = krb5_anonymous_principal();
 #elif HAVE_KRB5_MAKE_PRINCIPAL
-    code = krb5_make_principal(ctx, &old_princ, KRB5_WELLKNOWN_REALM,
+    code = krb5_make_principal(ctx, &old_princ, KRB5_ANON_REALM,
 			       KRB5_WELLKNOWN_NAME, KRB5_ANON_NAME, NULL);
     if (code)
 	goto out;
