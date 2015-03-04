@@ -125,10 +125,10 @@ static int
 princ_sort(const void *aa, const void *bb)
 {
     const krb5_keytab_entry *a, *b;
+    char *name1 = NULL, *name2 = NULL;
     krb5_boolean equal;
     krb5_context ctx;
     int ret;
-    int i, len;
 
     a = aa;
     b = bb;
@@ -139,34 +139,20 @@ princ_sort(const void *aa, const void *bb)
 	ret = 0;
 	goto out;
     }
-/* XXX MIT-specific */
-    if (a->principal->length != b->principal->length) {
-	if (a->principal->length > b->principal->length)
-	    ret = -1;
-	else
-	    ret = 1;
+    opr_Verify(krb5_unparse_name(ctx, a->principal, &name1) == 0);
+    opr_Verify(krb5_unparse_name(ctx, b->principal, &name2) == 0);
+    ret = strcmp(name1, name2);
+    if (ret != 0)
 	goto out;
-    }
-    for (i = a->principal->length - 1; i >= 0; --i) {
-	len = a->principal->data[i].length;
-	if (len > b->principal->data[i].length) {
-	    ret = -1;
-	    goto out;
-	} else if (len < b->principal->data[i].length) {
-	    ret = 1;
-	    goto out;
-	}
-	ret = strncmp(a->principal->data[i].data,
-		      b->principal->data[i].data, len);
-	if (ret != 0)
-	    goto out;
-    }
+
     /* We shouldn't get here, but cannot return equality even if we do. */
     if (a < b)
 	ret = -1;
     else
 	ret = 1;
 out:
+    krb5_free_unparsed_name(ctx, name1);
+    krb5_free_unparsed_name(ctx, name2);
     krb5_free_context(ctx);
     return ret;
 }
