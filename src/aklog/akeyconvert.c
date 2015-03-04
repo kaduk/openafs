@@ -77,16 +77,19 @@
 # error com_err is required for akeyconvert
 #endif
 
-/* XXX MIT-specific */
-#if 0
-#define	deref_entry_keylen(x)	((x).key.length)
-#define	deref_entry_keyval(x)	((x).key.contents)
-#define	deref_entry_enctype(x)	((x).key.enctype)
+#if HAVE_KRB5_KEYTAB_ENTRY_KEY
+# define deref_entry_keylen(x)	((x).key.length)
+# define deref_entry_keyval(x)	((x).key.contents)
+# define deref_entry_enctype(x)	((x).key.enctype)
+#elif HAVE_KRB5_KEYTAB_ENTRY_KEYBLOCK
+# define deref_entry_keylen(x)	((x).keyblock.keyvalue.length)
+# define deref_entry_keyval(x)	((x).keyblock.keyvalue.data)
+# define deref_entry_enctype(x)	((x).keyblock.keytype)
 #else
-#define deref_entry_keylen(x)	((x).keyblock.keyvalue.length)
-#define deref_entry_keyval(x)	((x).keyblock.keyvalue.data)
-#define deref_entry_enctype(x)	((x).keyblock.keytype)
-#define krb5_free_keytab_entry_contents krb5_kt_free_entry
+# error "krb5_keytab_entry structure unknown"
+#endif
+#ifndef HAVE_KRB5_FREE_KEYTAB_ENTRY_CONTENTS
+# define krb5_free_keytab_entry_contents krb5_kt_free_entry
 #endif
 #ifndef KRB5_ANON_REALM
 # define KRB5_ANON_REALM	"WELLKNOWN:ANONYMOUS"
@@ -313,7 +316,7 @@ convert_kt(struct afsconf_dir *dir, krb5_context ctx, krb5_keytab_entry *ents,
 	   int nents, int do_all)
 {
     int i, n;
-    krb5_principal old_princ;
+    krb5_const_principal old_princ;
     struct afsconf_typedKey *key = NULL;
     afsconf_keyType type;
     afs_int32 best_kvno = 0, code;
@@ -321,8 +324,9 @@ convert_kt(struct afsconf_dir *dir, krb5_context ctx, krb5_keytab_entry *ents,
 #if HAVE_KRB5_ANONYMOUS_PRINCIPAL
     old_princ = krb5_anonymous_principal();
 #elif HAVE_KRB5_MAKE_PRINCIPAL
-    code = krb5_make_principal(ctx, &old_princ, KRB5_ANON_REALM,
-			       KRB5_WELLKNOWN_NAME, KRB5_ANON_NAME, NULL);
+    code = krb5_make_principal(ctx, (krb5_principal *)&old_princ,
+			       KRB5_ANON_REALM, KRB5_WELLKNOWN_NAME,
+			       KRB5_ANON_NAME, NULL);
     if (code)
 	goto out;
 #else
