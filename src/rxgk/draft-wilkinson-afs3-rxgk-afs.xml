@@ -423,7 +423,7 @@
     AFSCombineTokens(IN RXGK_Data *user_tok,
                      IN RXGK_Data *cm_tok,
                      IN RXGK_CombineOptions *options,
-                     IN afsUUID destination,
+                     IN afsUUID *destination,
                      OUT RXGK_Data *new_token,
                      OUT RXGK_TokenInfo *token_info) = TBD;
 	</artwork></figure>
