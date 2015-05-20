@@ -780,10 +780,7 @@
           is known just from the context of the connection, so there is no
           need to provide a callback token in the authenticator.</t>
         <t>In all cases, both cache manager and file server must retain the
-          callback key until all callbacks using that key are expired.  The
-          key should be cached in the server's per-connection private data,
-          to ensure that the callback key is only used for callbacks created
-          as a result of calls on the connection to which the key is bound.</t>
+          callback key until all callbacks using that key are expired.</t>
         <t>Only RPCs issued over an rxgk protected connection should receive rxgk
          protected callbacks.
         </t>
