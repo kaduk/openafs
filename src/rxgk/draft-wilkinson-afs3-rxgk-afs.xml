@@ -142,7 +142,7 @@
     </section>
     <section title="Security Index">
       <t>
-        When used within the AFS protocol, rxgk has an RX securityIndex value
+        When used within the AFS-3 protocol, rxgk has an RX securityIndex value
         of 4.
       </t>
     </section>
@@ -199,11 +199,14 @@
         identical across the cell. Clients MAY use the presence of this
         identity as an indicator of rxgk support for a particular cell. Clients
         that wish to support cells using other rx security objects MAY downgrade
-        if this identity is not available.
+        if this identity is not available.  Note that not all GSS mechanisms
+        can expose to the initiator whether or not a given server identity
+        exists.
       </t>
       <section title="Application-Specific GSSNegotiate Behavior for AFS-3">
         <t>The input and output opaques of the GSSNegotiate RPC are left
-          as implementation-defined, as needed to retain information across
+          as implementation-defined, as needed by the implementation
+          to retain information across
           subsequent calls during a single GSS negotiation loop.
         </t>
       </section>
@@ -244,7 +247,7 @@
           key has been used to encrypt the core token data.
         <figure><artwork>
     struct RXGK_TokenContainer {
-        afs_int32 kvno;
+        afs_uint32 kvno;
         afs_int32 enctype;
         opaque    encrypted_token&lt;&gt;;
     };
@@ -255,11 +258,11 @@
 	   in <xref target="I-D.wilkinson-afs3-rxgk"/>.</t>
       </section>
       <section title="Token Encryption">
-        <t>rxgk supports encrypting tokens both with a single cell-wide key
-          and with per-file-server keys.
+        <t>rxgk supports encrypting tokens with either a single cell-wide key
+          or with per-file-server keys.
           The cell-wide key must be installed on all database servers in the
           cell, and may additionally be installed on non-database file servers
-          when per-file-server keys are not desired.
+          when per-file-server keys are not in use.
           Cell-wide keys should be for
           a selected RFC 3961 encryption mechanism that is supported by all
           servers within the cell that will use that key.
@@ -351,18 +354,23 @@
           supported by the vlserver, that material
           MAY be used to key the cache manager.
           The cache manager simply calls the rxgk negotiation service using the
-          relevant material, and obtains a token.
+          relevant material, and obtains a token.  This token is a database
+          server token; there is no need in the protocol for it to be
+          usable as the user_tok input to AFSCombineTokens or for there
+          to be an entry in the protection database corresponding to the
+          cache manager's GSS identity.
           The cache manager should frequently
-          regenerate this token, to avoid combined tokens having unnecessarily
-          close expiration times.  The cache manager should not
-          regenerate this token
+          regenerate its token, to avoid combined tokens having
+          expiration times which are substantially earlier than
+          the expiration time of the corresponding user credentials.
+          The cache manager should not regenerate this token
           so often so as to place excessive load on the vlservers.</t>
         <t>It is recommended that GSS
           identities created specifically for use by
           a cache manager have the name afs3-callback@&lt;hostname&gt; of
           name type GSS_C_NT_HOSTBASED_SERVICE where
-          &lt;hostname&gt; is the fully qualified domain name of the cache
-          manager.</t>
+          &lt;hostname&gt; is the fully qualified domain name of the
+          machine upon which the cache manager is running.</t>
       </section>
       <section title="Unkeyed Clients">
         <t>When a client has no key material, it is possible that an
@@ -461,7 +469,10 @@
           new_token, the client MAY fall back to using a different
 	  authentication mechanism for that server. An rxgk capable client
 	  operating within an rxgk enabled cell MUST NOT downgrade its 
-	  choice of security layer in any other situation.</t>
+	  choice of security layer in any other situation.
+          (Such a client may still not attempt to use rxgk at all for an AFS
+          cell if it has determined that there is no suitable GSS acceptor
+          identity to be used for that cell.)</t>
       <t>In other cases where the server is unable to perform the
           AFSCombineTokens operation
           with the given arguments, a nonzero value is returned.
@@ -502,7 +513,9 @@
         themselves.  Such tokens are not usable to communicate with
         database servers or other file servers.
         As such, file servers with a per-server key will need
-        GSS credentials in order to function.  These credentials can
+        GSS credentials (but, as with keyed clients, not necessarily
+        entries in the protection database) in order to function.
+        These credentials can
         be used to acquire an rxgk token, allowing queries to the database
         servers.  They can also be used to register the file server
         in the vldb, and to create and update the file server's
@@ -593,7 +606,7 @@
             central cell administrators (so that these file servers could
             be run solely by a local administrator without need for central
             administrator intervention).</t>
-          <t>Thus, is is expected that a
+          <t>Thus, it is expected that a
             file server with a per-server key will have a dedicated GSS
             identity and credentials that it will use for registering
             with the vldb (VL_RegisterAddrsAndKey) and that will also
@@ -620,7 +633,7 @@
         in the vldb, so that the AFSCombineTokens RPC can encrypt the
         outgoing token with the correct key. The manner in which this directory
         is maintained is left to the implementor, who MAY decide to use a
-        manual, or out of band, key management system.  Otherwise, the automated
+        manual, out of band, key management system.  Otherwise, the automated
         keying mechanism described as follows will be used.
       </t>
         <t>Implementations supporting automatic key management through the AFS-3
@@ -632,10 +645,17 @@
         client and the vlserver as the server.  Once the RPC completes, both
         peers of the RPC call can generate a key to be used as the fileserver's
         long-term server key.</t>
-        <t>vlservers MUST NOT permit calls to VL_RegisterAddrsAndKey for
+        <t>vlservers SHOULD NOT permit calls to VL_RegisterAddrsAndKey for
         fileserver UUIDs
         which already exist within the vldb, unless that UUID already has
-        a server-specific key registered.
+        a server-specific key registered.  Requiring the separation
+        facilitates a workflow wherein existing servers retain the cell-wide
+        key, and new file servers are created with per-server keys.  Data
+        volumes can then be gradually migrated to the new file servers, and
+        old file servers decommissioned.  Permitting file servers to
+        convert from cell-wide key to per-server keys would involve
+        complicated access checking and update logic for which it is
+        difficult to ensure correctness of implementation.
         </t>
         <t>The VL_RegisterAddrsAndKey RPC is described by the following RPC-L:
 <figure><artwork>
@@ -646,7 +666,7 @@
 
     struct RXGK_ServerKeyDataResponse {
         afs_int32 enctype;
-        afs_int32 kvno;
+        afs_uint32 kvno;
         opaque nonce2[20];
     };
 
