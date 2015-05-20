@@ -703,7 +703,12 @@
         <t>The server selects an encryption type shared by it and the client, and
       returns that, along with 20 bytes of random data that it has generated,
       in RXGK_ServerKeyDataResponse. If there is no common encryption type,
-      then the server MUST fail the request.</t>
+      then the server MUST fail the request.  The kvno field of the
+      RXGK_ServerKeyDataResponse is used to indicate to the client what
+      key version number it should use for the key it will compute using
+      these nonces.  The kvno will be used in the RXGK_TokenContainer
+      bearing file server tokens for this file server, to indicate which key
+      was used to encrypt the RXGK_Token.</t>
         <t>The vlserver MUST store the
         identity list from the token used to make this connection.
         The vlserver MUST only permit
