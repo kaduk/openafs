@@ -933,6 +933,15 @@
         <t>General edits for clarity.</t>
         <t>Use afs_uint32 for token lifetimes, to match the core spec.</t>
       </section>
+      <section title="Since 07">
+        <t>Incorporate the destination UUID and target enctype into
+          AFSCombineTokens key generation.</t>
+        <t>Add (fixed) pepper strings for AFSCombineTokens and
+          RegisterAddrsAndKey key generation.</t>
+        <t>General editing for clarity.</t>
+        <t>Use unsigned types for kvnos.</t>
+        <t>Use a pointer type for afsUUID RPC arguments.</t>
+      </section>
     </section>
   </back>
 </rfc>
