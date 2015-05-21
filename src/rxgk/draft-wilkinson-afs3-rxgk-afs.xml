@@ -14,7 +14,7 @@
 <?rfc toc='yes'?>
 <?rfc compact='yes'?>
 <?rfc subcompact='no'?>
-<rfc category="info" ipr="trust200902" docName="draft-wilkinson-afs3-rxgk-afs-07" submissionType="independent">
+<rfc category="info" ipr="trust200902" docName="draft-wilkinson-afs3-rxgk-afs-08" submissionType="independent">
   <front>
     <title>Integrating rxgk with AFS</title>
     <author initials="S." surname="Wilkinson" fullname="Simon Wilkinson">
@@ -29,7 +29,7 @@
         <email>kaduk@mit.edu</email>
       </address>
     </author>
-    <date month="September" year="2014"/>
+    <date month="May" year="2015"/>
     <abstract>
       <t>
         This document describes how the new GSSAPI-based rxgk security class
