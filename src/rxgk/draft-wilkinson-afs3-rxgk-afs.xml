@@ -202,7 +202,7 @@
         identity as an indicator of rxgk support for a particular cell. Clients
         that wish to support cells using other rx security objects MAY downgrade
         if this identity is not available.  Note that not all GSS mechanisms
-        can expose to the initiator whether or not a given server identity
+        can expose to the initiator whether or not a given acceptor identity
         exists.
       </t>
       <section title="Application-Specific GSSNegotiate Behavior for AFS-3">
@@ -503,11 +503,11 @@
     pepper1 :=  "AFS" || 00 || destination || enctype
     pepper2 := "rxgk" || 00 || destination || enctype
           </artwork></figure>
-          where the strings "AFS" and "rxgk" exclude the NUL terminator,
-          00 is a NUL octet, destination is the XDR-encoding of the
-          destination afsUUID, enctype is the enctype selected by the server
-          and returned in the enctype field of token_info and encoded as
-          a 32-bit integer in network byte order, and || is the
+          where the strings "AFS" and "rxgk" exclude the NUL terminator;
+          00 is a NUL octet; destination is the XDR-encoding of the
+          destination afsUUID; enctype is the enctype selected by the server
+          and returned in the enctype field of token_info, encoded as
+          a 32-bit integer in network byte order; and || is the
           concatenation operator.  In the one-token case,
           <figure><artwork>
     Kn := random-to-key(PRF+(K0, pepper0))
@@ -523,7 +523,7 @@
       </t>
     </section>
     <section title="Server to Server Communication">
-      <t>A number of portions of the AFS protocol require that servers
+      <t>A number of portions of the AFS-3 protocol require that servers
         communicate amongst themselves.  To name a limited subset of
         examples, file servers must register their location (IP addresses)
         with the vldb, and must query the prdb when serving data;
@@ -557,7 +557,7 @@
           place it in an RXGK_TokenContainer describing the key used to
           perform the encryption,
           and use it in the same way as a normal rxgk token. The receiving server
-          can identify it is a printed token by the empty identity list.</t>
+          can identify it as a printed token by the empty identity list.</t>
         <t>The session key within a printed database server token
           MUST use the same encryption
           type as the pre-shared key. When connecting to a fileserver starting
@@ -597,14 +597,14 @@
           another for file servers with per-server keys.</t>
         <section title="File Servers With the Cell-Wide Key">
           <t>When a file
-            server which will use the cell-wide key is registered as
+            server that will use the cell-wide key is registered as
             rxgk-capable, there is no need to register a new key for that
             server (and in fact it would be actively harmful!), so there is
             no need to use VL_RegisterAddrsAndKey.  In this case,
             VL_RegisterAddrs is sufficient, and using a printed token for
             the rxgk connection for VL_RegisterAddrs indicates that the
             file server possesses the cell-wide key.  Since the file server
-            has the cell-wide shared key, it will need get its key updated
+            has the cell-wide shared key, it will get its key updated
             when the cell-wide key is updated, and does not need to update
             its own key separately.  As such, it will never need to call
             VL_RegisterAddrsAndKey.</t>
@@ -642,7 +642,7 @@
             will store in the vldb what GSS identity is used to perform
             VL_RegisterAddrsAndKey for a given file server UUID, and
             allow that identity to perform successor calls to
-            VL_RegisterAddrsAndKey for that UUID.
+            VL_RegisterAddrsAndKey and VL_RegisterAddrs for that UUID.
           </t>
           <t>Is is RECOMMENDED that GSS identities created solely for use
             on file servers with per-server keys be of the form
