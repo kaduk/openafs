@@ -43,7 +43,7 @@
   <middle>
     <section title="Introduction">
       <t><xref target="I-D.wilkinson-afs3-rxgk">rxgk</xref> is a new 
-	<xref target="RFC2743">GSSAPI-based</xref> security layer for the
+        <xref target="RFC2743">GSSAPI-based</xref> security layer for the
         <xref target="RX">RX</xref> remote procedure call system. The rxgk 
         specification details how it may be used with a generic RX application,
         but leaves some aspects of the protocol as application-specific.
@@ -253,11 +253,11 @@
         afs_int32 enctype;
         opaque    encrypted_token&lt;&gt;;
     };
-	</artwork></figure>
+        </artwork></figure>
            The RXGK_TokenContainer structure is XDR encoded and transported
            wherever a token is used, such as in the
-	   'token' field of the RXGK_ClientInfo structure specified
-	   in <xref target="I-D.wilkinson-afs3-rxgk"/>.</t>
+           'token' field of the RXGK_ClientInfo structure specified
+           in <xref target="I-D.wilkinson-afs3-rxgk"/>.</t>
       </section>
       <section title="Token Encryption">
         <t>rxgk supports encrypting tokens with either a single cell-wide key
@@ -272,7 +272,7 @@
           encryption mechanism that is supported by both the destination
           server and the negotiation service on the vlserver.
           The management of per-server
-	  keys is discussed in more detail in <xref target="per-server-keys"/>.</t>
+          keys is discussed in more detail in <xref target="per-server-keys"/>.</t>
         <t>Key rollover is permitted by means of a key version number. When a
           key is changed, whether cell-wide or per-server, a different (larger)
           key version number MUST be selected. Servers
@@ -282,11 +282,11 @@
           regenerate those tokens in the case of key rollover.</t>
         <t>Encryption is performed over the XDR encoded RXGK_Token structure,
           using the RFC 3961 encrypt operation, with a key usage value of
-	  RXGK_SERVER_ENC_TOKEN (defined in
+          RXGK_SERVER_ENC_TOKEN (defined in
           <xref target="I-D.wilkinson-afs3-rxgk"/>).
           The enrypted data is stored in the
           encrypted_token field of the RXGK_TokenContainer structure described in
-	  <xref target="container"/>.</t>
+          <xref target="container"/>.</t>
       </section>
       <section anchor="TokenContents" title="Token Contents">
         <t>The token itself contains the information expressed by the following
@@ -306,14 +306,14 @@
           <t hangText="enctype:">The RFC3961 encryption type of the session key
             contained within this ticket.</t>
           <t hangText="K0:">The session key. (See <xref target="I-D.wilkinson-afs3-rxgk"/> 
-	    for details of how this key is negotiated between client and negotiation
+            for details of how this key is negotiated between client and negotiation
             service.)</t>
           <t hangText="level:">The security level, as defined in 
-	    <xref target="I-D.wilkinson-afs3-rxgk"/>, that MUST be used for this
+            <xref target="I-D.wilkinson-afs3-rxgk"/>, that MUST be used for this
             connection.</t>
           <t hangText="lifetime:">The maximum number of seconds that a 
-	    key derived from K0 may be used for, before the connection is rekeyed.
-	    If 0, keys have no time-based limit.</t>
+            key derived from K0 may be used for, before the connection is rekeyed.
+            If 0, keys have no time-based limit.</t>
           <t hangText="bytelife:">The maximum amount of data (expressed as
             the log base 2 of the number of bytes) that may be transferred
             using a key derived from K0
@@ -411,14 +411,14 @@
     <section title="The AFSCombineTokens Operation" anchor="AFSCombineTokens">
       <t>
           AFS extends the existing CombineTokens operation to provide a
-	  more featured token manipulation and conversion service.
+          more featured token manipulation and conversion service.
           This operation takes a user
-	  token, an optional cache manager token, options for enctype and
+          token, an optional cache manager token, options for enctype and
           security level negotiation with the server,
           and a destination file server identifier. It
-	  returns a token specific to the specified destination fileserver,
+          returns a token specific to the specified destination fileserver,
           and a structure
-	  containing some information describing the returned token.
+          containing some information describing the returned token.
           AFSCombineTokens is the only way to obtain a valid file server token
           (other than printing a token, see <xref target="printing"/>).
         <figure><artwork>
@@ -428,7 +428,7 @@
                      IN afsUUID *destination,
                      OUT RXGK_Data *new_token,
                      OUT RXGK_TokenInfo *token_info) = TBD;
-	</artwork></figure>
+        </artwork></figure>
         <list style="hanging" hangIndent="6">
           <t hangText="user_tok:">An rxgk token for the vlserver.</t>
           <t hangText="cm_tok:">Either an rxgk token for the vlserver, or empty
@@ -455,8 +455,8 @@
           provide both the user's token (as user_tok) and a token generated
           from an identity that is private to the cache manager (as cm_tok).
           This prevents a user from poisoning the cache for other users.
-	  Recommendations on keying cache managers are contained in
-	  <xref target="cm-keying"/>.</t>
+          Recommendations on keying cache managers are contained in
+          <xref target="cm-keying"/>.</t>
       <t>The output token from AFSCombineTokens is a token specific to
            the fileserver
            indicated by the destination argument.  As such, it is not a valid
@@ -467,14 +467,14 @@
            the destination UUID is incorporated into the key derivation
            procedure to ensure this property.</t>
       <t>Clients using a printed token (see <xref target="printing"/>) MUST
-	   provide that token as user_tok. cm_tok MUST be empty.</t>
+           provide that token as user_tok. cm_tok MUST be empty.</t>
       <t>The server uses a zero-length new_token to indicate that
           the generation of rxgk tokens for the specified fileserver cannot
           work at the present time.  Upon receipt of such a zero-length
           new_token, the client MAY fall back to using a different
-	  authentication mechanism for that server. An rxgk capable client
-	  operating within an rxgk enabled cell MUST NOT downgrade its 
-	  choice of security layer in any other situation.
+          authentication mechanism for that server. An rxgk capable client
+          operating within an rxgk enabled cell MUST NOT downgrade its 
+          choice of security layer in any other situation.
           (Such a client may still not attempt to use rxgk at all for an AFS
           cell if it has determined that there is no suitable GSS acceptor
           identity to be used for that cell.)</t>
@@ -579,9 +579,9 @@
         VL_RegisterAddrsAndKey (<xref target="per-server"/>), and either
         one may be used to indicate that a fileserver supports rxgk.
         Fileservers which support rxgk MUST call these
-	RPCs over an rxgk protected connection. The vlserver then infers rxgk
-	support from the rx security layer used in registration. To prevent
-	downgrade attacks, once a fileserver has
+        RPCs over an rxgk protected connection. The vlserver then infers rxgk
+        support from the rx security layer used in registration. To prevent
+        downgrade attacks, once a fileserver has
         registered as being rxgk capable, the vlserver MUST NOT remove that
         registration without administrator intervention.</t>
         <t>Once a fileserver has been marked as supporting rxgk, VL_RegisterAddrs
@@ -849,7 +849,7 @@
          poisoning attacks on multi-user systems. In order for this protection
          to be effective, cache managers MUST NOT provide user access to
          keys produced through the combine tokens operation, unless those keys
-	 will not be used by the cache manger itself.
+         will not be used by the cache manger itself.
        </t>
       </section>
     </section>
@@ -881,7 +881,7 @@
         <t>Add introductory material on AFS.</t>
         <t>Change expirationTime to be expressed using the rxgkTime type.</t>
         <t>Document how encryption types are chosen for printed tokens,
-	       and how they are used against fileservers.</t>
+               and how they are used against fileservers.</t>
         <t>Expand security considerations section to cover combined tokens.</t>
         <t>Rename AFS_SetCallbackKey as RXAFS_SetCallbackKey.</t>
       </section>
