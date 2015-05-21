@@ -751,7 +751,8 @@
         <t>For rxgk, the file server key can then be derived
           by both client and server using
 <figure><artwork>
-     random-to-key(PRF+(K0, K, nonce1 || nonce2));
+    random-to-key(PRF+(K0, K,
+                       pepper || 00 || nonce1 || nonce2 || enctype));
 </artwork></figure>
      </t>
         <t>random-to-key is the function specified by the RFC3961 profile of the
@@ -772,6 +773,11 @@
        determined by the GSSNegotiate call.</t>
         <t>K is the key generation seed length as specified in enctype's RFC3961
        profile.</t>
+        <t>pepper is the ASCII string "RXGKRegisterAddrsAndKey" (without
+          trailing NUL).</t>
+        <t>00 is a NUL octet.</t>
+        <t>enctype is the selected enctype, encoded as a 32-bit integer
+          in network byte order.</t>
         <t>|| is the concatenation operation.</t>
       </section>
     </section>
