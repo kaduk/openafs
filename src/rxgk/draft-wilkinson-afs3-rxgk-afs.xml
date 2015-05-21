@@ -8,6 +8,7 @@
 <!ENTITY RFC3961 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.3961.xml">
 <!ENTITY RFC4402 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.4402.xml">
 <!ENTITY RFC4506 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.4506.xml">
+<!ENTITY RFC6113 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6113.xml">
 ]>
 <?rfc symrefs='yes'?>
 <?rfc toc='yes'?>
@@ -460,7 +461,10 @@
            indicated by the destination argument.  As such, it is not a valid
            input token for a successor AFSCombineTokens operation, as the
            input tokens for AFSCombineTokens must be tokens for the
-           vlserver.</t>
+           vlserver.  To prevent key-reuse attacks, the token master key
+           in the output token must be unique per destination file server;
+           the destination UUID is incorporated into the key derivation
+           procedure to ensure this property.</t>
       <t>Clients using a printed token (see <xref target="printing"/>) MUST
 	   provide that token as user_tok. cm_tok MUST be empty.</t>
       <t>The server uses a zero-length new_token to indicate that
@@ -485,14 +489,36 @@
           combination of keys and tokens, are largely the same as
           the CombineTokens RPC, documented in
           <xref target="I-D.wilkinson-afs3-rxgk"/> and
-          <xref target="CombineTokens" />.  The only differences
-          pertain to the case where the supplied cm_tok is empty.
-          In this case, there is only one input token master key, so the
-          KRB-FX-CF2() algorithm is not applicable; instead, the
-          master key K0 from user_tok is reused unchanged for the output token.
-          The enctype of that K0 MUST be present in the 'enctypes' array of
-          the 'options' parameter; if it is absent, the server MUST fail
-          the AFSCombineTokens RPC.
+          <xref target="CombineTokens" />.  However, the AFSCombineTokens
+          operation needs to include the destination file server's UUID
+          in the key combination process to ensure that the resulting
+          key is unique for each file server (and different from the
+          key in the input tokens); AFSCombineTokens must also handle
+          the case where the supplied cm_tok is absent (empty).
+          In the two-token case, the KRB-FX-CF2 operation is still used,
+          but the pepper1 and pepper 2 inputs will both include the
+          destination UUID:
+          <figure><artwork>
+    pepper1 :=  "AFS" || 00 || destination || enctype
+    pepper2 := "rxgk" || 00 || destination || enctype
+          </artwork></figure>
+          where the strings "AFS" and "rxgk" exclude the NUL terminator,
+          00 is a NUL octet, destination is the XDR-encoding of the
+          destination afsUUID, enctype is the enctype selected by the server
+          and returned in the enctype field of token_info and encoded as
+          a 32-bit integer in network byte order, and || is the
+          concatenation operator.  In the one-token case,
+          <figure><artwork>
+    Kn := random-to-key(PRF+(K0, pepper0))
+    pepper0 := "rxgkAFS" || 00 || destination || enctype
+          </artwork></figure>
+          where the string "rxgkAFS" excludes the NUL terminator.
+          Note that the PRF+ function here is the one used in
+          the KRB-FX-CF2 operation specified in
+          <xref target="RFC6113" />, which differs from the PRF+ function
+          specified in <xref target="RFC4402" /> and used elsewhere in this
+          document.  random-to-key is the function specified by the
+          RFC3961 profile of the selected enctype.
       </t>
     </section>
     <section title="Server to Server Communication">
@@ -833,6 +859,7 @@
      &RFC3961;
      &RFC4402;
      &RFC4506;
+     &RFC6113;
    </references>
     <section title="Acknowledgements">
       <t>
