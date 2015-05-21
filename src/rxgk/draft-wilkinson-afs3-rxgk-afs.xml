@@ -150,7 +150,8 @@
     <section title="Authenticator Data">
       <t>The appdata opaque within the RXGK_Authenticator structure used
         in the rx challenge/response authentication exchange
-        contains the results of XDR encoding the RXGK_Authenticator_AFSAppData
+        contains the results of XDR <xref target="RFC4506" />
+        encoding the RXGK_Authenticator_AFSAppData
         structure.
       <figure><artwork>
     struct RXGK_Authenticator_AFSAppData {
@@ -169,8 +170,8 @@
           <t hangText="cb_key">the raw key material (k0) to which cb_tok
             corresponds, to be used as the master key for the secure callback
             connections created by RPCs over this connection.</t>
-          <t hangText="enctype">the RFC 3961 enctype of the cb_key key
-            material.</t>
+          <t hangText="enctype">the <xref target="RFC3961" /> enctype
+            of the cb_key key material.</t>
           <t hangText="target_uuid">the UUID of the server being authenticated
             to (if applicable).  Database servers do not have UUIDs; when
             authenticating to database servers, this field should be set to
