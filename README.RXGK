@@ -1,0 +1,38 @@
+This code is approaching a point where it makes sense to set up test
+cells using rxgk.  (Do not use it on cells with real data; too many
+things still need to change.)
+
+Here's a list of things that need to be done while setting up the cell
+for use with rxgk.  I'm doing it from memory, so some things are probably
+missing.
+
+To indicate that the vlservers have rxgk support, a kerberos key should
+be created for the cell: afs-rxgk/_afs.<cellname>@REALM.  That key goes
+in the normal system keytab /etc/krb5.keytab.  You also need a (different!)
+secret key for the rxgk shared cell-wide key.  This key goes in the
+KeyFileExt, of type afsconf_rxgk (1).  It ought to be purely random,
+so just pick an enctype/subtype and supply the appropriate amount of
+random data.  asetkey doesn't know how to generate a random such key yet,
+so read the comment in src/auth/keys for how the file is laid out and
+write some random bits in as the key.  There's no real need to have
+multiple keys of the same kvno and different enctypes, here.  If you
+write in a dummy file with just the one random key before using asetkey
+to add your rxkad_krb5 key(s), then the code to add the rxgk key can be
+simpler.  Distribute the KeyFileExt as usual.
+
+A lot of binaries have gained -rxgk arguments; e.g., ptserver and vlserver
+use this to determine whether rxgk is used for the intra-ubik connections.
+Once the cell-wide key is in KeyFileExt, it should be safe to start
+using that.  bos also has an -rxgk switch to try using rxgk for the
+connection to the bosserver; I don't think other client utilities have
+been switched over yet.
+
+On the client side, use gklog to get an rxgk token and shove it in the kernel.
+gklog is much less featureful than aklog; just give it the name of a cell.
+The client should prefer rxgk tokens over rxkad, if they are present.
+
+Use rxdebug to confirm that rxgk connections are in use (and rxkad are
+not, as appropriate).  Use tcpdump to verify that data is encrypted
+on the wire.  (IIRC, the default to encryption is hardcoded.)  Look
+for memory leaks (or lock leaks).  Have fun, break things, and supply
+feedback.  Thanks!
