@@ -1911,28 +1911,36 @@ afs_linux_readlink(struct dentry *dp, char *target, int maxlen)
  */
 #if defined(HAVE_LINUX_INODE_OPERATIONS_FOLLOW_LINK_NO_NAMEIDATA)
 static const char *afs_linux_follow_link(struct dentry *dentry, void **link_data)
+#elif defined(STRUCT_INODE_OPERATIONS_HAS_GET_LINK)
+static const char *afs_linux_get_link(struct dentry *dentry, struct inode *inode, struct delayed_call *done)
 #else
 static int afs_linux_follow_link(struct dentry *dentry, struct nameidata *nd)
 #endif
 {
     int code;
     char *name;
+    struct inode *ip;
 
     name = kmalloc(PATH_MAX, GFP_NOFS);
     if (!name) {
-#if defined(HAVE_LINUX_INODE_OPERATIONS_FOLLOW_LINK_NO_NAMEIDATA)
+#if defined(HAVE_LINUX_INODE_OPERATIONS_FOLLOW_LINK_NO_NAMEIDATA) || defined(STRUCT_INODE_OPERATIONS_HAS_GET_LINK)
 	return ERR_PTR(-EIO);
 #else
 	return -EIO;
 #endif
     }
 
+#if defined(STRUCT_INODE_OPERATIONS_HAS_GET_LINK)
+    ip = dentry->d_inode;
+#else
+    ip = inode;
+#endif
     AFS_GLOCK();
-    code = afs_linux_ireadlink(dentry->d_inode, name, PATH_MAX - 1, AFS_UIOSYS);
+    code = afs_linux_ireadlink(ip, name, PATH_MAX - 1, AFS_UIOSYS);
     AFS_GUNLOCK();
 
     if (code < 0) {
-#if defined(HAVE_LINUX_INODE_OPERATIONS_FOLLOW_LINK_NO_NAMEIDATA)
+#if defined(HAVE_LINUX_INODE_OPERATIONS_FOLLOW_LINK_NO_NAMEIDATA) || defined(STRUCT_INODE_OPERATIONS_HAS_GET_LINK)
 	return ERR_PTR(code);
 #else
 	return code;
@@ -1942,12 +1950,16 @@ static int afs_linux_follow_link(struct dentry *dentry, struct nameidata *nd)
     name[code] = '\0';
 #if defined(HAVE_LINUX_INODE_OPERATIONS_FOLLOW_LINK_NO_NAMEIDATA)
     return *link_data = name;
+#elif defined(STRUCT_INODE_OPERATIONS_HAS_GET_LINK)
+    set_delayed_call(done, kfree_link, name);
+    return name;
 #else
     nd_set_link(nd, name);
-    return 0;
 #endif
+    return 0;
 }
 
+#if !defined(STRUCT_INODE_OPERATIONS_HAS_GET_LINK)
 #if defined(HAVE_LINUX_INODE_OPERATIONS_PUT_LINK_NO_NAMEIDATA)
 static void
 afs_linux_put_link(struct inode *inode, void *link_data)
@@ -1967,6 +1979,7 @@ afs_linux_put_link(struct dentry *dentry, struct nameidata *nd)
 	kfree(name);
 }
 #endif /* HAVE_LINUX_INODE_OPERATIONS_PUT_LINK_NO_NAMEIDATA */
+#endif /* STRUCT_INODE_OPERATIONS_HAS_GET_LINK */
 
 #endif /* USABLE_KERNEL_PAGE_SYMLINK_CACHE */
 
@@ -3118,13 +3131,23 @@ static struct inode_operations afs_symlink_iops = {
 # if defined(HAVE_LINUX_PAGE_FOLLOW_LINK)
   .follow_link =	page_follow_link,
 # else
+#  if defined(STRUCT_INODE_OPERATIONS_HAS_GET_LINK)
+  .get_link = 		page_get_link,
+#  else /* STRUCT_INODE_OPERATIONS_HAS_GET_LINK */
   .follow_link =	page_follow_link_light,
+#  endif /* STRUCT_INODE_OPERATIONS_HAS_GET_LINK */
+#  if defined(STRUCT_INODE_OPERATIONS_HAS_PUT_LINK)
   .put_link =           page_put_link,
+#  endif /* STRUCT_INODE_OPERATIONS_HAS_PUT_LINK */
 # endif
 #else /* !defined(USABLE_KERNEL_PAGE_SYMLINK_CACHE) */
   .readlink = 		afs_linux_readlink,
-  .follow_link =	afs_linux_follow_link,
+#if defined(STRUCT_INODE_OPERATIONS_HAS_GET_LINK)
+  .get_link =		afs_linux_get_link,
+#else
   .put_link =		afs_linux_put_link,
+  .follow_link =	afs_linux_follow_link,
+#endif
 #endif /* USABLE_KERNEL_PAGE_SYMLINK_CACHE */
   .setattr =		afs_notify_change,
 };
