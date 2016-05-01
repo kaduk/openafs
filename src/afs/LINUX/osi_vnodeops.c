@@ -1665,7 +1665,9 @@ afs_linux_sillyrename(struct inode *dir, struct dentry *dentry,
 	__name = afs_newname();
 	AFS_GUNLOCK();
 
+	afs_linux_lock_inode(dentry->d_parent->d_inode);
 	__dp = lookup_one_len(__name, dentry->d_parent, strlen(__name));
+	afs_linux_unlock_inode(dentry->d_parent->d_inode);
 
 	if (IS_ERR(__dp)) {
 	    osi_FreeSmallSpace(__name);
