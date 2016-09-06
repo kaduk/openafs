@@ -1,7 +1,12 @@
 openafs (1.8.0~~bleeding20-1) UNRELEASED; urgency=low
 
+  [ Benjamin Kaduk ]
   * New upstream branch (but I'm faking the release to jumpstart packaging)
   * Do not upload this; do not even push it to the official repo.
+
+  [ Anders Kaseorg ]
+  * Drop hardening-wrapper; upstream supports passing CFLAGS now
+    (Closes: #836642)
 
  -- Benjamin Kaduk <kaduk@mit.edu>  Fri, 05 Sep 2014 17:55:08 -0400
 
