@@ -55,6 +55,7 @@ afs_StoreMini(struct vcache *avc, struct vrequest *areq)
 	tlen = avc->f.truncPos;
     avc->f.truncPos = AFS_NOTRUNC;
     avc->f.states &= ~CExtendedFile;
+    memset(&InStatus, 0, sizeof(InStatus));
 
     do {
 	tc = afs_Conn(&avc->f.fid, areq, SHARED_LOCK, &rxconn);
@@ -174,8 +175,6 @@ afs_StoreAllSegments(struct vcache *avc, struct vrequest *areq,
 
     AFS_STATCNT(afs_StoreAllSegments);
 
-    hset(oldDV, avc->f.m.DataVersion);
-    hset(newDV, avc->f.m.DataVersion);
     hash = DVHash(&avc->f.fid);
     foreign = (avc->f.states & CForeign);
     dcList = osi_AllocLargeSpace(AFS_LRALLOCSIZ);
@@ -213,6 +212,14 @@ afs_StoreAllSegments(struct vcache *avc, struct vrequest *areq,
 	/*printf("Net down in afs_StoreSegments\n");*/
 	return ENETDOWN;
     }
+
+    /*
+     * Can't do this earlier because osi_VM_StoreAllSegments drops locks
+     * and can indirectly do some stores that increase the DV.
+     */
+    hset(oldDV, avc->f.m.DataVersion);
+    hset(newDV, avc->f.m.DataVersion);
+
     ConvertWToSLock(&avc->lock);
 
     /*
@@ -519,12 +526,7 @@ afs_InvalidateAllSegments(struct vcache *avc)
     hash = DVHash(&avc->f.fid);
     avc->f.truncPos = AFS_NOTRUNC;	/* don't truncate later */
     avc->f.states &= ~CExtendedFile;	/* not any more */
-    ObtainWriteLock(&afs_xcbhash, 459);
-    afs_DequeueCallback(avc);
-    avc->f.states &= ~(CStatd | CDirty);	/* mark status information as bad, too */
-    ReleaseWriteLock(&afs_xcbhash);
-    if (avc->f.fid.Fid.Vnode & 1 || (vType(avc) == VDIR))
-	osi_dnlc_purgedp(avc);
+    afs_StaleVCacheFlags(avc, 0, CDirty);
     /* Blow away pages; for now, only for Solaris */
 #if	(defined(AFS_SUN5_ENV))
     if (WriteLocked(&avc->lock))

@@ -75,7 +75,7 @@ static int CmdProlog(struct cmd_syndesc *, char **, char **,
 static int ScanFid(char *, struct AFSFid *);
 static afs_int32 GetVenusFidByFid(char *, char *, int, struct afscp_venusfid **);
 static afs_int32 GetVenusFidByPath(char *, char *, struct afscp_venusfid **);
-static int BreakUpPath(char *, char *, char *, size_t);
+static int BreakUpPath(char *, char **, char **);
 
 static char pnp[AFSPATHMAX];	/* filename of this program when called */
 static int verbose = 0;		/* Set if -verbose option given */
@@ -276,28 +276,29 @@ int
 main(int argc, char **argv)
 {
     struct cmd_syndesc *ts;
-    char baseName[AFSNAMEMAX];
+    char *baseName;
     int code;
 
     /* try to get only the base name of this executable for use in logs */
 #ifdef AFS_NT40_ENV
     char *p = strdup(argv[0]);
     ConvertAFSPath(&p);
-    code = BreakUpPath(p, NULL, baseName, AFSNAMEMAX);
+    code = BreakUpPath(p, NULL, &baseName);
     free(p);
 #else
-    code = BreakUpPath(argv[0], NULL, baseName, AFSNAMEMAX);
+    code = BreakUpPath(argv[0], NULL, &baseName);
 #endif
     if (code > 0)
 	strlcpy(pnp, baseName, AFSNAMEMAX);
     else
 	strlcpy(pnp, argv[0], AFSPATHMAX);
+    free(baseName);
 
 #ifdef AFS_PTHREAD_ENV
     opr_Verify(pthread_key_create(&uclient_key, NULL) == 0);
 #endif
 
-    ts = cmd_CreateSyntax("lock", lockFile, (void *)LockWrite,
+    ts = cmd_CreateSyntax("lock", lockFile, (void *)LockWrite, 0,
 			  "lock a file in AFS");
     cmd_AddParm(ts, "-file", CMD_SINGLE, CMD_REQUIRED, "AFS-filename");
     cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cellname");
@@ -309,9 +310,8 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-waitseconds", CMD_SINGLE, CMD_OPTIONAL, "seconds to wait before giving up");
     cmd_AddParm(ts, "-readlock", CMD_FLAG, CMD_OPTIONAL, "read lock only");
 
-    ts = cmd_CreateSyntax("fidlock", lockFile, (void *)LockWrite,
+    ts = cmd_CreateSyntax("fidlock", lockFile, (void *)LockWrite, 0,
 			  "lock by FID a file from AFS");
-    cmd_IsAdministratorCommand(ts);
     cmd_AddParm(ts, "-fid", CMD_SINGLE, CMD_REQUIRED,
 		"volume.vnode.uniquifier");
     cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cellname");
@@ -323,7 +323,7 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-waitseconds", CMD_SINGLE, CMD_OPTIONAL, "seconds to wait before giving up");
     cmd_AddParm(ts, "-readlock", CMD_FLAG, CMD_OPTIONAL, "read lock only");
 
-    ts = cmd_CreateSyntax("unlock", lockFile, (void *)LockRelease,
+    ts = cmd_CreateSyntax("unlock", lockFile, (void *)LockRelease, 0,
 			  "unlock a file in AFS");
     cmd_AddParm(ts, "-file", CMD_SINGLE, CMD_REQUIRED, "AFS-filename");
     cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cellname");
@@ -334,9 +334,8 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-realm", CMD_SINGLE, CMD_OPTIONAL, "REALMNAME");
     cmd_AddParm(ts, "-waitseconds", CMD_SINGLE, CMD_OPTIONAL, "seconds to wait before giving up");
 
-    ts = cmd_CreateSyntax("fidunlock", lockFile, (void *)LockRelease,
+    ts = cmd_CreateSyntax("fidunlock", lockFile, (void *)LockRelease, 0,
 			  "unlock by FID a file from AFS");
-    cmd_IsAdministratorCommand(ts);
     cmd_AddParm(ts, "-fid", CMD_SINGLE, CMD_REQUIRED,
 		"volume.vnode.uniquifier");
     cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cellname");
@@ -347,7 +346,7 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-realm", CMD_SINGLE, CMD_OPTIONAL, "REALMNAME");
     cmd_AddParm(ts, "-waitseconds", CMD_SINGLE, CMD_OPTIONAL, "seconds to wait before giving up");
 
-    ts = cmd_CreateSyntax("read", readFile, NULL,
+    ts = cmd_CreateSyntax("read", readFile, NULL, 0,
 			  "read a file from AFS");
     cmd_AddParm(ts, "-file", CMD_SINGLE, CMD_REQUIRED, "AFS-filename");
     cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cellname");
@@ -357,9 +356,8 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-md5", CMD_FLAG, CMD_OPTIONAL, "calculate md5 checksum");
     cmd_AddParm(ts, "-realm", CMD_SINGLE, CMD_OPTIONAL, "REALMNAME");
 
-    ts = cmd_CreateSyntax("fidread", readFile, CMD_REQUIRED,
+    ts = cmd_CreateSyntax("fidread", readFile, CMD_REQUIRED, 0,
 			  "read on a non AFS-client a file from AFS");
-    cmd_IsAdministratorCommand(ts);
     cmd_AddParm(ts, "-fid", CMD_SINGLE, CMD_REQUIRED,
 		"volume.vnode.uniquifier");
     cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cellname");
@@ -368,7 +366,7 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-md5", CMD_FLAG, CMD_OPTIONAL, "calculate md5 checksum");
     cmd_AddParm(ts, "-realm", CMD_SINGLE, CMD_OPTIONAL, "REALMNAME");
 
-    ts = cmd_CreateSyntax("write", writeFile, NULL,
+    ts = cmd_CreateSyntax("write", writeFile, NULL, 0,
 			  "write a file into AFS");
     cmd_AddParm(ts, "-file", CMD_SINGLE, CMD_REQUIRED, "AFS-filename");
     cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cellname");
@@ -382,9 +380,8 @@ main(int argc, char **argv)
 		"create data pattern of specified length instead reading from stdin");
     cmd_AddParm(ts, "-realm", CMD_SINGLE, CMD_OPTIONAL, "REALMNAME");
 
-    ts = cmd_CreateSyntax("fidwrite", writeFile, CMD_REQUIRED,
+    ts = cmd_CreateSyntax("fidwrite", writeFile, CMD_REQUIRED, 0,
 			  "write a file into AFS");
-    cmd_IsAdministratorCommand(ts);
     cmd_AddParm(ts, "-vnode", CMD_SINGLE, CMD_REQUIRED,
 		"volume.vnode.uniquifier");
     cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cellname");
@@ -396,7 +393,7 @@ main(int argc, char **argv)
 		"overwrite existing file");
     cmd_AddParm(ts, "-realm", CMD_SINGLE, CMD_OPTIONAL, "REALMNAME");
 
-    ts = cmd_CreateSyntax("append", writeFile, NULL,
+    ts = cmd_CreateSyntax("append", writeFile, NULL, 0,
 			  "append to a file in AFS");
     cmd_AddParm(ts, "-file", CMD_SINGLE, CMD_REQUIRED, "AFS-filename");
     cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cellname");
@@ -405,9 +402,8 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-crypt", CMD_FLAG, CMD_OPTIONAL, (char *)0);
     cmd_AddParm(ts, "-realm", CMD_SINGLE, CMD_OPTIONAL, "REALMNAME");
 
-    ts = cmd_CreateSyntax("fidappend", writeFile, NULL,
+    ts = cmd_CreateSyntax("fidappend", writeFile, NULL, 0,
 			  "append to a file in AFS");
-    cmd_IsAdministratorCommand(ts);
     cmd_AddParm(ts, "-vnode", CMD_SINGLE, CMD_REQUIRED,
 		"volume.vnode.uniquifier");
     cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cellname");
@@ -548,22 +544,25 @@ GetVenusFidByFid(char *fidString, char *cellName, int onlyRW,
  * Split a full path up into dirName and baseName components
  *
  * \param[in]	fullPath	can be absolute, relative, or local
- * \param[out]	dirName		pointer to allocated char buffer or NULL
- * \param[out]	baseName	pointer to allocated char buffer or NULL
+ * \param[out]	dirName		pointer to output string or NULL
+ * \param[out]	baseName	pointer to output string or NULL
  *
- * \post To the fulleset extent possible, the rightmost full path
- *       component will be copied into baseName and all other
- *       components into dirName (minus the trailing path separator).
- *       If either dirName or baseName are NULL, only the non-NULL
- *       pointer will be filled in (but both can't be null or it would
- *       be pointless) -- so the caller can retrieve, say, only baseName
- *       if desired.  The return code is the number of strings copied:
+ * \post A buffer of appropriate size will be allocated into the output
+ *       parameter baseName and the rightmost full path component of the
+ *       fullPath copied into it; likewise, the other components of the
+ *       fullPath (minus the trailing path separator) will be placed into
+ *       the dirName output, which is also allocated to be the appropriate
+ *       size.  If either dirName or baseName are NULL, only the non-NULL
+ *       pointer will be allocated and filled in (but both can't be null
+ *       or it would be pointless) -- so the caller can retrieve, say,
+ *       only baseName if desired.  The return code is the number of
+ *       strings allocated and copied:
  *       0 if neither dirName nor baseName could be filled in
  *       1 if either dirName or baseName were filled in
  *       2 if both dirName and baseName were filled in
  */
 static int
-BreakUpPath(char *fullPath, char *dirName, char *baseName, size_t baseNameSize)
+BreakUpPath(char *fullPath, char **dirName, char **baseName)
 {
     char *lastSlash;
     size_t dirNameLen = 0;
@@ -573,10 +572,15 @@ BreakUpPath(char *fullPath, char *dirName, char *baseName, size_t baseNameSize)
 	return code;
     }
 
+    /* Track what we need to output and initialize output variables to NULL. */
     if (dirName == NULL)
 	useDirName = 0;
+    else
+	*dirName = NULL;
     if (baseName == NULL)
 	useBaseName = 0;
+    else
+	*baseName = NULL;
     if (!useBaseName && !useDirName) {
 	/* would be pointless to continue -- must be error in call */
 	return code;
@@ -586,19 +590,25 @@ BreakUpPath(char *fullPath, char *dirName, char *baseName, size_t baseNameSize)
 	/* then lastSlash points to the last path separator in fullPath */
 	if (useDirName) {
 	    dirNameLen = strlen(fullPath) - strlen(lastSlash);
-	    strlcpy(dirName, fullPath, min(dirNameLen + 1, baseNameSize));
-	    code++;
+	    *dirName = strdup(fullPath);
+	    if (*dirName != NULL) {
+		code++;
+		/* Wastes some memory, but avoids needing libroken. */
+		*dirName[dirNameLen] = '\0';
+	    }
 	}
 	if (useBaseName) {
 	    lastSlash++;
-	    strlcpy(baseName, lastSlash, min(strlen(lastSlash) + 1, baseNameSize));
-	    code++;
+	    *baseName = strdup(lastSlash);
+	    if (*baseName != NULL)
+		code++;
 	}
     } else {
 	/* there are no path separators in fullPath -- it's just a baseName */
 	if (useBaseName) {
-	    strlcpy(baseName, fullPath, min(strlen(fullPath) + 1, baseNameSize));
-	    code++;
+	    *baseName = strdup(fullPath);
+	    if (*baseName != NULL)
+		code++;
 	}
     }
     return code;
@@ -860,19 +870,19 @@ writeFile(struct cmd_syndesc *as, void *unused)
     afs_int64 Pos;
     afs_int64 length, Len, synthlength = 0, offset = 0;
     afs_int64 bytes;
-    int worstCode = 0;
     int synthesize = 0;
     int overWrite = 0;
     struct wbuf *bufchain = 0;
     struct wbuf *previous, *tbuf;
-    char dirName[AFSPATHMAX];
-    char baseName[AFSNAMEMAX];
+    char *dirName = NULL;
+    char *baseName = NULL;
     char ipv4_addr[16];
 
 #ifdef AFS_NT40_ENV
     /* stdin on Windows defaults to _O_TEXT mode */
     _setmode(0, _O_BINARY);
 #endif
+    memset(&InStatus, 0, sizeof(InStatus));
 
     CmdProlog(as, &cell, &realm, &fname, &sSynthLen);
     afscp_AnonymousAuth(1);
@@ -890,7 +900,7 @@ writeFile(struct cmd_syndesc *as, void *unused)
 	if (code != 0) {
 	    afs_com_err(pnp, code, "(invalid value for synthesize length %s)",
 			sSynthLen);
-	    return code;
+	    goto cleanup;
 	}
 	synthesize = 1;
     }
@@ -898,9 +908,8 @@ writeFile(struct cmd_syndesc *as, void *unused)
     if (useFid) {
 	code = GetVenusFidByFid(fname, cell, 1, &newvfp);
 	if (code != 0) {
-	    afscp_FreeFid(newvfp);
 	    afs_com_err(pnp, code, "(GetVenusFidByFid returned code %d)", code);
-	    return code;
+	    goto cleanup;
 	}
     } else {
 	code = GetVenusFidByPath(fname, cell, &newvfp);
@@ -913,23 +922,21 @@ writeFile(struct cmd_syndesc *as, void *unused)
 		 * appending to it unless user forces overwrite
 		 */
 		code = EEXIST;
-		afscp_FreeFid(newvfp);
 		afs_com_err(pnp, code, "(use -force to overwrite)");
-		return code;
+		goto cleanup;
 	    }
 	} else { /* file not found */
 	    if (append) {
 		code = ENOENT;
 		afs_com_err(pnp, code, "(cannot append to non-existent file)");
-		return code;
+		goto cleanup;
 	    }
 	}
 	if (!append && !overWrite) { /* must create a new file in this case */
-	    if ( BreakUpPath(fname, dirName, baseName, AFSNAMEMAX) != 2 ) {
+	    if ( BreakUpPath(fname, &dirName, &baseName) != 2 ) {
 		code = EINVAL;
 		afs_com_err(pnp, code, "(must provide full AFS path)");
-		afscp_FreeFid(newvfp);
-		return code;
+		goto cleanup;
 	    }
 
 	    code = GetVenusFidByPath(dirName, cell, &dirvfp);
@@ -937,7 +944,7 @@ writeFile(struct cmd_syndesc *as, void *unused)
 	    newvfp = NULL;
 	    if (code != 0) {
 		afs_com_err(pnp, code, "(is dir %s in AFS?)", dirName);
-		return code;
+		goto cleanup;
 	    }
 	}
     }
@@ -945,9 +952,7 @@ writeFile(struct cmd_syndesc *as, void *unused)
     if ( (newvfp != NULL) && (newvfp->fid.Vnode & 1) ) {
 	code = EISDIR;
 	afs_com_err(pnp, code, "(%s is a directory, not a file)", fname);
-	afscp_FreeFid(newvfp);
-	afscp_FreeFid(dirvfp);
-	return code;
+	goto cleanup;
     }
     gettimeofday(&starttime, &Timezone);
 
@@ -961,7 +966,7 @@ writeFile(struct cmd_syndesc *as, void *unused)
 		        baseName, afs_printable_uint32_lu(dirvfp->fid.Volume),
 		        afs_printable_uint32_lu(dirvfp->fid.Vnode),
 		        afs_printable_uint32_lu(dirvfp->fid.Unique));
-	    return code;
+	    goto cleanup;
 	}
     }
     code = afscp_GetStatus(newvfp, &OutStatus);
@@ -969,9 +974,7 @@ writeFile(struct cmd_syndesc *as, void *unused)
 	afs_inet_ntoa_r(newvfp->cell->fsservers[0]->addrs[0], ipv4_addr);
 	afs_com_err(pnp, code, "(failed to get status of file %s from"
 		    "server %s, code = %d)", fname, ipv4_addr, code);
-	afscp_FreeFid(newvfp);
-	afscp_FreeFid(dirvfp);
-	return code;
+	goto cleanup;
     }
 
     if ( !append && !force &&
@@ -982,10 +985,8 @@ writeFile(struct cmd_syndesc *as, void *unused)
 	 * (covers fidwrite edge case)
 	 */
 	code = EEXIST;
-	afscp_FreeFid(newvfp);
-	afscp_FreeFid(dirvfp);
 	afs_com_err(pnp, code, "(use -force to overwrite)");
-	return code;
+	goto cleanup;
     }
 
     if (append) {
@@ -1012,10 +1013,8 @@ writeFile(struct cmd_syndesc *as, void *unused)
 	if (tbuf == NULL) {
 	    if (!bufchain) {
 		code = ENOMEM;
-		afscp_FreeFid(newvfp);
-		afscp_FreeFid(dirvfp);
 		afs_com_err(pnp, code, "(cannot allocate buffer)");
-		return code;
+		goto cleanup;
 	    }
 	    break;
 	}
@@ -1098,8 +1097,6 @@ writeFile(struct cmd_syndesc *as, void *unused)
 	    }
 	}
     }
-    afscp_FreeFid(newvfp);
-    afscp_FreeFid(dirvfp);
 
     gettimeofday(&writetime, &Timezone);
     if (code) {
@@ -1117,5 +1114,10 @@ writeFile(struct cmd_syndesc *as, void *unused)
     if (md5sum)
 	summarizeMD5(fname);
 
-    return worstCode;
+cleanup:
+    free(baseName);
+    free(dirName);
+    afscp_FreeFid(newvfp);
+    afscp_FreeFid(dirvfp);
+    return code;
 } /* writeFile */

@@ -20,6 +20,7 @@ pr_ListMembers
 pr_ListOwned
 pr_ListSuperGroups
 pr_NameToId
+pr_PrintContEntry
 pr_PrintEntry
 pr_RemoveUserFromGroup
 pr_SIdToName
@@ -28,6 +29,7 @@ pr_SetFieldsEntry
 pr_SetMaxGroupId
 pr_SetMaxUserId
 pruclient
+string_PR_IDToName
 ubik_PR_AddToGroup
 ubik_PR_Delete
 ubik_PR_GetCPS

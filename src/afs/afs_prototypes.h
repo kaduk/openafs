@@ -30,7 +30,7 @@ extern void shutdown_bufferpackage(void);
 
 /* afs_call.c */
 extern int afs_cold_shutdown;
-extern char afs_rootVolumeName[64];
+extern char afs_rootVolumeName[MAXROOTVOLNAMELEN];
 extern void afs_shutdown(void);
 extern void afs_FlushCBs(void);
 extern int afs_CheckInit(void);
@@ -245,6 +245,8 @@ extern unsigned char *afs_indexFlags;
 extern struct afs_cacheOps *afs_cacheType;
 extern afs_dcache_id_t cacheInode;
 extern struct osi_file *afs_cacheInodep;
+extern int DCHash(struct VenusFid *fid, afs_int32 chunk);
+extern int DVHash(struct VenusFid *fid);
 extern void afs_dcacheInit(int afiles, int ablocks, int aDentries, int achunk,
 			   int aflags);
 extern int afs_PutDCache(struct dcache *adc);
@@ -252,7 +254,7 @@ extern void afs_FlushDCache(struct dcache *adc);
 extern void shutdown_dcache(void);
 extern void afs_CacheTruncateDaemon(void);
 extern afs_int32 afs_fsfragsize;
-extern struct dcache *afs_MemGetDSlot(afs_int32 aslot, int indexvalid, int datavalid);
+extern struct dcache *afs_MemGetDSlot(afs_int32 aslot, dslot_state type);
 extern struct dcache *afs_GetDCache(struct vcache *avc,
 				    afs_size_t abyte,
 				    struct vrequest *areq,
@@ -274,7 +276,7 @@ extern void afs_TryToSmush(struct vcache *avc,
 extern void updateV2DC(int lockVc, struct vcache *v, struct dcache *d,
 		       int src);
 extern void afs_WriteThroughDSlots(void);
-extern struct dcache *afs_UFSGetDSlot(afs_int32 aslot, int indexvalid, int datavalid);
+extern struct dcache *afs_UFSGetDSlot(afs_int32 aslot, dslot_state type);
 extern int afs_WriteDCache(struct dcache *adc, int atime);
 extern int afs_wakeup(struct vcache *avc);
 extern int afs_InitCacheFile(char *afile, ino_t ainode);
@@ -292,6 +294,7 @@ extern void afs_PopulateDCache(struct vcache *avc, afs_size_t apos,
 /* afs_dynroot.c */
 extern afs_rwlock_t afs_dynrootDirLock;
 extern afs_rwlock_t afs_dynSymlinkLock;
+extern int afs_IsDynrootVolume(struct volume *v);
 extern int afs_IsDynrootFid(struct VenusFid *fid);
 extern int afs_IsDynrootMountFid(struct VenusFid *fid);
 extern int afs_IsDynrootAnyFid(struct VenusFid *fid);
@@ -442,6 +445,7 @@ extern int afs_CacheInit(afs_int32 astatSize, afs_int32 afiles,
 			 afs_int32 aflags, afs_int32 ninodes,
 			 afs_int32 nusers, afs_int32 dynamic_vcaches);
 extern void afs_ComputeCacheParms(void);
+extern void afs_InitFHeader(struct afs_fheader *aheader);
 extern int afs_InitCacheInfo(char *afile);
 extern int afs_InitVolumeInfo(char *afile);
 extern int afs_InitCellInfo(char *afile);
@@ -468,13 +472,6 @@ extern void afs_osi_SleepW(char *addr,
 			   struct afs_lock *alock);
 extern void afs_osi_SleepS(char *addr,
 			   struct afs_lock *alock);
-#ifdef AFS_BOZONLOCK_ENV
-extern void afs_BozonLock(struct afs_bozoLock *alock, struct vcache *avc);
-extern void afs_BozonUnlock(struct afs_bozoLock *alock, struct vcache *avc);
-extern void afs_BozonInit(struct afs_bozoLock *alock, struct vcache *avc);
-extern int afs_CheckBozonLock(struct afs_bozoLock *alock);
-extern int afs_CheckBozonLockBlocking(struct afs_bozoLock *alock);
-#endif
 
 
 
@@ -753,7 +750,7 @@ extern afs_int32 osi_get_group_pag(afs_ucred_t *cred);
 
 
 /* ARCH/osi_vm.c */
-extern int osi_VM_FlushVCache(struct vcache *avc, int *slept);
+extern int osi_VM_FlushVCache(struct vcache *avc);
 extern void osi_VM_StoreAllSegments(struct vcache *avc);
 extern void osi_VM_TryToSmush(struct vcache *avc, afs_ucred_t *acred,
 			      int sync);
@@ -1059,6 +1056,8 @@ extern void afs_warnall(char *fmt, ...)
 #endif
 
 /* afs_vcache.c */
+extern int VCHash(struct VenusFid *fid);
+extern int VCHashV(struct VenusFid *fid);
 extern int afs_ShakeLooseVCaches(afs_int32 anumber);
 extern afs_int32 afs_maxvcount;
 extern afs_int32 afs_vcount;
@@ -1110,6 +1109,40 @@ extern struct vcache *afs_GetVCache(struct VenusFid *afid,
 				    struct vcache *avc);
 extern void afs_PutVCache(struct vcache *avc);
 extern int afs_RefVCache(struct vcache *avc);
+
+/* Flags for afs_StaleVCacheFlags */
+
+/* afs_xcbhash is already locked by the caller */
+#define AFS_STALEVC_CBLOCKED (0x01)
+
+/* Normally we assume we only need to invalidate cached
+ * name -> vcache mappings for entries where the given
+ * vcache is the parent dir. This flag says to also clear
+ * entries for the vcache itself. */
+#define AFS_STALEVC_FILENAME (0x02)
+
+/* Do not touch the DNLC; the caller will deal with it. */
+#define AFS_STALEVC_NODNLC   (0x04)
+
+/* Do not run afs_DequeueCallback; the caller will take
+ * care of callback management. */
+#define AFS_STALEVC_NOCB     (0x08)
+
+/* NULL-out the callback field of the vcache, to save code at the callsite. */
+#define AFS_STALEVC_CLEARCB	(0x10)
+
+/* Skip the DNLC purge if CVInit or CVFlushed is set, for efficiency.
+ * A transitional flag used to reduce the logic change during refactoring
+ * that is expected to be removed and the purge behavior standardized. */
+#define AFS_STALEVC_SKIP_DNLC_FOR_INIT_FLUSHED	(0x20)
+typedef unsigned int afs_stalevc_flags_t;
+
+#define afs_StaleVCache(avc) afs_StaleVCacheFlags(avc, 0, 0)
+extern void afs_StaleVCacheFlags(struct vcache *avc, afs_stalevc_flags_t flags,
+				 afs_uint32 cflags);
+
+extern void afs_SetDataVersion(struct vcache *avc, afs_hyper_t *avers);
+
 extern void afs_ProcessFS(struct vcache *avc,
 			  struct AFSFetchStatus *astat,
 			  struct vrequest *areq);

@@ -74,6 +74,7 @@ const char *DoPidFiles = NULL;
 #ifndef AFS_NT40_ENV
 int DoSyslogFacility = LOG_DAEMON;
 #endif
+int DoTransarcLogs = 0;
 static afs_int32 nextRestart;
 static afs_int32 nextDay;
 
@@ -81,9 +82,6 @@ struct ktime bozo_nextRestartKT, bozo_nextDayKT;
 int bozo_newKTs;
 int rxBind = 0;
 int rxkadDisableDotCheck = 0;
-
-#define ADDRSPERSITE 16         /* Same global is in rx/rx_user.c */
-afs_uint32 SHostAddrs[ADDRSPERSITE];
 
 int bozo_isrestricted = 0;
 int bozo_restdisable = 0;
@@ -253,32 +251,52 @@ CreateDirs(const char *coredir)
 	(!strncmp
 	 (AFSDIR_USR_DIRPATH, AFSDIR_SERVER_BIN_DIRPATH,
 	  strlen(AFSDIR_USR_DIRPATH)))) {
-	MakeDir(AFSDIR_USR_DIRPATH);
+	if (MakeDir(AFSDIR_USR_DIRPATH))
+	    return errno;
     }
     if (!strncmp
 	(AFSDIR_SERVER_AFS_DIRPATH, AFSDIR_SERVER_BIN_DIRPATH,
 	 strlen(AFSDIR_SERVER_AFS_DIRPATH))) {
-	MakeDir(AFSDIR_SERVER_AFS_DIRPATH);
+	if (MakeDir(AFSDIR_SERVER_AFS_DIRPATH))
+	    return errno;
     }
-    MakeDir(AFSDIR_SERVER_BIN_DIRPATH);
-    MakeDir(AFSDIR_SERVER_ETC_DIRPATH);
-    MakeDir(AFSDIR_SERVER_LOCAL_DIRPATH);
-    MakeDir(AFSDIR_SERVER_DB_DIRPATH);
-    MakeDir(AFSDIR_SERVER_LOGS_DIRPATH);
+    if (MakeDir(AFSDIR_SERVER_BIN_DIRPATH))
+	return errno;
+    if (MakeDir(AFSDIR_SERVER_ETC_DIRPATH))
+	return errno;
+    if (MakeDir(AFSDIR_SERVER_LOCAL_DIRPATH))
+	return errno;
+    if (MakeDir(AFSDIR_SERVER_DB_DIRPATH))
+	return errno;
+    if (MakeDir(AFSDIR_SERVER_LOGS_DIRPATH))
+	return errno;
 #ifndef AFS_NT40_ENV
     if (!strncmp
 	(AFSDIR_CLIENT_VICE_DIRPATH, AFSDIR_CLIENT_ETC_DIRPATH,
 	 strlen(AFSDIR_CLIENT_VICE_DIRPATH))) {
-	MakeDir(AFSDIR_CLIENT_VICE_DIRPATH);
+	if (MakeDir(AFSDIR_CLIENT_VICE_DIRPATH))
+	    return errno;
     }
-    MakeDir(AFSDIR_CLIENT_ETC_DIRPATH);
+    if (MakeDir(AFSDIR_CLIENT_ETC_DIRPATH))
+	return errno;
 
-    symlink(AFSDIR_SERVER_THISCELL_FILEPATH, AFSDIR_CLIENT_THISCELL_FILEPATH);
-    symlink(AFSDIR_SERVER_CELLSERVDB_FILEPATH,
-	    AFSDIR_CLIENT_CELLSERVDB_FILEPATH);
+    if (symlink(AFSDIR_SERVER_THISCELL_FILEPATH,
+	    AFSDIR_CLIENT_THISCELL_FILEPATH)) {
+	if (errno != EEXIST) {
+	    return errno;
+	}
+    }
+    if (symlink(AFSDIR_SERVER_CELLSERVDB_FILEPATH,
+	    AFSDIR_CLIENT_CELLSERVDB_FILEPATH)) {
+	if (errno != EEXIST) {
+	    return errno;
+	}
+    }
 #endif /* AFS_NT40_ENV */
-    if (coredir)
-	MakeDir(coredir);
+    if (coredir) {
+	if (MakeDir(coredir))
+	    return errno;
+    }
     return 0;
 }
 
@@ -510,17 +528,21 @@ int
 WriteBozoFile(char *aname)
 {
     FILE *tfile;
-    char tbuffer[AFSDIR_PATH_MAX];
+    char *tbuffer = NULL;
     afs_int32 code;
     struct bztemp btemp;
+    int ret = 0;
 
     if (!aname)
 	aname = (char *)bozo_fileName;
-    strcpy(tbuffer, aname);
-    strcat(tbuffer, ".NBZ");
-    tfile = fopen(tbuffer, "w");
-    if (!tfile)
+    if (asprintf(&tbuffer, "%s.NBZ", aname) < 0)
 	return -1;
+
+    tfile = fopen(tbuffer, "w");
+    if (!tfile) {
+	ret = -1;
+	goto out;
+    }
     btemp.file = tfile;
 
     fprintf(tfile, "restrictmode %d\n", bozo_isrestricted);
@@ -534,19 +556,25 @@ WriteBozoFile(char *aname)
     if (code || (code = ferror(tfile))) {	/* something went wrong */
 	fclose(tfile);
 	unlink(tbuffer);
-	return code;
+	ret = code;
+	goto out;
     }
     /* close the file, check for errors and snap new file into place */
     if (fclose(tfile) == EOF) {
 	unlink(tbuffer);
-	return -1;
+	ret = -1;
+	goto out;
     }
     code = rk_rename(tbuffer, aname);
     if (code) {
 	unlink(tbuffer);
-	return -1;
+	ret = -1;
+	goto out;
     }
-    return 0;
+    ret = 0;
+out:
+    free(tbuffer);
+    return ret;
 }
 
 static int
@@ -645,15 +673,16 @@ static char *
 make_pid_filename(char *ainst, char *aname)
 {
     char *buffer = NULL;
+    int r;
 
     if (aname && *aname) {
-	asprintf(&buffer, "%s/%s.%s.pid", DoPidFiles, ainst, aname);
-	if (buffer == NULL)
+	r = asprintf(&buffer, "%s/%s.%s.pid", DoPidFiles, ainst, aname);
+	if (r < 0 || buffer == NULL)
 	    bozo_Log("Failed to alloc pid filename buffer for %s.%s.\n",
 		     ainst, aname);
     } else {
-	asprintf(&buffer, "%s/%s.pid", DoPidFiles, ainst);
-	if (buffer == NULL)
+	r = asprintf(&buffer, "%s/%s.pid", DoPidFiles, ainst);
+	if (r < 0 || buffer == NULL)
 	    bozo_Log("Failed to alloc pid filename buffer for %s.\n", ainst);
     }
 
@@ -744,6 +773,71 @@ bozo_CreateRxBindFile(afs_uint32 host)
     }
 }
 
+/**
+ * Get an interface address in network byte order, modulo the
+ * NetInfo/NetRestrict configuration files. Return the INADDR_ANY if no
+ * interface address is found.
+ */
+static afs_uint32
+GetRxBindAddress(void)
+{
+    afs_uint32 addr;
+    afs_int32 ccode; /* number of addresses found */
+
+    if (AFSDIR_SERVER_NETRESTRICT_FILEPATH || AFSDIR_SERVER_NETINFO_FILEPATH) {
+	char reason[1024];
+	ccode = afsconf_ParseNetFiles(&addr, NULL, NULL, 1, reason,
+				      AFSDIR_SERVER_NETINFO_FILEPATH,
+				      AFSDIR_SERVER_NETRESTRICT_FILEPATH);
+    } else {
+	/* Get the first non-loopback address from the kernel. */
+	ccode = rx_getAllAddr(&addr, 1);
+    }
+
+    if (ccode != 1) {
+	addr = htonl(INADDR_ANY);
+    }
+    return addr;
+}
+
+/**
+ * Try to create local cell config file.
+ */
+static struct afsconf_dir *
+CreateLocalCellConfig(void)
+{
+    int code;
+    struct afsconf_dir *tdir = NULL;
+    struct afsconf_cell tcell;
+
+    memset(&tcell, 0, sizeof(tcell));
+    strcpy(tcell.name, "localcell");  /* assume name is big enough for the default value */
+    tcell.numServers = 1;
+    code = gethostname(tcell.hostName[0], MAXHOSTCHARS);
+    if (code) {
+	bozo_Log("failed to get hostname, code %d\n", errno);
+	exit(1);
+    }
+    if (tcell.hostName[0][0] == 0) {
+	bozo_Log("host name not set, can't start\n");
+	bozo_Log("try the 'hostname' command\n");
+	exit(1);
+    }
+    code = afsconf_SetCellInfo(NULL, AFSDIR_SERVER_ETC_DIRPATH, &tcell);
+    if (code) {
+	bozo_Log
+	    ("could not create cell database in '%s' (code %d), quitting\n",
+	     AFSDIR_SERVER_ETC_DIRPATH, code);
+	exit(1);
+    }
+    tdir = afsconf_Open(AFSDIR_SERVER_ETC_DIRPATH);
+    if (!tdir) {
+	bozo_Log("failed to open newly-created cell database, quitting\n");
+	exit(1);
+    }
+    return tdir;
+}
+
 /* start a process and monitor it */
 
 #include "AFS_component_version_number.c"
@@ -756,7 +850,7 @@ main(int argc, char **argv, char **envp)
     struct afsconf_dir *tdir;
     int noAuth = 0;
     int i;
-    char namebuf[AFSDIR_PATH_MAX];
+    char *oldlog;
     int rxMaxMTU = -1;
     afs_uint32 host = htonl(INADDR_ANY);
     char *auditFileName = NULL;
@@ -764,9 +858,9 @@ main(int argc, char **argv, char **envp)
     afs_int32 numClasses;
     int DoPeerRPCStats = 0;
     int DoProcessRPCStats = 0;
+    struct stat sb;
 #ifndef AFS_NT40_ENV
     int nofork = 0;
-    struct stat sb;
 #endif
 #ifdef	AFS_AIX32_ENV
     struct sigaction nsa;
@@ -901,7 +995,9 @@ main(int argc, char **argv, char **envp)
 	} else if (strncmp(argv[code], "-pidfiles=", 10) == 0) {
 	    DoPidFiles = (argv[code]+10);
 	} else if (strncmp(argv[code], "-pidfiles", 9) == 0) {
-	    DoPidFiles = AFSDIR_BOSCONFIG_DIR;
+	    DoPidFiles = AFSDIR_LOCAL_DIR;
+	} else if (strcmp(argv[code], "-transarc-logs") == 0) {
+	    DoTransarcLogs = 1;
 	}
 	else {
 
@@ -917,6 +1013,7 @@ main(int argc, char **argv, char **envp)
 		   "[-enable_peer_stats] [-enable_process_stats] "
 		   "[-cores=<none|path>] \n"
 		   "[-pidfiles[=path]] "
+		   "[-transarc-logs] "
 		   "[-nofork] " "[-help]\n");
 #else
 	    printf("Usage: bosserver [-noauth] [-log] "
@@ -945,16 +1042,26 @@ main(int argc, char **argv, char **envp)
     }
 #endif
 
-    if ((!DoSyslog)
-#ifndef AFS_NT40_ENV
-	&& ((lstat(AFSDIR_BOZLOG_FILE, &sb) == 0) &&
-	!(S_ISFIFO(sb.st_mode)))
-#endif
-	) {
-	strcpy(namebuf, AFSDIR_BOZLOG_FILE);
-	strcat(namebuf, ".old");
-	rk_rename(AFSDIR_BOZLOG_FILE, namebuf);	/* try rename first */
-	bozo_logFile = fopen(AFSDIR_BOZLOG_FILE, "a");
+    /* create useful dirs */
+    i = CreateDirs(DoCore);
+    if (i) {
+	printf("bosserver: could not set up directories, code %d\n", i);
+	exit(1);
+    }
+
+    if (!DoSyslog) {
+	/* Support logging to named pipes by not renaming. */
+	if (DoTransarcLogs
+	    && (lstat(AFSDIR_SERVER_BOZLOG_FILEPATH, &sb) == 0)
+	    && !(S_ISFIFO(sb.st_mode))) {
+	    if (asprintf(&oldlog, "%s.old", AFSDIR_SERVER_BOZLOG_FILEPATH) < 0) {
+		printf("bosserver: out of memory\n");
+		exit(1);
+	    }
+	    rk_rename(AFSDIR_SERVER_BOZLOG_FILEPATH, oldlog);
+	    free(oldlog);
+	}
+	bozo_logFile = fopen(AFSDIR_SERVER_BOZLOG_FILEPATH, "a");
 	if (!bozo_logFile) {
 	    printf("bosserver: can't initialize log file (%s).\n",
 		   AFSDIR_SERVER_BOZLOG_FILEPATH);
@@ -974,55 +1081,30 @@ main(int argc, char **argv, char **envp)
      */
 
 #ifndef AFS_NT40_ENV
-    if (!nofork)
-	daemon(1, 0);
+    if (!nofork) {
+	if (daemon(1, 0))
+	    printf("bosserver: warning - daemon() returned code %d\n", errno);
+    }
 #endif /* ! AFS_NT40_ENV */
-
-    /* create useful dirs */
-    CreateDirs(DoCore);
 
     /* Write current state of directory permissions to log file */
     DirAccessOK();
 
     /* chdir to AFS log directory */
     if (DoCore)
-	chdir(DoCore);
+	i = chdir(DoCore);
     else
-	chdir(AFSDIR_SERVER_LOGS_DIRPATH);
+	i = chdir(AFSDIR_SERVER_LOGS_DIRPATH);
+    if (i) {
+	printf("bosserver: could not change to %s, code %d\n",
+	       DoCore ? DoCore : AFSDIR_SERVER_LOGS_DIRPATH, errno);
+	exit(1);
+    }
 
     /* try to read the key from the config file */
     tdir = afsconf_Open(AFSDIR_SERVER_ETC_DIRPATH);
     if (!tdir) {
-	/* try to create local cell config file */
-	struct afsconf_cell tcell;
-	strcpy(tcell.name, "localcell");
-	tcell.numServers = 1;
-	code = gethostname(tcell.hostName[0], MAXHOSTCHARS);
-	if (code) {
-	    bozo_Log("failed to get hostname, code %d\n", errno);
-	    exit(1);
-	}
-	if (tcell.hostName[0][0] == 0) {
-	    bozo_Log("host name not set, can't start\n");
-	    bozo_Log("try the 'hostname' command\n");
-	    exit(1);
-	}
-	memset(tcell.hostAddr, 0, sizeof(tcell.hostAddr));	/* not computed */
-	code =
-	    afsconf_SetCellInfo(NULL, AFSDIR_SERVER_ETC_DIRPATH,
-				&tcell);
-	if (code) {
-	    bozo_Log
-		("could not create cell database in '%s' (code %d), quitting\n",
-		 AFSDIR_SERVER_ETC_DIRPATH, code);
-	    exit(1);
-	}
-	tdir = afsconf_Open(AFSDIR_SERVER_ETC_DIRPATH);
-	if (!tdir) {
-	    bozo_Log
-		("failed to open newly-created cell database, quitting\n");
-	    exit(1);
-	}
+	tdir = CreateLocalCellConfig();
     }
     /* opened the cell databse */
     bozo_confdir = tdir;
@@ -1061,19 +1143,7 @@ main(int argc, char **argv, char **envp)
     }
 
     if (rxBind) {
-	afs_int32 ccode;
-	if (AFSDIR_SERVER_NETRESTRICT_FILEPATH ||
-	    AFSDIR_SERVER_NETINFO_FILEPATH) {
-	    char reason[1024];
-	    ccode = afsconf_ParseNetFiles(SHostAddrs, NULL, NULL,
-			                  ADDRSPERSITE, reason,
-	                                  AFSDIR_SERVER_NETINFO_FILEPATH,
-	                                  AFSDIR_SERVER_NETRESTRICT_FILEPATH);
-        } else {
-            ccode = rx_getAllAddr(SHostAddrs, ADDRSPERSITE);
-        }
-        if (ccode == 1)
-            host = SHostAddrs[0];
+	host = GetRxBindAddress();
     }
     for (i = 0; i < 10; i++) {
 	if (rxBind) {
@@ -1151,7 +1221,7 @@ main(int argc, char **argv, char **envp)
 }
 
 void
-bozo_Log(char *format, ...)
+bozo_Log(const char *format, ...)
 {
     char tdate[27];
     time_t myTime;

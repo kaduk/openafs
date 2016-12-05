@@ -189,7 +189,7 @@ again:
 		}
 		afs_globalVp = tvp;
 	    } else
-		code = ENOENT;
+		code = EIO;
 	}
     }
     if (tvp) {
@@ -482,14 +482,6 @@ static struct sysent afssysent = {
     Afs_syscall
 };
 #endif /* AFS_SUN511_ENV */
-
-/* inter-module dependencies */
-char _depends_on[] = 
-#if AFS_SUN510_ENV
-	"drv/ip drv/udp strmod/rpcmod fs/ufs";
-#else
-	"drv/ip drv/udp strmod/rpcmod";
-#endif
 
 /*
  * Info/Structs to link the afs module into the kernel

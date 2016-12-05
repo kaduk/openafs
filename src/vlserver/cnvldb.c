@@ -72,6 +72,8 @@ static int
 handleit(struct cmd_syndesc *as, void *arock)
 {
     int w, old, new, rc, dump = 0, fromv = 0;
+    ssize_t count;
+
     char ubik[80];		/* space for some ubik header */
     union {
 	struct vlheader_1 header1;
@@ -101,8 +103,18 @@ handleit(struct cmd_syndesc *as, void *arock)
     }
 
     /* Read the version */
-    lseek(old, 64, L_SET);
-    read(old, &fromv, sizeof(int));
+    if (lseek(old, 64, L_SET) == (off_t)-1) {
+	perror(pn);
+	exit(-1);
+    }
+    count = read(old, &fromv, sizeof(int));
+    if (count < 0) {
+	perror(pn);
+	exit(-1);
+    } else if (count != sizeof(int)) {
+	fprintf(stderr, "%s: Premature EOF reading database version.\n", pn);
+	exit(-1);
+    }
     fromv = ntohl(fromv);
     if ((fromv < 1) || (fromv > 4)) {
 	fprintf(stderr, "%s", pn);
@@ -111,8 +123,18 @@ handleit(struct cmd_syndesc *as, void *arock)
     }
 
     /* Sequentially read the database converting the entries as we go */
-    lseek(old, 0, L_SET);
-    read(old, ubik, 64);
+    if (lseek(old, 0, L_SET) == (off_t)-1) {
+	perror(pn);
+	exit(-1);
+    }
+    count = read(old, ubik, 64);
+    if (count < 0) {
+	perror(pn);
+	exit(-1);
+    } else if (count != 64) {
+	fprintf(stderr, "%s: Premature EOF reading database header.\n", pn);
+	exit(-1);
+    }
     readheader(old, fromv, &oldheader);
     if (fromv == 1) {
 	dbsize = ntohl(oldheader.header1.vital_header.eofPtr);
@@ -978,7 +1000,7 @@ main(int argc, char **argv)
     struct cmd_syndesc *ts;
     afs_int32 code;
 
-    ts = cmd_CreateSyntax("initcmd", handleit, NULL, "optional");
+    ts = cmd_CreateSyntax("initcmd", handleit, NULL, 0, "optional");
     cmd_AddParm(ts, "-to", CMD_SINGLE, CMD_OPTIONAL, "goal version");
     cmd_AddParm(ts, "-from", CMD_SINGLE, CMD_OPTIONAL, "current version");
     cmd_AddParm(ts, "-path", CMD_SINGLE, CMD_OPTIONAL, "pathname");

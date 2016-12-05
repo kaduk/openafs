@@ -111,7 +111,7 @@ FiveMinuteCheckLWP(void *unused)
     while (1) {
 	IOMGR_Sleep(fiveminutes);
 	/* close the log so it can be removed */
-	ReOpenLog(AFSDIR_SERVER_KALOG_FILEPATH);	/* no trunc, just append */
+	ReOpenLog();	/* no trunc, just append */
     }
     return NULL;
 }
@@ -274,6 +274,11 @@ UDP_Authenticate(int ksoc, struct sockaddr_in *client, char *name,
     if (to) {			/* if user exists check other stuff */
 	afs_int32 sto;
 	struct kaentry sentry;
+
+	unsigned char misc_auth_bytes[4];
+	afs_uint32 temp;	/* unsigned for safety */
+	afs_uint32 pwexpires;
+
 	save_principal(udpAuthPrincipal, name, inst, 0);
 
 	tgt = ((strcmp(sname, KA_TGS_NAME) == 0)
@@ -294,28 +299,22 @@ UDP_Authenticate(int ksoc, struct sockaddr_in *client, char *name,
 	    code = KERB_ERR_NAME_EXP;	/* XXX Could use another error code XXX */
 	    goto abort;
 	}
-	if (abs(startTime - now) > KTC_TIME_UNCERTAINTY) {
+	if (check_ka_skew(startTime, now, KTC_TIME_UNCERTAINTY)) {
 	    code = KERB_ERR_SERVICE_EXP;	/* was KABADREQUEST */
 	    goto abort;
 	}
 
-	if (tentry.misc_auth_bytes) {
-	    unsigned char misc_auth_bytes[4];
-	    afs_uint32 temp;	/* unsigned for safety */
-	    afs_uint32 pwexpires;
-
-	    memcpy(&temp, tentry.misc_auth_bytes, sizeof(afs_uint32));
-	    temp = ntohl(temp);
-	    unpack_long(temp, misc_auth_bytes);
-	    pwexpires = misc_auth_bytes[0];
-	    if (pwexpires) {
-		pwexpires =
-		    ntohl(tentry.change_password_time) +
-		    24 * 60 * 60 * pwexpires;
-		if (pwexpires < now) {
-		    code = KERB_ERR_AUTH_EXP;	/* was KAPWEXPIRED */
-		    goto abort;
-		}
+	memcpy(&temp, tentry.misc_auth_bytes, sizeof(afs_uint32));
+	temp = ntohl(temp);
+	unpack_long(temp, misc_auth_bytes);
+	pwexpires = misc_auth_bytes[0];
+	if (pwexpires) {
+	    pwexpires =
+		ntohl(tentry.change_password_time) +
+		24 * 60 * 60 * pwexpires;
+	    if (pwexpires < now) {
+		code = KERB_ERR_AUTH_EXP;	/* was KAPWEXPIRED */
+		goto abort;
 	    }
 	}
 

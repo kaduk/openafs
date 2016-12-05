@@ -20,6 +20,9 @@
 #include "afs/afs_consts.h"
 #endif
 
+/* jhash.h is a standalone header and is fine to pull into kernel code. */
+#include <opr/jhash.h>
+
 /*
  * afs_fsfragsize cannot be less than 1023, or some cache-tracking
  * calculations will be incorrect (since we track cache usage in kb).
@@ -32,8 +35,12 @@
 /* Upper bound on number of iovecs out uio routines will deal with. */
 #define	AFS_MAXIOVCNT	    16
 
-
-extern int afs_shuttingdown;
+enum afs_shutdown_state {
+    AFS_RUNNING = 0,
+    AFS_FLUSHING_CB = 1,
+    AFS_SHUTDOWN = 2,
+};
+extern enum afs_shutdown_state afs_shuttingdown;
 
 /*
  * Macros to uniquely identify the AFS vfs struct
@@ -82,13 +89,14 @@ extern int afs_shuttingdown;
 #define	NSERVERS	16	/* hash table size for server table */
 #define	NVOLS		64	/* hash table size for volume table */
 #define	NFENTRIES	256	/* hash table size for disk volume table */
-#define	VCSIZE	       1024	/* stat cache hash table size */
-#define	DCSIZE		512	/* disk cache hash table size */
+#define VCSIZEBITS	16	/* log of stat cache hash table size */
+#define	VCSIZE		(opr_jhash_size(VCSIZEBITS))
 #define CBRSIZE		512	/* call back returns hash table size */
 #define	PIGGYSIZE	1350	/* max piggyback size */
 #define	MAXVOLS		128	/* max vols we can store */
 #define	MAXSYSNAME	128	/* max sysname (i.e. @sys) size */
 #define MAXNUMSYSNAMES	32	/* max that current constants allow */
+#define MAXROOTVOLNAMELEN	64	/* max length of root volume name */
 #define	NOTOKTIMEOUT	(2*3600)	/* time after which to timeout conns sans tokens */
 #define	NOPAG		0xffffffff
 
@@ -595,7 +603,7 @@ struct volume {
     afs_int32 roVol;
     afs_int32 backVol;
     afs_int32 rwVol;		/* For r/o vols, original read/write volume. */
-    afs_int32 accessTime;	/* last time we used it */
+    afs_int32 setupTime;	/* time volume was setup from vldb info */
     afs_int32 vtix;		/* volume table index */
     afs_int32 copyDate;		/* copyDate field, for tracking vol releases */
     afs_int32 expireTime;	/* for per-volume callbacks... */
@@ -653,9 +661,7 @@ struct SimpleLocks {
 #define CBulkStat	0x00020000	/* loaded by a bulk stat, and not ref'd since */
 #define CUnlinkedDel	0x00040000
 #define CVFlushed	0x00080000
-#ifdef AFS_LINUX22_ENV
-#define CPageWrite      0x00200000      /* to detect vm deadlock - linux */
-#elif defined(AFS_SGI_ENV)
+#if defined(AFS_SGI_ENV)
 #define CWritingUFS	0x00200000	/* to detect vm deadlock - used by sgi */
 #elif defined(AFS_DARWIN80_ENV)
 #define CEvent          0x00200000      /* to preclude deadlock when sending events */
@@ -806,6 +812,11 @@ struct fvcache {
     struct afs_vnuniq oldParent;
 };
 
+/* Values for 'mvstat' in struct vcache */
+#define AFS_MVSTAT_FILE (0x0) /* regular file or directory */
+#define AFS_MVSTAT_MTPT (0x1) /* mountpoint */
+#define AFS_MVSTAT_ROOT (0x2) /* volume root dir */
+
 #ifdef AFS_SUN5_ENV
 /*
  * This is for the multiPage field in struct vcache. Each one of these
@@ -856,9 +867,6 @@ struct vcache {
     krwlock_t rwlock;
     struct cred *credp;
 #endif
-#ifdef AFS_BOZONLOCK_ENV
-    afs_bozoLock_t pvnLock;	/* see locks.x */
-#endif
 #ifdef	AFS_AIX32_ENV
     afs_lock_t pvmlock;
     vmhandle_t vmh;
@@ -883,7 +891,15 @@ struct vcache {
 #endif
 #endif
 
-    struct VenusFid *mvid;	/* Either parent dir (if root) or root (if mt pt) */
+    union {
+	char *silly_name;        /* For sillyrenamed regular files, the silly
+	                          * name the file was renamed to. */
+	struct VenusFid *target_root; /* For mountpoints, the fid of the root dir
+	                               * in the target volume. */
+	struct VenusFid *parent; /* For root dir vcaches, the fid of the
+	                          * parent dir. */
+    } mvid;
+
     char *linkData;		/* Link data if a symlink. */
     afs_hyper_t flushDV;	/* data version last flushed from text */
     afs_hyper_t mapDV;		/* data version last flushed from map */
@@ -900,7 +916,7 @@ struct vcache {
     short execsOrWriters;	/* The number of execs (if < 0) or writers (if > 0) of
 				 * this file. */
     short flockCount;		/* count of flock readers, or -1 if writer */
-    char mvstat;		/* 0->normal, 1->mt pt, 2->root. */
+    char mvstat;		/* see the AFS_MVSTAT_* constants */
 
     char cachingStates;			/* Caching policies for this file */
     afs_uint32 cachingTransitions;		/* # of times file has flopped between caching and not */
@@ -954,7 +970,18 @@ struct vcache {
     void *vpacRock;		/* used to read or write in visible partitions */
 #endif
     afs_uint32 lastBRLWarnTime; /* last time we warned about byte-range locks */
+#ifdef AFS_LINUX26_ENV
+    spinlock_t pagewriter_lock;
+    struct list_head pagewriters;	/* threads that are writing vm pages */
+#endif
 };
+
+#ifdef AFS_LINUX26_ENV
+struct pagewriter {
+    struct list_head link;
+    pid_t writer;
+};
+#endif
 
 #define	DONT_CHECK_MODE_BITS	0
 #define	CHECK_MODE_BITS		1
@@ -1316,21 +1343,6 @@ struct afs_FetchOutput {
 #define	afs_DirtyPages(avc)	((avc)->f.states & CDirty)
 
 #define afs_InReadDir(avc) (((avc)->f.states & CReadDir) && (avc)->readdir_pid == MyPidxx2Pid(MyPidxx))
-
-/* The PFlush algorithm makes use of the fact that Fid.Unique is not used in
-  below hash algorithms.  Change it if need be so that flushing algorithm
-  doesn't move things from one hash chain to another
-*/
-/* extern int afs_dhashsize; */
-#define	DCHash(v, c)	((((v)->Fid.Vnode + (v)->Fid.Volume + (c))) & (afs_dhashsize-1))
-	/*Vnode, Chunk -> Hash table index */
-#define	DVHash(v)	((((v)->Fid.Vnode + (v)->Fid.Volume )) & (afs_dhashsize-1))
-	/*Vnode -> Other hash table index */
-/* don't hash on the cell, our callback-breaking code sometimes fails to compute
-    the cell correctly, and only scans one hash bucket */
-#define	VCHash(fid)	(((fid)->Fid.Volume + (fid)->Fid.Vnode) & (VCSIZE-1))
-/* Hash only on volume to speed up volume callbacks. */
-#define VCHashV(fid) ((fid)->Fid.Volume & (VCSIZE-1))
 
 extern struct dcache **afs_indexTable;	/*Pointers to in-memory dcache entries */
 extern afs_int32 *afs_indexUnique;	/*dcache entry Fid.Unique */

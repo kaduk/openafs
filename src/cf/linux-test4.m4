@@ -25,20 +25,6 @@ read_lock(&tasklist_lock);
 		       [])
 ])
 
-AC_DEFUN([LINUX_COMPLETION_H_EXISTS], [
-  AC_CHECK_LINUX_BUILD([for linux/completion.h],
-		       [ac_cv_linux_completion_h_exists],
-[#include <linux/version.h>
-#include <linux/completion.h>],
-[struct completion _c;
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,4,8)
-lose
-#endif],
-		       [HAVE_LINUX_COMPLETION_H]
-		       [Define if your kernel has a usable linux/completion.h],
-		       [])
-])
-
 
 AC_DEFUN([LINUX_EXPORTS_INIT_MM], [
   AC_CHECK_LINUX_BUILD([for exported init_mm],
@@ -278,9 +264,9 @@ AC_DEFUN([LINUX_IOP_I_PUT_LINK_TAKES_COOKIE], [
 #include <linux/namei.h>],
 [struct inode _inode;
 struct dentry _dentry;
-struct nameidata _nameidata;
+struct nameidata *_nameidata;
 void *cookie;
-(void)_inode.i_op->put_link(&_dentry, &_nameidata, cookie);],
+(void)_inode.i_op->put_link(&_dentry, _nameidata, cookie);],
 		       [IOP_PUT_LINK_TAKES_COOKIE],
 		       [define if your iops.put_link takes a cookie],
 		       [])
@@ -290,14 +276,14 @@ void *cookie;
 AC_DEFUN([LINUX_DOP_D_REVALIDATE_TAKES_NAMEIDATA], [
   AC_CHECK_LINUX_BUILD([whether dentry_operations.d_revalidate takes a nameidata],
 		       [ac_cv_linux_func_d_revalidate_takes_nameidata],
-[#include <linux/fs.h>
-#include <linux/namei.h>],
-[struct dentry _dentry;
-struct nameidata _nameidata;
-(void)_dentry.d_op->d_revalidate(&_dentry, &_nameidata);],
+                        [#include <linux/fs.h>
+                        #include <linux/namei.h>
+                        static int reval(struct dentry *d, struct nameidata *nd) { return 0; }
+                        struct dentry_operations dops;],
+                        [dops.d_revalidate = reval;],
 		       [DOP_REVALIDATE_TAKES_NAMEIDATA],
 		       [define if your dops.d_revalidate takes a nameidata argument],
-		       [])
+		       [-Werror])
 ])
 
 
@@ -395,7 +381,7 @@ AC_DEFUN([LINUX_REGISTER_SYSCTL_TABLE_NOFLAG], [
   AC_CHECK_LINUX_BUILD([whether register_sysctl_table has an insert_at_head argument],
 		       [ac_cv_linux_register_sysctl_table_noflag],
 		       [#include <linux/sysctl.h>],
-		       [ctl_table *t; register_sysctl_table (t);],
+		       [struct ctl_table *t; register_sysctl_table (t);],
 		       [REGISTER_SYSCTL_TABLE_NOFLAG],
 		       [define if register_sysctl_table has no insert_at head flag],
 		       [])
@@ -632,10 +618,10 @@ AC_DEFUN([LINUX_DOP_D_DELETE_TAKES_CONST], [
   AC_CHECK_LINUX_BUILD([whether dentry.d_op->d_delete takes a const argument],
 			[ac_cv_linux_dop_d_delete_takes_const],
 			[#include <linux/fs.h>
-			#include <linux/dcache.h>],
-			[struct dentry_operations _d_ops;
-			int _d_del(const struct dentry *de) {return 0;};
-			_d_ops.d_delete = _d_del;],
+			#include <linux/dcache.h>
+			static int _d_del(const struct dentry *de) { return 0; }
+			struct dentry_operations _d_ops;],
+			[_d_ops.d_delete = _d_del;],
 			[DOP_D_DELETE_TAKES_CONST],
 			[define if dentry.d_op->d_delete takes a const argument],
 			[-Werror])
@@ -645,10 +631,10 @@ AC_DEFUN([LINUX_DOP_D_DELETE_TAKES_CONST], [
 AC_DEFUN([LINUX_IOP_MKDIR_TAKES_UMODE_T], [
   AC_CHECK_LINUX_BUILD([whether inode.i_op->mkdir takes a umode_t argument],
 			[ac_cv_linux_iop_mkdir_takes_umode_t],
-			[#include <linux/fs.h>],
-			[struct inode_operations _i_ops;
-			int _mkdir(struct inode *i, struct dentry *d, umode_t m) {return 0;};
-			_i_ops.mkdir = _mkdir;],
+			[#include <linux/fs.h>
+			static int _mkdir(struct inode *i, struct dentry *d, umode_t m) { return 0; }
+			struct inode_operations _i_ops;],
+			[_i_ops.mkdir = _mkdir;],
 			[IOP_MKDIR_TAKES_UMODE_T],
 			[define if inode.i_op->mkdir takes a umode_t argument],
 			[-Werror])
@@ -672,11 +658,10 @@ AC_DEFUN([LINUX_IOP_CREATE_TAKES_UMODE_T], [
 AC_DEFUN([LINUX_EXPORT_OP_ENCODE_FH_TAKES_INODES], [
   AC_CHECK_LINUX_BUILD([whether export operation encode_fh takes inode arguments],
 			[ac_cv_linux_export_op_encode_fh__takes_inodes],
-			[#include <linux/exportfs.h>],
-			[struct export_operations _exp_ops;
-			int _encode_fh(struct inode *i, __u32 *fh, int *len, struct inode *p)
-				{return 0;};
-			_exp_ops.encode_fh = _encode_fh;],
+			[#include <linux/exportfs.h>
+			static int _encode_fh(struct inode *i, __u32 *fh, int *len, struct inode *p) { return 0; }
+			struct export_operations _exp_ops;],
+			[_exp_ops.encode_fh = _encode_fh;],
 			[EXPORT_OP_ENCODE_FH_TAKES_INODES],
 			[define if encode_fh export op takes inode arguments],
 			[-Werror])
@@ -713,7 +698,11 @@ AC_DEFUN([LINUX_D_ALIAS_IS_HLIST], [
 			[#include <linux/fs.h>],
 			[struct dentry *d = NULL;
 			struct hlist_node *hn = NULL;
-			d->d_alias = *hn;],
+			#if defined(STRUCT_DENTRY_HAS_D_U_D_ALIAS)
+			d->d_u.d_alias = *hn;
+			#else
+			d->d_alias = *hn;
+			#endif],
 			[D_ALIAS_IS_HLIST],
 			[define if dentry->d_alias is an hlist],
 			[])
@@ -727,6 +716,9 @@ AC_DEFUN([LINUX_HLIST_ITERATOR_NO_NODE], [
 			#include <linux/fs.h>],
 			[struct dentry *d = NULL, *cur;
 			struct inode *ip;
+			#if defined(STRUCT_DENTRY_HAS_D_U_D_ALIAS)
+			# define d_alias d_u.d_alias
+			#endif
 			hlist_for_each_entry(cur, &ip->i_dentry, d_alias) { }
 			],
 			[HLIST_ITERATOR_NO_NODE],
@@ -754,10 +746,10 @@ AC_DEFUN([LINUX_DOP_D_REVALIDATE_TAKES_UNSIGNED], [
   AC_CHECK_LINUX_BUILD([whether dentry_operations.d_revalidate takes an unsigned int],
 			[ac_cv_linux_func_d_revalidate_takes_unsigned],
 			[#include <linux/fs.h>
-			#include <linux/namei.h>],
-			[struct dentry_operations dops;
-			int reval(struct dentry *d, unsigned int i) { return 0; };
-			dops.d_revalidate = reval;],
+			#include <linux/namei.h>
+			static int reval(struct dentry *d, unsigned int i) { return 0; }
+			struct dentry_operations _d_ops;],
+			[_d_ops.d_revalidate = reval;],
 		       [DOP_REVALIDATE_TAKES_UNSIGNED],
 		       [define if your dops.d_revalidate takes an unsigned int argument],
 		       [-Werror])
@@ -768,11 +760,24 @@ AC_DEFUN([LINUX_IOP_LOOKUP_TAKES_UNSIGNED], [
   AC_CHECK_LINUX_BUILD([whether inode operation lookup takes an unsigned int],
 			[ac_cv_linux_func_lookup_takes_unsigned],
 			[#include <linux/fs.h>
-			#include <linux/namei.h>],
-			[struct inode_operations iops;
-			struct dentry *look(struct inode *i, struct dentry *d, unsigned int j) { return NULL; };
-			iops.lookup = look;],
+			#include <linux/namei.h>
+			static struct dentry *look(struct inode *i, struct dentry *d, unsigned int j) { return NULL; }
+			struct inode_operations _i_ops;],
+			[_i_ops.lookup = look;],
 		       [IOP_LOOKUP_TAKES_UNSIGNED],
 		       [define if your iops.lookup takes an unsigned int argument],
 		       [-Werror])
+])
+
+
+AC_DEFUN([LINUX_D_INVALIDATE_IS_VOID], [
+  AC_CHECK_LINUX_BUILD([whether d_invalidate returns void],
+			[ac_cv_linux_func_d_invalidate_returns_void],
+			[#include <linux/fs.h>],
+			[
+			void d_invalidate(struct dentry *);
+			],
+		       [D_INVALIDATE_IS_VOID],
+		       [define if your d_invalidate returns void],
+		       [])
 ])

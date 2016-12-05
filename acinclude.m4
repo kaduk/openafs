@@ -14,7 +14,7 @@ AH_BOTTOM([
 #   include <sys/types.h>
 #   include <sys/param.h>
 #   if BYTE_ORDER == BIG_ENDIAN
-#   define WORDS_BIGENDIAN 1
+#    define WORDS_BIGENDIAN 1
 #   endif
 #  else
 #   if defined(AUTOCONF_FOUND_BIGENDIAN)
@@ -44,8 +44,8 @@ AH_BOTTOM([
  * need to define this when building for such interfaces, but set it always to
  * try and reduce potential confusion. 
  */
-#define _FILE_OFFSET_BITS 64
-#define AFS_CACHE_VNODE_PATH
+# define _FILE_OFFSET_BITS 64
+# define AFS_CACHE_VNODE_PATH
 #endif
 
 #undef AFS_NAMEI_ENV
@@ -62,7 +62,7 @@ AH_BOTTOM([
 /* glue for RedHat kernel bug */
 #undef ENABLE_REDHAT_BUILDSYS
 #if defined(ENABLE_REDHAT_BUILDSYS) && defined(KERNEL) && defined(REDHAT_FIX)
-#include "redhat-fix.h"
+# include "redhat-fix.h"
 #endif])
 
 AC_CANONICAL_HOST
@@ -72,128 +72,134 @@ SRCDIR_PARENT=`pwd`
 
 dnl System identity.
 AC_ARG_WITH([afs-sysname],
-    [AS_HELP_STRING([--with-afs-sysname=sys], [use sys for the afs sysname])])
+    [AS_HELP_STRING([--with-afs-sysname=sys], [use sys for the afs sysname])
+])
 
 dnl General feature options.
-AC_ARG_ENABLE([pam],
-    [AS_HELP_STRING([--enable-pam], [enable PAM (kaserver) support])],
-    ,
-    [enable_pam="no"])
-AC_ARG_ENABLE([gtx],
-    AS_HELP_STRING([--disable-gtx], [disable gtx curses-based terminal tools]))
-AC_ARG_ENABLE([uss],
-    AS_HELP_STRING([--disable-uss], [disable uss bulk creation tool]))
 AC_ARG_ENABLE([namei-fileserver],
     [AS_HELP_STRING([--enable-namei-fileserver],
-        [force compilation of namei fileserver in preference to inode
-         fileserver])],
-    , 
+	[force compilation of namei fileserver in preference to inode
+	 fileserver])],
+    [],
     [enable_namei_fileserver="default"])
 AC_ARG_ENABLE([supergroups],
     [AS_HELP_STRING([--enable-supergroups],
-        [enable support for nested pts groups])],
-    , 
+	[enable support for nested pts groups])],
+    [],
     [enable_supergroups="no"])
 AC_ARG_ENABLE([bitmap-later],
     [AS_HELP_STRING([--enable-bitmap-later],
         [enable fast startup of file server by not reading bitmap till
          needed])],
-    , 
+    [AS_IF([test x"$withval" = xyes],
+        [AC_MSG_WARN([bitmap-later is only used by non-demand-attach
+            fileservers.  Please migrate to demand-attach instead.])])],
     [enable_bitmap_later="no"])
 AC_ARG_ENABLE([unix-sockets],
     [AS_HELP_STRING([--disable-unix-sockets],
-        [disable use of unix domain sockets for fssync (defaults to enabled)])],
-    ,
+	[disable use of unix domain sockets for fssync (defaults to enabled)])],
+    [],
     [enable_unix_sockets="yes"])
 AC_ARG_ENABLE([tivoli-tsm],
     [AS_HELP_STRING([--enable-tivoli-tsm],
-        [enable use of the Tivoli TSM API libraries for butc support])],
-    , 
+	[enable use of the Tivoli TSM API libraries for butc support])],
+    [],
     [enable_tivoli_tsm="no"])
 AC_ARG_ENABLE([pthreaded-ubik],
     [AS_HELP_STRING([--disable-pthreaded-ubik],
         [disable installation of pthreaded ubik applications (defaults to
          enabled)])],
-    ,
+    [],
     [enable_pthreaded_ubik="yes"])
+AC_ARG_ENABLE([ubik-read-while-write],
+    [AS_HELP_STRING([--enable-ubik-read-while-write],
+	[enable vlserver read from db cache during write locks (EXPERIMENTAL)])],
+    [],
+    [enable_ubik_read_while_write="no"])
 
 dnl Kernel module build options.
 AC_ARG_WITH([linux-kernel-headers],
     [AS_HELP_STRING([--with-linux-kernel-headers=path],
-        [use the kernel headers found at path (optional, defaults to
-         /lib/modules/`uname -r`/build, then /lib/modules/`uname -r`/source,
-         then /usr/src/linux-2.4, and lastly /usr/src/linux)])])
+	[use the kernel headers found at path (optional, defaults to
+	 /lib/modules/`uname -r`/build, then /lib/modules/`uname -r`/source,
+	 then /usr/src/linux-2.4, and lastly /usr/src/linux)])
+])
 AC_ARG_WITH([linux-kernel-build],
     [AS_HELP_STRING([--with-linux-kernel-build=path],
-	[use the kernel build found at path(optional, defaults to 
-	kernel headers path)])])
+	[use the kernel build found at path(optional, defaults to
+	kernel headers path)]
+)])
 AC_ARG_WITH([bsd-kernel-headers],
     [AS_HELP_STRING([--with-bsd-kernel-headers=path],
-        [use the kernel headers found at path (optional, defaults to
-         /usr/src/sys)])])
+	[use the kernel headers found at path (optional, defaults to
+	 /usr/src/sys)])
+])
 AC_ARG_WITH([bsd-kernel-build],
-    [AS_HELP_STRING([--with-bsd-kernel-build=path], 
-        [use the kernel build found at path (optional, defaults to
-         KSRC/i386/compile/GENERIC)])])
+    [AS_HELP_STRING([--with-bsd-kernel-build=path],
+	[use the kernel build found at path (optional, defaults to
+	 KSRC/i386/compile/GENERIC)])
+])
 AC_ARG_WITH([linux-kernel-packaging],
     [AS_HELP_STRING([--with-linux-kernel-packaging],
-        [use standard naming conventions to aid Linux kernel build packaging
-         (disables MPS, sets the kernel module name to openafs.ko, and
-         installs kernel modules into the standard Linux location)])],
-    [AC_SUBST(LINUX_KERNEL_PACKAGING, "yes")
-     AC_SUBST(LINUX_LIBAFS_NAME, "openafs")],
-    [AC_SUBST(LINUX_LIBAFS_NAME, "libafs")])
+	[use standard naming conventions to aid Linux kernel build packaging
+	 (disables MPS, sets the kernel module name to openafs.ko, and
+	 installs kernel modules into the standard Linux location)])],
+    [AC_SUBST([LINUX_KERNEL_PACKAGING], [yes])
+     AC_SUBST([LINUX_LIBAFS_NAME], [openafs])],
+    [AC_SUBST([LINUX_LIBAFS_NAME], [libafs])
+])
 AC_ARG_ENABLE([kernel-module],
     [AS_HELP_STRING([--disable-kernel-module],
-        [disable compilation of the kernel module (defaults to enabled)])],
-    , 
+	[disable compilation of the kernel module (defaults to enabled)])],
+    [],
     [enable_kernel_module="yes"])
 AC_ARG_ENABLE([redhat-buildsys],
     [AS_HELP_STRING([--enable-redhat-buildsys],
-        [enable compilation of the redhat build system kernel (defaults to
-         disabled)])],
-    ,
+	[enable compilation of the redhat build system kernel (defaults to
+	 disabled)])],
+    [],
     [enable_redhat_buildsys="no"])
 
 dnl Installation locations.
 AC_ARG_ENABLE([transarc-paths],
     [AS_HELP_STRING([--enable-transarc-paths],
-        [use Transarc style paths like /usr/afs and /usr/vice])],
-    , 
+	[use Transarc style paths like /usr/afs and /usr/vice])],
+    [],
     [enable_transarc_paths="no"])
 
 dnl Deprecated crypto
 AC_ARG_ENABLE([kauth],
     [AS_HELP_STRING([--enable-kauth],
-        [install the deprecated kauth server and utilities (defaults to
-         disabled)])],
-    ,
-    [enable_kauth="no"])
+        [install the deprecated kauth server, pam modules, and utilities
+         (defaults to disabled)])],
+    [enable_pam="yes"],
+    [enable_kauth="no"
+     enable_pam="no"])
 
 dnl Optimization and debugging flags.
 AC_ARG_ENABLE([strip-binaries],
     [AS_HELP_STRING([--disable-strip-binaries],
-        [disable stripping of symbol information from binaries (defaults to
-         enabled)])],
-    ,
+	[disable stripping of symbol information from binaries (defaults to
+	 enabled)])],
+    [],
     [enable_strip_binaries="maybe"])
 AC_ARG_ENABLE([debug],
     [AS_HELP_STRING([--enable-debug],
-        [enable compilation of the user space code with debugging information
-         (defaults to disabled)])],
-    , 
+	[enable compilation of the user space code with debugging information
+	 (defaults to disabled)])],
+    [],
     [enable_debug="no"])
 AC_ARG_ENABLE([optimize],
     [AS_HELP_STRING([--disable-optimize],
-        [disable optimization for compilation of the user space code (defaults
-         to enabled)])],
-    , 
+	[disable optimization for compilation of the user space code (defaults
+	 to enabled)])],
+    [],
     [enable_optimize="yes"])
 AC_ARG_ENABLE([warnings],
     [AS_HELP_STRING([--enable-warnings],
-        [enable compilation warnings when building with gcc (defaults to
-         disabled)])],
-    ,
+	[enable compilation warnings when building with gcc (defaults to
+	 disabled)])],
+    [],
     [enable_warnings="no"])
 AC_ARG_ENABLE([checking],
     [AS_HELP_STRING([--enable-checking],
@@ -208,56 +214,75 @@ AC_ARG_ENABLE([debug-locks],
     [enable_debug_locks="no"])
 AC_ARG_ENABLE([debug-kernel],
     [AS_HELP_STRING([--enable-debug-kernel],
-        [enable compilation of the kernel module with debugging information
-         (defaults to disabled)])],
-    ,
+	[enable compilation of the kernel module with debugging information
+	 (defaults to disabled)])],
+    [],
     [enable_debug_kernel="no"])
 AC_ARG_ENABLE([optimize-kernel],
     [AS_HELP_STRING([--disable-optimize-kernel],
-        [disable compilation of the kernel module with optimization (defaults
-         based on platform)])],
-    , 
+	[disable compilation of the kernel module with optimization (defaults
+	 based on platform)])],
+    [],
     [enable_optimize_kernel=""])
 AC_ARG_ENABLE([debug-lwp],
     [AS_HELP_STRING([--enable-debug-lwp],
-        [enable compilation of the LWP code with debugging information
-         (defaults to disabled)])],
-    ,
+	[enable compilation of the LWP code with debugging information
+	 (defaults to disabled)])],
+    [],
     [enable_debug_lwp="no"])
 AC_ARG_ENABLE([optimize-lwp],
     [AS_HELP_STRING([--disable-optimize-lwp],
-        [disable optimization for compilation of the LWP code (defaults to
-         enabled)])],
-    ,
+	[disable optimization for compilation of the LWP code (defaults to
+	 enabled)])],
+    [],
     [enable_optimize_lwp="yes"])
 AC_ARG_ENABLE([debug-pam],
     [AS_HELP_STRING([--enable-debug-pam],
-        [enable compilation of the PAM code with debugging information
-         (defaults to disabled)])],
-    ,
+	[enable compilation of the PAM code with debugging information
+	 (defaults to disabled)])],
+    [],
     [enable_debug_pam="no"])
 AC_ARG_ENABLE([optimize-pam],
     [AS_HELP_STRING([--disable-optimize-pam],
-        [disable optimization for compilation of the PAM code (defaults to
-         enabled)])],
-    ,
+	[disable optimization for compilation of the PAM code (defaults to
+	 enabled)])],
+    [],
     [enable_optimize_pam="yes"])
 AC_ARG_ENABLE([linux-syscall-probing],
     [AS_HELP_STRING([--enable-linux-syscall-probing],
 	[enable Linux syscall probing (defaults to autodetect)])],
-    ,
+    [],
     [enable_linux_syscall_probing="maybe"])
+AC_ARG_ENABLE([linux-d_splice_alias-extra-iput],
+    [AS_HELP_STRING([--enable-linux-d_splice_alias-extra-iput],
+	[Linux kernels in the 3.17 series prior to 3.17.3 had a bug
+	 wherein error returns from the d_splice_alias() function were
+	 leaking a reference on the inode.  The bug was fixed for the
+	 3.17.3 kernel, and the possibility of an error return was only
+	 introduced in kernel 3.17, so only the narrow range of kernels
+	 is affected.  Enable this option for builds on systems with
+	 kernels affected by this bug, to manually release the reference
+	 on error returns and correct the reference counting.
+	 Linux commit 51486b900ee92856b977eacfc5bfbe6565028070 (or
+	 equivalent) is the fix for the upstream bug, so if such a commit
+	 is present, leave this option disabled.  We apologize
+	 that you are required to know this about your running kernel,
+	 but luckily only a narrow range of versions is affected.])],
+    [],
+    [enable_linux_d_splice_alias_extra_iput="no"])
 AC_ARG_WITH([crosstools-dir],
-    [AS_HELP_STRING([--with-crosstools-dir=path], [use path for native versions of rxgen, compile_et and config])])
-    
+    [AS_HELP_STRING([--with-crosstools-dir=path],
+	[use path for native versions of rxgen, compile_et and config])
+])
+
 AC_ARG_WITH([xslt-processor],
 	AS_HELP_STRING([--with-xslt-processor=ARG],
 	[which XSLT processor to use (possible choices are: libxslt, saxon, xalan-j, xsltproc)]),
-       	[XSLTPROC="$withval"],
-	AC_CHECK_PROGS([XSLTPROC], [libxslt saxon xalan-j xsltproc], [echo]))
+	[XSLTPROC="$withval"],
+	[AC_CHECK_PROGS([XSLTPROC], [libxslt saxon xalan-j xsltproc], [echo])])
 
-AC_ARG_WITH([html-xsl], 
-        AS_HELP_STRING([--with-html-xsl],
+AC_ARG_WITH([html-xsl],
+	AS_HELP_STRING([--with-html-xsl],
 	[build HTML documentation using this stylesheet (default is html/chunk.dsl; specify either html/chunk.xsl or html/docbook.xsl)]),
 	[HTML_XSL="$withval"],
 	[HTML_XSL="html/chunk.xsl"])
@@ -265,17 +290,29 @@ AC_ARG_WITH([html-xsl],
 AC_ARG_WITH([docbook2pdf],
 	AS_HELP_STRING([--with-docbook2pdf=ARG],
 	[which Docbook to PDF utility to use (possible choices are: fop, dblatex, docbook2pdf)]),
-       	[DOCBOOK2PDF="$withval"],
-	AC_CHECK_PROGS([DOCBOOK2PDF], [fop dblatex docbook2pdf], [echo]))
+	[DOCBOOK2PDF="$withval"],
+	[AC_CHECK_PROGS([DOCBOOK2PDF], [fop dblatex docbook2pdf], [echo])])
 
 AC_ARG_WITH([docbook-stylesheets],
 	AS_HELP_STRING([--with-docbook-stylesheets=ARG],
 	[location of DocBook stylesheets (default is to search a set of likely paths)]),
-       	[DOCBOOK_STYLESHEETS="$withval"],
-	OPENAFS_SEARCH_DIRLIST([DOCBOOK_STYLESHEETS], [/usr/share/xml/docbook/stylesheet/nwalsh/current /usr/share/xml/docbook/stylesheet/nwalsh /usr/share/xml/docbook/xsl-stylesheets /usr/share/sgml/docbook/docbook-xsl-stylesheets /usr/share/sgml/docbook/xsl-stylesheets /usr/share/docbook-xsl /usr/share/sgml/docbkxsl /usr/local/share/xsl/docbook /sw/share/xml/xsl/docbook-xsl /opt/local/share/xsl/docbook-xsl], [$HTML_XSL])
-	if test "x$DOCBOOK_STYLESHEETS" = "x"; then
-		AC_WARN([Docbook stylesheets not found; some documentation can't be built])
-	fi)
+	[DOCBOOK_STYLESHEETS="$withval"],
+	[OPENAFS_SEARCH_DIRLIST([DOCBOOK_STYLESHEETS],
+		[/usr/share/xml/docbook/stylesheet/nwalsh/current \
+		 /usr/share/xml/docbook/stylesheet/nwalsh \
+		 /usr/share/xml/docbook/xsl-stylesheets \
+		 /usr/share/sgml/docbook/docbook-xsl-stylesheets \
+		 /usr/share/sgml/docbook/xsl-stylesheets \
+		 /usr/share/docbook-xsl \
+		 /usr/share/sgml/docbkxsl \
+		 /usr/local/share/xsl/docbook \
+		 /sw/share/xml/xsl/docbook-xsl \
+		 /opt/local/share/xsl/docbook-xsl],
+		[$HTML_XSL])
+	   AS_IF([test "x$DOCBOOK_STYLESHEETS" = "x"],
+		[AC_WARN([Docbook stylesheets not found; some documentation can't be built])
+	   ])
+	])
 
 AC_ARG_WITH([dot],
 	AS_HELP_STRING([--with-dot@<:@=PATH@:>@],
@@ -408,14 +445,18 @@ case $system in
                  SUBARCH=default
 		fi
 		AC_MSG_RESULT(linux)
+                GUESS_LINUX_VERSION=
                 if test "x$enable_kernel_module" = "xyes"; then
-                 case "$LINUX_VERSION" in
+                 GUESS_LINUX_VERSION=${LINUX_VERSION}
+                else
+                 GUESS_LINUX_VERSION=`uname -r`
+                fi
+                case "$GUESS_LINUX_VERSION" in
                   2.2.*) AFS_SYSKVERS=22 ;;
                   2.4.*) AFS_SYSKVERS=24 ;;
-                  2.6.* | 3.*) AFS_SYSKVERS=26 ;;
+                  [2.6.* | [3-9]* | [1-2][0-9]*]) AFS_SYSKVERS=26 ;;
                   *) AC_MSG_ERROR(Couldn't guess your Linux version [2]) ;;
-                 esac
-                fi
+                esac
                 ;;
         *-solaris*)
 		MKAFS_OSTYPE=SOLARIS
@@ -633,14 +674,38 @@ else
 			AFS_SYSNAME="x86_darwin_120"
 			OSXSDK="macosx10.8"
 			;;
-                x86_64-apple-darwin13.*)
-                        AFS_SYSNAME="x86_darwin_130"
-                        OSXSDK="macosx10.9"
-                        ;;
-                i?86-apple-darwin13.*)
-                        AFS_SYSNAME="x86_darwin_130"
-                        OSXSDK="macosx10.9"
-                        ;;
+		x86_64-apple-darwin13.*)
+			AFS_SYSNAME="x86_darwin_130"
+			OSXSDK="macosx10.9"
+			;;
+		i?86-apple-darwin13.*)
+			AFS_SYSNAME="x86_darwin_130"
+			OSXSDK="macosx10.9"
+			;;
+		x86_64-apple-darwin14.*)
+			AFS_SYSNAME="x86_darwin_140"
+			OSXSDK="macosx10.10"
+			;;
+		i?86-apple-darwin14.*)
+			AFS_SYSNAME="x86_darwin_140"
+			OSXSDK="macosx10.10"
+			;;
+		x86_64-apple-darwin15.*)
+			AFS_SYSNAME="x86_darwin_150"
+			OSXSDK="macosx10.11"
+			;;
+		i?86-apple-darwin15.*)
+			AFS_SYSNAME="x86_darwin_150"
+			OSXSDK="macosx10.11"
+			;;
+		x86_64-apple-darwin16.*)
+			AFS_SYSNAME="x86_darwin_160"
+			OSXSDK="macosx10.12"
+			;;
+		i?86-apple-darwin16.*)
+			AFS_SYSNAME="x86_darwin_160"
+			OSXSDK="macosx10.12"
+			;;
 		sparc-sun-solaris2.8)
 			AFS_SYSNAME="sun4x_58"
 			;;
@@ -676,6 +741,7 @@ else
 			;;
 		mips-sgi-irix6.5)
 			AFS_SYSNAME="sgi_65"
+			enable_pam="no"
 			;;
 		ia64-*-linux*)
 			AFS_SYSNAME="ia64_linuxXX"
@@ -749,6 +815,10 @@ else
 			if test "x${AFS_SYSKVERS}" = "x"; then
 			 AC_MSG_ERROR(Couldn't guess your Linux version. Please use the --with-afs-sysname option to configure an AFS sysname.)
 			fi
+			if test "x${AFS_SYSKVERS}" = "x24" ||
+				test "x${AFS_SYSKVERS}" = "x22"; then
+			    AC_MSG_ERROR([Linux 2.4.x and older are no longer supported by OpenAFS.  Please use an OpenAFS 1.6.x release on those systems.])
+			fi
 			_AFS_SYSNAME=`echo $AFS_SYSNAME|sed s/XX\$/$AFS_SYSKVERS/`
 			AFS_SYSNAME="$_AFS_SYSNAME"
 			AC_TRY_KBUILD(
@@ -811,12 +881,8 @@ case $AFS_SYSNAME in
     *_obsd52)   AFS_PARAM_COMMON=param.obsd52.h  ;;
     *_obsd53)   AFS_PARAM_COMMON=param.obsd53.h  ;;
     *_obsd54)   AFS_PARAM_COMMON=param.obsd54.h  ;;
-    *_linux22)  AFS_PARAM_COMMON=param.linux22.h ;;
-    *_linux24)  AFS_PARAM_COMMON=param.linux24.h ;;
     *_linux26)  AFS_PARAM_COMMON=param.linux26.h ;;
 # Linux alpha adds an extra underscore for no good reason.
-    *_linux_22) AFS_PARAM_COMMON=param.linux22.h ;;
-    *_linux_24) AFS_PARAM_COMMON=param.linux24.h ;;
     *_linux_26) AFS_PARAM_COMMON=param.linux26.h ;;
     *_fbsd_*)   AFS_PARAM_COMMON=param.generic_fbsd.h ;;
 esac
@@ -850,9 +916,24 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 LINUX_KBUILD_USES_EXTRA_CFLAGS
 		 LINUX_KERNEL_COMPILE_WORKS
 
+		 dnl Operation signature checks
+		 AC_CHECK_LINUX_OPERATION([inode_operations], [follow_link], [no_nameidata],
+					  [#include <linux/fs.h>],
+					  [const char *],
+					  [struct dentry *dentry, void **link_data])
+		 AC_CHECK_LINUX_OPERATION([inode_operations], [put_link], [no_nameidata],
+					  [#include <linux/fs.h>],
+					  [void],
+					  [struct inode *inode, void *link_data])
+		 AC_CHECK_LINUX_OPERATION([inode_operations], [rename], [takes_flags],
+					  [#include <linux/fs.h>],
+					  [int],
+					  [struct inode *oinode, struct dentry *odentry,
+						struct inode *ninode, struct dentry *ndentry,
+						unsigned int flags])
+
 		 dnl Check for header files
 		 AC_CHECK_LINUX_HEADER([config.h])
-		 AC_CHECK_LINUX_HEADER([completion.h])
 		 AC_CHECK_LINUX_HEADER([exportfs.h])
 		 AC_CHECK_LINUX_HEADER([freezer.h])
 		 AC_CHECK_LINUX_HEADER([key-type.h])
@@ -864,26 +945,34 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 AC_CHECK_LINUX_TYPE([kuid_t], [uidgid.h])
 
 		 dnl Check for structure elements
+		 AC_CHECK_LINUX_STRUCT([address_space], [backing_dev_info], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([address_space_operations],
 				       [write_begin], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([backing_dev_info], [name],
 				       [backing-dev.h])
 		 AC_CHECK_LINUX_STRUCT([cred], [session_keyring], [cred.h])
 		 AC_CHECK_LINUX_STRUCT([ctl_table], [ctl_name], [sysctl.h])
+		 AC_CHECK_LINUX_STRUCT([dentry], [d_u.d_alias], [dcache.h])
 		 AC_CHECK_LINUX_STRUCT([dentry_operations], [d_automount], [dcache.h])
+		 AC_CHECK_LINUX_STRUCT([group_info], [gid], [cred.h])
 		 AC_CHECK_LINUX_STRUCT([inode], [i_alloc_sem], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([inode], [i_blkbits], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([inode], [i_blksize], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([inode], [i_mutex], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([inode], [i_security], [fs.h])
+		 AC_CHECK_LINUX_STRUCT([file], [f_path], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_operations], [flock], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_operations], [iterate], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_operations], [read_iter], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_operations], [sendfile], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([file_system_type], [mount], [fs.h])
 		 AC_CHECK_LINUX_STRUCT([inode_operations], [truncate], [fs.h])
-		 AC_CHECK_LINUX_STRUCT([key_type], [preparse], [key-type.h])
+		 AC_CHECK_LINUX_STRUCT([inode_operations], [get_link], [fs.h])
+		 AC_CHECK_LINUX_STRUCT([key], [payload.value], [key.h])
 		 AC_CHECK_LINUX_STRUCT([key_type], [instantiate_prep], [key-type.h])
+		 AC_CHECK_LINUX_STRUCT([key_type], [match_preparse], [key-type.h])
+		 AC_CHECK_LINUX_STRUCT([key_type], [preparse], [key-type.h])
+		 AC_CHECK_LINUX_STRUCT([msghdr], [msg_iter], [socket.h])
 		 AC_CHECK_LINUX_STRUCT([nameidata], [path], [namei.h])
 		 AC_CHECK_LINUX_STRUCT([proc_dir_entry], [owner], [proc_fs.h])
 		 AC_CHECK_LINUX_STRUCT([super_block], [s_bdi], [fs.h])
@@ -902,6 +991,7 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 AC_CHECK_LINUX_STRUCT([task_struct], [sigmask_lock], [sched.h])
 		 AC_CHECK_LINUX_STRUCT([task_struct], [tgid], [sched.h])
 		 AC_CHECK_LINUX_STRUCT([task_struct], [thread_info], [sched.h])
+		 AC_CHECK_LINUX_STRUCT([task_struct], [total_link_count], [sched.h])
 		 LINUX_SCHED_STRUCT_TASK_STRUCT_HAS_SIGNAL_RLIM
 
 		 dnl Check for typed structure elements
@@ -910,6 +1000,9 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 
 		 dnl Function existence checks
 
+		 AC_CHECK_LINUX_FUNC([__vfs_read],
+				     [#include <linux/fs.h>],
+				     [__vfs_read(NULL, NULL, 0, NULL);])
                  AC_CHECK_LINUX_FUNC([bdi_init],
 				     [#include <linux/backing-dev.h>],
 				     [bdi_init(NULL);])
@@ -954,6 +1047,9 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 AC_CHECK_LINUX_FUNC([hlist_unhashed],
 				     [#include <linux/list.h>],
 				     [hlist_unhashed(0);])
+		 AC_CHECK_LINUX_FUNC([ihold],
+				     [#include <linux/fs.h>],
+				     [ihold(NULL);])
 		 AC_CHECK_LINUX_FUNC([i_size_read],
 				     [#include <linux/fs.h>],
 				     [i_size_read(NULL);])
@@ -966,9 +1062,15 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 AC_CHECK_LINUX_FUNC([kernel_setsockopt],
 				     [#include <linux/net.h>],
 				     [kernel_setsockopt(NULL, 0, 0, NULL, 0);])
+		 AC_CHECK_LINUX_FUNC([locks_lock_file_wait],
+				     [#include <linux/fs.h>],
+				     [locks_lock_file_wait(NULL, NULL);])
 		 AC_CHECK_LINUX_FUNC([page_follow_link],
 				     [#include <linux/fs.h>],
 				     [page_follow_link(0,0);])
+		 AC_CHECK_LINUX_FUNC([page_get_link],
+				     [#include <linux/fs.h>],
+				     [page_get_link(0,0,0);])
 		 AC_CHECK_LINUX_FUNC([page_offset],
 				     [#include <linux/pagemap.h>],
 				     [page_offset(NULL);])
@@ -988,12 +1090,21 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 AC_CHECK_LINUX_FUNC([set_nlink],
 				     [#include <linux/fs.h>],
 				     [set_nlink(NULL, 1);])
+		 AC_CHECK_LINUX_FUNC([setattr_prepare],
+				     [#include <linux/fs.h>],
+				     [setattr_prepare(NULL, NULL);])
 		 AC_CHECK_LINUX_FUNC([sock_create_kern],
 				     [#include <linux/net.h>],
 				     [sock_create_kern(0, 0, 0, NULL);])
+		 AC_CHECK_LINUX_FUNC([sock_create_kern_ns],
+				     [#include <linux/net.h>],
+				     [sock_create_kern(NULL, 0, 0, 0, NULL);])
 		 AC_CHECK_LINUX_FUNC([splice_direct_to_actor],
 				     [#include <linux/splice.h>],
 				     [splice_direct_to_actor(NULL,NULL,NULL);])
+		 AC_CHECK_LINUX_FUNC([default_file_splice_read],
+				     [#include <linux/fs.h>],
+				     [default_file_splice_read(NULL,NULL,NULL, 0, 0);])
 		 AC_CHECK_LINUX_FUNC([svc_addr_in],
 				     [#include <linux/sunrpc/svc.h>],
 				     [svc_addr_in(NULL);])
@@ -1007,6 +1118,12 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 				     [#include <linux/kernel.h>
 				      #include <linux/kthread.h>],
 				     [kthread_run(NULL, NULL, "test");])
+		 AC_CHECK_LINUX_FUNC([inode_nohighmem],
+				     [#include <linux/fs.h>],
+				     [inode_nohighmem(NULL);])
+		 AC_CHECK_LINUX_FUNC([inode_lock],
+				     [#include <linux/fs.h>],
+				     [inode_lock(NULL);])
 
 		 dnl Consequences - things which get set as a result of the
 		 dnl                above tests
@@ -1065,6 +1182,7 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 LINUX_IOP_I_CREATE_TAKES_BOOL
 		 LINUX_DOP_D_REVALIDATE_TAKES_UNSIGNED
 		 LINUX_IOP_LOOKUP_TAKES_UNSIGNED
+		 LINUX_D_INVALIDATE_IS_VOID
 
 		 dnl If we are guaranteed that keyrings will work - that is
 		 dnl  a) The kernel has keyrings enabled
@@ -1136,12 +1254,19 @@ case $AFS_SYSNAME in *_linux* | *_umlinux*)
 		 if test -f "$LINUX_KERNEL_PATH/include/linux/mm_inline.h"; then
 		  AC_DEFINE(HAVE_MM_INLINE_H, 1, [define if you have mm_inline.h header file])
 	         fi
-		 if test "x$ac_cv_linux_kernel_page_follow_link" = "xyes" -o "x$ac_cv_linux_func_i_put_link_takes_cookie" = "xyes"; then
+		 if test "x$ac_cv_linux_func_page_get_link" = "xyes" -o "x$ac_cv_linux_func_i_put_link_takes_cookie" = "xyes"; then
 		  AC_DEFINE(USABLE_KERNEL_PAGE_SYMLINK_CACHE, 1, [define if your kernel has a usable symlink cache API])
 		 else
 		  AC_MSG_WARN([your kernel does not have a usable symlink cache API])
 		 fi
+		 if test "x$ac_cv_linux_func_page_get_link" != "xyes" -a "x$ac_cv_linux_struct_inode_operations_has_get_link" = "xyes"; then
+			AC_MSG_ERROR([Your kernel does not use follow_link - not supported without symlink cache API])
+			exit 1
+		 fi
                 :
+		fi
+		if test "x$enable_linux_d_splice_alias_extra_iput" = xyes; then
+		    AC_DEFINE(D_SPLICE_ALIAS_LEAK_ON_ERROR, 1, [for internal use])
 		fi
 dnl Linux-only, but just enable always.
 		AC_DEFINE(AFS_CACHE_BYPASS, 1, [define to activate cache bypassing Unix client])
@@ -1307,6 +1432,10 @@ else
 fi
 AC_SUBST(USE_UNIX_SOCKETS)
 
+if test "$enable_ubik_read_while_write" = "yes"; then
+	AC_DEFINE(UBIK_READ_WHILE_WRITE, 1, [define if you want to enable ubik read while write])
+fi
+
 if test "$enable_namei_fileserver" = "yes"; then
 	AC_DEFINE(AFS_NAMEI_ENV, 1, [define if you want to want namei fileserver])
 	VFSCK=""
@@ -1340,6 +1469,8 @@ if test "$enable_tivoli_tsm" = "yes"; then
 	XBSADIR2=/opt/tivoli/tsm/client/api/bin/xopen
 	XBSADIR3=/usr/tivoli/tsm/client/api/bin/sample
 	XBSADIR4=/opt/tivoli/tsm/client/api/bin/sample
+	XBSADIR5=/usr/tivoli/tsm/client/api/bin64/sample
+	XBSADIR6=/opt/tivoli/tsm/client/api/bin64/sample
 
 	if test -r "$XBSADIR3/dsmapifp.h"; then
 		XBSA_CFLAGS="-Dxbsa -DNEW_XBSA -I$XBSADIR3"
@@ -1347,6 +1478,14 @@ if test "$enable_tivoli_tsm" = "yes"; then
 		AC_MSG_RESULT([yes, $XBSA_CFLAGS])
 	elif test -r "$XBSADIR4/dsmapifp.h"; then
 		XBSA_CFLAGS="-Dxbsa -DNEW_XBSA -I$XBSADIR4"
+		XBSA_XLIBS="-ldl"
+		AC_MSG_RESULT([yes, $XBSA_CFLAGS])
+	elif test -r "$XBSADIR5/dsmapifp.h"; then
+		XBSA_CFLAGS="-Dxbsa -DNEW_XBSA -I$XBSADIR5"
+		XBSA_XLIBS="-ldl"
+		AC_MSG_RESULT([yes, $XBSA_CFLAGS])
+	elif test -r "$XBSADIR6/dsmapifp.h"; then
+		XBSA_CFLAGS="-Dxbsa -DNEW_XBSA -I$XBSADIR6"
 		XBSA_XLIBS="-ldl"
 		AC_MSG_RESULT([yes, $XBSA_CFLAGS])
 	elif test -r "$XBSADIR1/xbsa.h"; then
@@ -1365,6 +1504,7 @@ else
 fi
 AC_SUBST(XBSA_CFLAGS)
 AC_SUBST(XBSA_XLIBS) 
+XLIBS="$XBSA_XLIBS $XLIBS"
 
 dnl checks for header files.
 AC_HEADER_STDC
@@ -1473,33 +1613,14 @@ AC_CHECK_TYPES([fsblkcnt_t],,,[
 dnl see what struct stat has for timestamps
 AC_CHECK_MEMBERS([struct stat.st_ctimespec, struct stat.st_ctimensec])
 
-dnl check for curses-lib
-AS_IF([test "x$enable_gtx" != "xno"],
-      [save_LIBS=$LIBS
-      AC_CHECK_LIB( [ncurses], [setupterm],
-      [LIB_curses=-lncurses],
-        [AC_CHECK_LIB([Hcurses], [setupterm], [LIB_curses=-lHcurses],
-          [AC_CHECK_LIB([curses], [setupterm], [LIB_curses=-lcurses])])
-      ])
-      LIBS=$save_LIBS
-      AC_SUBST(LIB_curses)])
-	
 OPENAFS_TEST_PACKAGE(libintl,[#include <libintl.h>],[-lintl],,,INTL)
 
 if test "$enable_debug_locks" = yes; then
 	AC_DEFINE(OPR_DEBUG_LOCKS, 1, [turn on lock debugging in opr])
 fi
 
-dnl Don't build PAM on IRIX; the interface doesn't work for us.
 if test "$ac_cv_header_security_pam_modules_h" = yes -a "$enable_pam" = yes; then
-        case $AFS_SYSNAME in
-        sgi_*)
-                HAVE_PAM="no"
-                ;;
-        *)
-	        HAVE_PAM="yes"
-                ;;
-        esac
+	HAVE_PAM="yes"
 else
 	HAVE_PAM="no"
 fi
@@ -1512,13 +1633,6 @@ else
 fi
 AC_SUBST(BUILD_LOGIN)
 
-if test "$enable_uss" = yes; then
-	BUILD_USS="yes"
-else
-	BUILD_USS="no"
-fi
-AC_SUBST(BUILD_USS)
-
 if test "$enable_kauth" = yes; then
 	INSTALL_KAUTH="yes"
 else
@@ -1528,6 +1642,7 @@ AC_SUBST(INSTALL_KAUTH)
 
 AC_CHECK_FUNCS([ \
 	arc4random \
+	closelog \
 	fcntl \
 	fseeko64 \
 	ftello64 \
@@ -1539,6 +1654,7 @@ AC_CHECK_FUNCS([ \
 	getrlimit \
 	issetugid \
 	mkstemp \
+	openlog \
 	poll \
 	pread \
 	preadv \
@@ -1556,13 +1672,16 @@ AC_CHECK_FUNCS([ \
 	strerror \
 	sysconf \
 	sysctl \
+	syslog \
 	tdestroy \
 	timegm \
 ])
 
 OPENAFS_ROKEN()
 OPENAFS_HCRYPTO()
+OPENAFS_CURSES()
 OPENAFS_C_ATTRIBUTE()
+OPENAFS_C_PRAGMA()
 
 dnl Functions that Heimdal's libroken provides, but that we
 dnl haven't found a need for yet, and so haven't imported
@@ -1572,8 +1691,6 @@ AC_CHECK_FUNCS([ \
 	gethostname \
 	lstat \
 	inet_aton \
-	inet_ntop \
-	inet_pton \
 	putenv \
 	readv \
 	setenv \
@@ -1611,6 +1728,8 @@ AC_REPLACE_FUNCS([ \
 	getopt \
 	getprogname \
 	gettimeofday \
+	inet_ntop \
+	inet_pton \
 	localtime_r \
 	mkstemp \
 	setenv \

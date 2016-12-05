@@ -61,6 +61,7 @@ extern int DoLogging;
 extern struct afsconf_dir *tdir;
 extern int DoPreserveVolumeStats;
 extern int restrictedQueryLevel;
+extern enum vol_s2s_crypt doCrypt;
 
 extern void LogError(afs_int32 errcode);
 
@@ -814,10 +815,8 @@ VolClone(struct rx_call *acid, afs_int32 atrans, VolumeId purgeId,
 	goto fail;
     }
     if (newType == readonlyVolume) {
-	AssignVolumeName(&V_disk(newvp), V_name(originalvp), ".readonly");
 	V_type(newvp) = readonlyVolume;
     } else if (newType == backupVolume) {
-	AssignVolumeName(&V_disk(newvp), V_name(originalvp), ".backup");
 	V_type(newvp) = backupVolume;
 	V_backupId(originalvp) = newId;
     }
@@ -849,6 +848,10 @@ VolClone(struct rx_call *acid, afs_int32 atrans, VolumeId purgeId,
 #ifdef AFS_DEMAND_ATTACH_FS
     salv_vp = NULL;
 #endif
+
+    /* Clients could have callbacks to the clone ID */
+    FSYNC_VolOp(newId, NULL, FSYNC_VOL_BREAKCBKS, 0l, NULL);
+
     if (TRELE(tt)) {
 	tt = (struct volser_trans *)0;
 	error = VOLSERTRELE_ERROR;
@@ -1259,6 +1262,35 @@ SAFSVolForward(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
     return code;
 }
 
+static_inline afs_int32
+MakeClient(struct rx_call *acid, struct rx_securityClass **securityObject,
+	   afs_int32 *securityIndex)
+{
+    rxkad_level enc_level = rxkad_clear;
+    int docrypt;
+    int code;
+
+    switch (doCrypt) {
+    case VS2SC_ALWAYS:
+	docrypt = 1;
+	break;
+    case VS2SC_INHERIT:
+	rxkad_GetServerInfo(rx_ConnectionOf(acid), &enc_level, 0, 0, 0, 0, 0);
+	docrypt = (enc_level == rxkad_crypt ? 1 : 0);
+	break;
+    case VS2SC_NEVER:
+	docrypt = 0;
+	break;
+    default:
+	opr_Assert(0 && "doCrypt corrupt?");
+    }
+    if (docrypt)
+	code = afsconf_ClientAuthSecure(tdir, securityObject, securityIndex);
+    else
+	code = afsconf_ClientAuth(tdir, securityObject, securityIndex);
+    return code;
+}
+
 static afs_int32
 VolForward(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
 	       struct destServer *destination, afs_int32 destTrans,
@@ -1289,7 +1321,7 @@ VolForward(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
     TSetRxCall(tt, NULL, "Forward");
 
     /* get auth info for the this connection (uses afs from ticket file) */
-    code = afsconf_ClientAuth(tdir, &securityObject, &securityIndex);
+    code = MakeClient(acid, &securityObject, &securityIndex);
     if (code) {
 	TRELE(tt);
 	return code;
@@ -1300,6 +1332,9 @@ VolForward(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
 	rx_NewConnection(htonl(destination->destHost),
 			 htons(destination->destPort), VOLSERVICE_ID,
 			 securityObject, securityIndex);
+
+    RXS_Close(securityObject); /* will be freed after connection destroyed */
+
     if (!tcon) {
         TClearRxCall(tt);
 	TRELE(tt);
@@ -1401,7 +1436,7 @@ SAFSVolForwardMultiple(struct rx_call *acid, afs_int32 fromTrans, afs_int32
     }
 
     /* get auth info for this connection (uses afs from ticket file) */
-    code = afsconf_ClientAuth(tdir, &securityObject, &securityIndex);
+    code = MakeClient(acid, &securityObject, &securityIndex);
     if (code) {
 	goto fail;		/* in order to audit each failure */
     }
@@ -1431,6 +1466,9 @@ SAFSVolForwardMultiple(struct rx_call *acid, afs_int32 fromTrans, afs_int32
 	    }
 	}
     }
+
+    /* Security object will be freed when all connections destroyed */
+    RXS_Close(securityObject);
 
     /* these next calls implictly call rx_Write when writing out data */
     code = DumpVolMulti(tcalls, i, vp, fromDate, 0, codes);
@@ -3043,7 +3081,7 @@ SAFSVolGetSize(struct rx_call *acid, afs_int32 fromTrans, afs_int32 fromDate,
 }
 
 afs_int32
-SAFSVolSplitVolume(struct rx_call *acall, afs_uint32 vid, afs_uint32 new,
+SAFSVolSplitVolume(struct rx_call *acall, afs_uint32 ovid, afs_uint32 onew,
 		   afs_uint32 where, afs_int32 verbose)
 {
 #if defined(AFS_NAMEI_ENV) && !defined(AFS_NT40_ENV)
@@ -3052,6 +3090,8 @@ SAFSVolSplitVolume(struct rx_call *acall, afs_uint32 vid, afs_uint32 new,
     struct volser_trans *tt = 0, *tt2 = 0;
     char caller[MAXKTCNAMELEN];
     char line[128];
+    VolumeId new = onew;
+    VolumeId vid = ovid;
 
     if (!afsconf_SuperUser(tdir, acall, caller))
         return EPERM;
@@ -3072,12 +3112,14 @@ SAFSVolSplitVolume(struct rx_call *acall, afs_uint32 vid, afs_uint32 new,
     if (V_device(vol) != V_device(newvol)
 	|| V_uniquifier(newvol) != 2) {
         if (V_device(vol) != V_device(newvol)) {
-            sprintf(line, "Volumes %u and %u are not in the same partition, aborted.\n",
-		    vid, new);
+            sprintf(line, "Volumes %" AFS_VOLID_FMT " and %" AFS_VOLID_FMT " are not in the same partition, aborted.\n",
+		    afs_printable_VolumeId_lu(vid),
+		    afs_printable_VolumeId_lu(new));
             rx_Write(acall, line, strlen(line));
         }
         if (V_uniquifier(newvol) != 2) {
-            sprintf(line, "Volume %u is not freshly created, aborted.\n", new);
+            sprintf(line, "Volume %" AFS_VOLID_FMT " is not freshly created, aborted.\n",
+		    afs_printable_VolumeId_lu(new));
             rx_Write(acall, line, strlen(line));
         }
         line[0] = 0;
@@ -3088,7 +3130,8 @@ SAFSVolSplitVolume(struct rx_call *acall, afs_uint32 vid, afs_uint32 new,
     }
     tt = NewTrans(vid, V_device(vol));
     if (!tt) {
-        sprintf(line, "Couldn't create transaction for %u, aborted.\n", vid);
+        sprintf(line, "Couldn't create transaction for %" AFS_VOLID_FMT ", aborted.\n",
+		afs_printable_VolumeId_lu(vid));
         rx_Write(acall, line, strlen(line));
         line[0] = 0;
         rx_Write(acall, line, 1);
@@ -3104,7 +3147,8 @@ SAFSVolSplitVolume(struct rx_call *acall, afs_uint32 vid, afs_uint32 new,
 
     tt2 = NewTrans(new, V_device(newvol));
     if (!tt2) {
-        sprintf(line, "Couldn't create transaction for %u, aborted.\n", new);
+        sprintf(line, "Couldn't create transaction for %" AFS_VOLID_FMT ", aborted.\n",
+		afs_printable_VolumeId_lu(new));
         rx_Write(acall, line, strlen(line));
         line[0] = 0;
         rx_Write(acall, line, 1);

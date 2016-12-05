@@ -69,6 +69,8 @@ clean:
 	$(RM) -f *.o libafshcrypto.a libafshcrypto_lwp.a libafshcrypto.exp \
 		test_cipher
 
+$(LT_objs): $(HEADERS)
+
 libafshcrypto.la: libafshcrypto.la.sym $(LT_objs)
 	$(LT_LDLIB_shlib) $(LT_objs) $(LT_libs)
 

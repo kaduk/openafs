@@ -453,6 +453,18 @@ afs_ConnBySA(struct srvAddr *sap, unsigned short aport, afs_int32 acell,
         return NULL;
     }
 
+    if (tc->refCount > 10000) {
+	static int warned;
+	if (!warned) {
+	    warned = 1;
+	    afs_warn("afs: Very high afs_conn refCount detected (conn %p, count %d)\n",
+	             tc, (int)tc->refCount);
+	    afs_warn("afs: Trying to continue, but this may indicate an issue\n");
+	    afs_warn("afs: that may eventually crash the machine. Please file\n");
+	    afs_warn("afs: a bug report.\n");
+	}
+    }
+
     if (tu->states & UTokensBad) {
 	/* we may still have an authenticated RPC connection here,
 	 * we'll have to create a new, unauthenticated, connection.
@@ -501,7 +513,8 @@ afs_ConnBySA(struct srvAddr *sap, unsigned short aport, afs_int32 acell,
 	    rx_SetConnHardDeadTime(tc->id, afs_rx_harddead);
 	}
 
-        /* Setting idle dead time to non-zero activates RX_CALL_IDLE errors. */
+        /* Setting idle dead time to non-zero activates idle-dead
+	 * RX_CALL_TIMEOUT errors. */
 	if (isrep)
 	    rx_SetConnIdleDeadTime(tc->id, afs_rx_idledead_rep);
 	else

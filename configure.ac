@@ -13,14 +13,7 @@ MACOS_VERSION=1.5.76
 #LINUX_PKGREL=0.pre3
 LINUX_PKGREL=1.1
 
-dnl Debian wants the release candidate version in the main upstream version,
-dnl and wants ~ before it.
-DEB_PKGVER=m4_esyscmd([build-tools/git-version .])
-AS_IF([echo "$LINUX_PKGREL" | grep pre >/dev/null 2>/dev/null],
-    [DEB_PKGVER="$DEB_PKGVER"`echo "$LINUX_PKGREL" | sed 's/0.pre/~rc/'`])
-
 AC_SUBST([MACOS_VERSION])
-AC_SUBST([DEB_PKGVER])
 
 dnl If the user hasn't specified CFLAGS don't let configure pick -g -O2
 AS_IF([test -z "$CFLAGS"], [CFLAGS=" "])
@@ -67,6 +60,8 @@ AS_IF([test x"$KRB5_LIBS" != x],
 	krb5_c_encrypt \
 	krb5_decode_ticket \
 	krb5_enctype_enable \
+	krb5_free_keytab_entry_contents \
+	krb5_free_unparsed_name \
 	krb5_get_init_creds_opt_alloc \
 	krb5_get_prompt_types \
 	krb5_princ_size \
@@ -94,6 +89,8 @@ AS_IF([test x"$KRB5_LIBS" != x],
        [AC_MSG_ERROR([Cannot find a usable com_err.h])])
      AC_CHECK_MEMBERS([krb5_creds.keyblock, krb5_creds.keyblock.enctype, krb5_creds.session,
 		       krb5_prompt.type], [], [], [#include <krb5.h>])
+     AC_CHECK_MEMBERS([krb5_keytab_entry.key, krb5_keytab_entry.keyblock],
+		      [], [], [#include <krb5.h>])
 dnl If we have krb5_creds.session, we are using heimdal
 dnl If we're using heimdal, aklog needs libasn1 for encode_EncTicketPart and a
 dnl few other functions. But just aklog; not any of the other stuff that uses
@@ -187,7 +184,6 @@ AC_OUTPUT([
     src/config/Makefile.lwp
     src/config/Makefile.lwptool
     src/config/Makefile.pthread
-    src/config/Makefile.shared
     src/config/Makefile.version-CML
     src/config/Makefile.version-NOCML
     src/config/shlib-build
@@ -232,13 +228,13 @@ AC_OUTPUT([
     src/lwp/Makefile
     src/lwp/test/Makefile
     src/opr/Makefile
-    src/packaging/Debian/changelog
     src/packaging/MacOS/OpenAFS-debug.Description.plist
     src/packaging/MacOS/OpenAFS-debug.Info.plist
     src/packaging/MacOS/OpenAFS.Description.plist
     src/packaging/MacOS/OpenAFS.Info.plist
     src/packaging/MacOS/OpenAFS.info
     src/packaging/MacOS/buildpkg.sh
+    src/packaging/MacOS/pkgbuild.sh
     src/pam/Makefile
     src/platform/Makefile
     src/platform/${MKAFS_OSTYPE}/Makefile
@@ -262,7 +258,6 @@ AC_OUTPUT([
     src/rxosd/Makefile
     src/rxstat/Makefile
     src/scout/Makefile
-    src/sgistuff/Makefile
     src/sys/Makefile
     src/tbutc/Makefile
     src/tests/Makefile

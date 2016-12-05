@@ -665,9 +665,6 @@ typedef struct Volume {
 				 * uniquifier should be rewritten with the
 				 * value nextVnodeVersion */
     IHandle_t *diskDataHandle;	/* Unix inode holding general volume info */
-    bit16 vnodeHashOffset;	/* Computed by HashOffset function in vnode.h.
-				 * Assigned to the volume when initialized.
-				 * Added to vnode number for hash table index */
     byte shuttingDown;		/* This volume is going to be detached */
     byte goingOffline;		/* This volume is going offline */
     bit32 cacheCheck;		/* Online sequence number to be used to invalidate vnode cache entries
@@ -776,7 +773,7 @@ struct volHeader {
 #define V_stat_fileDiffAuthor(vp, idx) (((vp)->header->diskstuff.stat_fileDiffAuthor)[idx])
 #define V_stat_dirSameAuthor(vp, idx)  (((vp)->header->diskstuff.stat_dirSameAuthor)[idx])
 #define V_stat_dirDiffAuthor(vp, idx)  (((vp)->header->diskstuff.stat_dirDiffAuthor)[idx])
-#define V_volUpCounter(vp)		((vp)->header->diskstuff.volUpdateCounter)
+#define V_volUpdateCounter(vp)		((vp)->header->diskstuff.volUpdateCounter)
 
 /* File offset computations.  The offset values in the volume header are
    computed with these macros -- when the file is written only!! */
@@ -862,6 +859,8 @@ extern int VLockFileLock(struct VLockFile *lf, afs_uint32 offset,
                          int locktype, int nonblock);
 extern void VLockFileUnlock(struct VLockFile *lf, afs_uint32 offset);
 
+extern int VSetVolHashSize(int logsize);
+
 #ifdef AFS_DEMAND_ATTACH_FS
 extern Volume *VPreAttachVolumeByName(Error * ec, char *partition, char *name);
 extern Volume *VPreAttachVolumeByName_r(Error * ec, char *partition, char *name);
@@ -881,7 +880,6 @@ extern int VDisconnectSALV_r(void);
 extern void VPrintExtendedCacheStats(int flags);
 extern void VPrintExtendedCacheStats_r(int flags);
 extern void VLRU_SetOptions(int option, afs_uint32 val);
-extern int VSetVolHashSize(int logsize);
 extern int VRequestSalvage_r(Error * ec, Volume * vp, int reason, int flags);
 extern int VUpdateSalvagePriority_r(Volume * vp);
 extern int VRegisterVolOp_r(Volume * vp, FSSYNC_VolOp_info * vopinfo);

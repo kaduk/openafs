@@ -473,17 +473,12 @@ loop1:
 #endif
 #endif
 			ReleaseReadLock(&afs_xvcache);
-			ObtainWriteLock(&afs_xcbhash, 449);
-			afs_DequeueCallback(tvc);
-			tvc->f.states &= ~(CStatd | CUnique | CBulkFetching);
+			afs_StaleVCacheFlags(tvc, 0, CUnique | CBulkFetching);
 			afs_allCBs++;
 			if (tvc->f.fid.Fid.Vnode & 1)
 			    afs_oddCBs++;
 			else
 			    afs_evenCBs++;
-			ReleaseWriteLock(&afs_xcbhash);
-			if ((tvc->f.fid.Fid.Vnode & 1 || (vType(tvc) == VDIR)))
-			    osi_dnlc_purgedp(tvc);
 			afs_Trace3(afs_iclSetp, CM_TRACE_CALLBACK,
 				   ICL_TYPE_POINTER, tvc, ICL_TYPE_INT32,
 				   tvc->f.states, ICL_TYPE_INT32,
@@ -495,10 +490,10 @@ loop1:
 			uq = QPrev(tq);
 			AFS_FAST_RELE(tvc);
 		    } else if ((tvc->f.states & CMValid)
-			       && (tvc->mvid->Fid.Volume == a_fid->Volume)) {
+			       && (tvc->mvid.target_root->Fid.Volume == a_fid->Volume)) {
 			tvc->f.states &= ~CMValid;
 			if (!localFid.Cell)
-			    localFid.Cell = tvc->mvid->Cell;
+			    localFid.Cell = tvc->mvid.target_root->Cell;
 		    }
 		}
 		ReleaseReadLock(&afs_xvcache);
@@ -561,12 +556,7 @@ loop2:
 #endif
 #endif
 		    ReleaseReadLock(&afs_xvcache);
-		    ObtainWriteLock(&afs_xcbhash, 450);
-		    afs_DequeueCallback(tvc);
-		    tvc->f.states &= ~(CStatd | CUnique | CBulkFetching);
-		    ReleaseWriteLock(&afs_xcbhash);
-		    if ((tvc->f.fid.Fid.Vnode & 1 || (vType(tvc) == VDIR)))
-			osi_dnlc_purgedp(tvc);
+		    afs_StaleVCacheFlags(tvc, 0, CUnique | CBulkFetching);
 		    afs_Trace3(afs_iclSetp, CM_TRACE_CALLBACK,
 			       ICL_TYPE_POINTER, tvc, ICL_TYPE_INT32,
 			       tvc->f.states, ICL_TYPE_LONG, 0);
@@ -745,11 +735,9 @@ SRXAFSCB_InitCallBackState(struct rx_call *a_call)
 	    for (i = 0; i < VCSIZE; i++)
 		for (tvc = afs_vhashT[i]; tvc; tvc = tvc->hnext) {
 		    if (tvc->callback == ts) {
-			ObtainWriteLock(&afs_xcbhash, 451);
-			afs_DequeueCallback(tvc);
-			tvc->callback = NULL;
-			tvc->f.states &= ~(CStatd | CUnique | CBulkFetching);
-			ReleaseWriteLock(&afs_xcbhash);
+			afs_StaleVCacheFlags(tvc, AFS_STALEVC_NODNLC |
+						  AFS_STALEVC_CLEARCB,
+					     CUnique | CBulkFetching);
 		    }
 		}
 

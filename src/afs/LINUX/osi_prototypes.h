@@ -73,7 +73,7 @@ extern int osi_sysctl_init(void);
 extern void osi_sysctl_clean(void);
 
 /* osi_vm.c */
-extern int osi_VM_FlushVCache(struct vcache *avc, int *slept);
+extern int osi_VM_FlushVCache(struct vcache *avc);
 extern void osi_VM_TryToSmush(struct vcache *avc, afs_ucred_t *acred,
 			      int sync);
 extern void osi_VM_FSyncInval(struct vcache *avc);
@@ -81,6 +81,9 @@ extern void osi_VM_StoreAllSegments(struct vcache *avc);
 extern void osi_VM_FlushPages(struct vcache *avc, afs_ucred_t *credp);
 extern void osi_VM_Truncate(struct vcache *avc, int alen,
 			    afs_ucred_t *acred);
+
+/* osi_vcache.c */
+extern void osi_ResetRootVCache(afs_uint32 volid);
 
 /* osi_vfsops.c */
 extern void vattr2inode(struct inode *ip, struct vattr *vp);

@@ -81,24 +81,22 @@ install_only_libafs: only_libafs install_dirs
 
 dest: all dest_dirs
 	$(MAKE) build COMPILE_PART2B=dest
-	-${INSTALL_DATA} ${srcdir}/src/LICENSE ${DEST}/LICENSE
+	-${INSTALL_DATA} ${srcdir}/LICENSE ${DEST}/LICENSE
 
 dest_nolibafs: all_nolibafs dest_dirs
 	$(MAKE) build TARGET=finale_nolibafs COMPILE_PART2B=dest
-	-${INSTALL_DATA} ${srcdir}/src/LICENSE ${DEST}/LICENSE
+	-${INSTALL_DATA} ${srcdir}/LICENSE ${DEST}/LICENSE
 
 dest_only_libafs: only_libafs dest_dirs
 	$(MAKE) build TARGET=libafs COMPILE_PART2B=dest
-	-${INSTALL_DATA} ${srcdir}/src/LICENSE ${DEST}/LICENSE
-
-dpkg:
-	ln -fs ${srcdir}/src/packaging/Debian debian
-	dpkg-buildpackage -rfakeroot -b -us -uc
+	-${INSTALL_DATA} ${srcdir}/LICENSE ${DEST}/LICENSE
 
 packages: dest
 	@case ${SYS_NAME} in \
-	*_darwin_* ) \
+	*_darwin_1[2-4] | *_darwin_[6-9]0 | *_darwin_1[0-3]0 ) \
 		${COMPILE_PART1} packaging/MacOS && bash ./buildpkg.sh ${DEST} ;; \
+	*_darwin_* ) \
+		${COMPILE_PART1} packaging/MacOS && bash ./pkgbuild.sh ${DEST} ;; \
 	hp_ux110 ) \
 		${COMPILE_PART1} packaging/HP-UX && swpackage -s  psf-1.2.10-transarc-paths-11.00 ;; \
 	hp_ux11i ) \
@@ -137,7 +135,8 @@ dest_dirs: force
 	mkdir -p ${DEST}/root.server/etc
 	mkdir -p ${DEST}/root.server/usr/afs/bin
 
-prelude: ${TOP_INCDIR}/afs ${TOP_INCDIR}/rx ${TOP_INCDIR}/hcrypto ${TOP_INCDIR}/opr ${TOP_LIBDIR}
+prelude: ${TOP_INCDIR}/afs ${TOP_INCDIR}/rx ${TOP_INCDIR}/hcrypto \
+	${TOP_INCDIR}/opr ${TOP_LIBDIR}
 
 project: cmd comerr
 
@@ -251,7 +250,8 @@ tptserver: cmd comerr ptserver tubik libafsrpc libafsauthent
 		echo Not building MT ptserver for ${SYS_NAME} ;; \
 	esac
 
-kauth: cmd comerr ubik cmd auth comerr ptserver audit libacl kauth_depinstall sys_depinstall
+kauth: cmd comerr ubik cmd auth comerr ptserver audit libacl kauth_depinstall \
+	sys_depinstall
 	+${COMPILE_PART1} kauth ${COMPILE_PART2}
 
 libacl: cmd comerr ptserver libacl_depinstall
@@ -260,17 +260,7 @@ libacl: cmd comerr ptserver libacl_depinstall
 dir: cmd comerr libacl dir_depinstall
 	+${COMPILE_PART1} dir ${COMPILE_PART2}
 
-# Removed from sgi_* case below:
-# ${COMPILE_PART1} sgiefs ${COMPILE_PART2};;
-sgiefs:
-	+case ${SYS_NAME} in \
-	sgi_*) \
-                echo "SGI efs not supported" ;; \
-	*) \
-		echo No efs stuff for ${SYS_NAME};; \
-	esac
-
-vol: cmd comerr dir afs sgiefs $(DIR_roken)
+vol: cmd comerr dir afs $(DIR_roken)
 	+${COMPILE_PART1} vol ${COMPILE_PART2}
 
 tsalvaged: vol libafsrpc libafsauthent cmd util
@@ -287,7 +277,8 @@ tsalvaged: vol libafsrpc libafsauthent cmd util
 vlserver: cmd comerr vol audit vlserver_depinstall
 	+${COMPILE_PART1} vlserver ${COMPILE_PART2}
 
-tvlserver: cmd comerr vol audit tubik libafsrpc libafsauthent tvlserver_depinstall
+tvlserver: cmd comerr vol audit tubik libafsrpc libafsauthent \
+	tvlserver_depinstall
 	+case ${SYS_NAME} in \
 	alpha_dux*|sgi_*|sun*_5*|rs_aix*|*linux*|hp_ux11*|ia64_hpux*|*[nof]bsd*|*_darwin_*) \
 		${COMPILE_PART1} tvlserver ${COMPILE_PART2} ;; \
@@ -356,11 +347,7 @@ scout: cmd comerr gtx fsprobe
 	fi
 
 uss: hcrypto kauth cmd comerr rx vlserver vol volser
-	+if test "@BUILD_USS@" = "yes"; then \
-		${COMPILE_PART1} uss ${COMPILE_PART2} ; \
-	else \
-		echo Not building uss. ; \
-	fi
+	+${COMPILE_PART1} uss ${COMPILE_PART2}
 
 bozo: cmd comerr audit auth kauth volser
 	+${COMPILE_PART1} bozo ${COMPILE_PART2}
@@ -391,15 +378,6 @@ tsm41: cmd comerr kauth rxkad
 		echo Skipping tsm41 for ${SYS_NAME} ;; \
 	esac
 
-sgistuff: cmd comerr kauth rxkad
-	+set -x; \
-	case ${SYS_NAME} in \
-	sgi_* ) \
-		${COMPILE_PART1} sgistuff ${COMPILE_PART2} ;; \
-	* ) \
-		echo Skipping sgistuff for ${SYS_NAME} ;; \
-	esac
-
 aklog: auth comerr ptserver libafsauthent
 	+set -x; \
 	if test "@BUILD_KRB5@" = "yes"; then \
@@ -408,7 +386,7 @@ aklog: auth comerr ptserver libafsauthent
 		echo Skipping aklog for ${SYS_NAME} ; \
 	fi
 
-authtools: pam tsm41 sgistuff aklog
+authtools: pam tsm41 platform aklog
 
 platform: config cmd vol
 	+${COMPILE_PART1} platform ${COMPILE_PART2}
@@ -422,7 +400,8 @@ man-pages: config
 	fi
 
 #
-# _depinstall targets - only build and install headers/sources that are needed by libafs/libuafs
+# _depinstall targets - only build and install headers/sources that are
+#			needed by libafs/libuafs
 #
 # encode dependencies within the _depinstall targets as required
 #
@@ -490,8 +469,10 @@ libafs: config export rfc3961 hcrypto lwp_depinstall \
 	${CONFIGTOOL} src/libafs/MakefileProto.${MKAFS_OSTYPE} src/libafs/Makefile ${SYS_NAME}
 	+${COMPILE_PART1} libafs ${COMPILE_PART2}
 
-libafs_tree: export lwp_depinstall rx_depinstall vlserver_depinstall tvlserver_depinstall rxkad_depinstall fsint_depinstall \
-		libacl_depinstall afs_depinstall dir_depinstall rxstat_depinstall sys_depinstall auth_depinstall
+libafs_tree: export lwp_depinstall rx_depinstall vlserver_depinstall \
+		tvlserver_depinstall rxkad_depinstall fsint_depinstall \
+		libacl_depinstall afs_depinstall dir_depinstall \
+		rxstat_depinstall sys_depinstall auth_depinstall
 	${TOP_SRCDIR}/config/make_libafs_tree.pl \
 		-sn $(SYS_NAME) \
 		-os $(MKAFS_OSTYPE) \
@@ -506,9 +487,10 @@ libafs_tree: export lwp_depinstall rx_depinstall vlserver_depinstall tvlserver_d
 libuafs_setup: config export
 	${CONFIGTOOL} src/libuafs/MakefileProto.${MKAFS_OSTYPE} src/libuafs/Makefile ${SYS_NAME}
 
-libuafs: libuafs_setup vlserver_depinstall tvlserver_depinstall rx_depinstall fsint_depinstall \
-		auth_depinstall dir_depinstall libacl_depinstall rxkad_depinstall \
-		ubik_depinstall afs_depinstall kauth_depinstall ptserver_depinstall \
+libuafs: libuafs_setup vlserver_depinstall tvlserver_depinstall rx_depinstall \
+		fsint_depinstall auth_depinstall dir_depinstall \
+		libacl_depinstall rxkad_depinstall ubik_depinstall \
+		afs_depinstall kauth_depinstall ptserver_depinstall \
 		rxstat_depinstall lwp_depinstall sys_depinstall cmd hcrypto
 	+set -x; \
 	case ${SYS_NAME} in \
@@ -646,20 +628,20 @@ jafsadm: libjafsadm
 build_tools: config comerr rxgen
 	+${COMPILE_PART1} util ${COMPILE_PART2A} buildtools_clean
 
-finale: project cmd comerr afsd butc tbutc tbudb @ENABLE_KERNEL_MODULE@ libuafs audit kauth log \
-	ptserver tptserver scout bu_utils ubik uss bozo @VFSCK@ volser tvolser tsalvaged \
-	dviced dvolser libafscp\
-	venus venustests update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
-	libafsauthent libadmin man-pages \
-	tools platform kopenafs authtools $(DIR_roken)
+finale: project cmd comerr afsd butc tbutc tbudb @ENABLE_KERNEL_MODULE@ \
+	libuafs audit kauth log ptserver tptserver scout bu_utils ubik uss \
+	bozo @VFSCK@ volser tvolser tsalvaged dviced dvolser libafscp \
+	venus venustests update xstat afsmonitor rxdebug libafsrpc rfc3961 \
+	hcrypto libafsauthent libadmin man-pages tools platform kopenafs \
+	authtools $(DIR_roken)
 	+${COMPILE_PART1} finale ${COMPILE_PART2}
 
-finale_nolibafs: project cmd comerr afsd butc tbutc tbudb libuafs audit kauth log \
-	ptserver tptserver scout bu_utils ubik tubik uss bozo @VFSCK@ volser tvolser tsalvaged \
-	dviced dvolser libafscp\
-	venus venustests update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
-	libafsauthent libadmin man-pages \
-	tools platform kopenafs authtools $(DIR_roken)
+finale_nolibafs: project cmd comerr afsd butc tbutc tbudb libuafs audit kauth \
+	log ptserver tptserver scout bu_utils ubik tubik uss bozo @VFSCK@ \
+	volser tvolser tsalvaged dviced dvolser libafscp venus venustests \
+	update xstat afsmonitor rxdebug libafsrpc rfc3961 hcrypto \
+	libafsauthent libadmin man-pages tools platform kopenafs \
+	authtools $(DIR_roken)
 	+${COMPILE_PART1} finale ${COMPILE_PART2}
 
 rpctestlib: util fsint rx opr libafsrpc libafsauthent
@@ -733,7 +715,6 @@ clean2:
 	-${COMPILE_PART1} uss ${COMPILE_CLEAN}
 	-${COMPILE_PART1} bozo ${COMPILE_CLEAN}
 	-${COMPILE_PART1} vfsck ${COMPILE_CLEAN}
-	-${COMPILE_PART1} sgistuff ${COMPILE_CLEAN}
 	-${COMPILE_PART1} tsm41 ${COMPILE_CLEAN}
 	-${COMPILE_PART1} sia ${COMPILE_CLEAN}
 	-${COMPILE_PART1} aklog ${COMPILE_CLEAN}
@@ -830,7 +811,6 @@ distclean: clean
 	src/config/Makefile.lwp \
 	src/config/Makefile.lwptool \
 	src/config/Makefile.pthread \
-	src/config/Makefile.shared \
 	src/config/Makefile.version \
 	src/config/Makefile.version-CML \
 	src/config/Makefile.version-NOCML \
@@ -876,7 +856,6 @@ distclean: clean
 	src/lwp/Makefile \
 	src/lwp/test/Makefile \
 	src/opr/Makefile \
-	src/packaging/Debian/changelog \
 	src/packaging/MacOS/OpenAFS-debug.Description.plist \
 	src/packaging/MacOS/OpenAFS-debug.Info.plist \
 	src/packaging/MacOS/OpenAFS.Description.plist \
@@ -907,7 +886,6 @@ distclean: clean
 	src/rxosd/Makefile \
 	src/rxstat/Makefile \
 	src/scout/Makefile \
-	src/sgistuff/Makefile \
 	src/sys/Makefile \
 	src/tbutc/Makefile \
 	src/tests/Makefile \
@@ -948,7 +926,11 @@ distclean: clean
 	tests/opr/Makefile \
 	tests/util/Makefile \
 	tests/volser/Makefile \
-	src/helper-splint.sh
+	src/helper-splint.sh \
+	doc/xml/AdminGuide/Makefile \
+	doc/xml/QuickStartUnix/Makefile \
+	doc/xml/UserGuide/Makefile \
+	doc/xml/AdminRef/Makefile
 	if test -d doc/man-pages ; then \
 	    /bin/rm -f doc/man-pages/Makefile doc/man-pages/install-man ; \
 	fi
@@ -975,77 +957,8 @@ pristine: distclean
 		doc/man-pages/man5 \
 		doc/man-pages/man8 ; \
 	fi
-	if test -d doc/man-pages/pod1 ; then \
-	    /bin/rm -f \
-		doc/man-pages/pod1/fs_listquota.pod \
-		doc/man-pages/pod1/fs_quota.pod \
-		doc/man-pages/pod1/fs_setquota.pod \
-		doc/man-pages/pod1/fs_setvol.pod \
-		doc/man-pages/pod1/pts_adduser.pod \
-		doc/man-pages/pod1/pts_chown.pod \
-		doc/man-pages/pod1/pts_creategroup.pod \
-		doc/man-pages/pod1/pts_createuser.pod \
-		doc/man-pages/pod1/pts_delete.pod \
-		doc/man-pages/pod1/pts_examine.pod \
-		doc/man-pages/pod1/pts_interactive.pod \
-		doc/man-pages/pod1/pts_listentries.pod \
-		doc/man-pages/pod1/pts_listmax.pod \
-		doc/man-pages/pod1/pts_listowned.pod \
-		doc/man-pages/pod1/pts_membership.pod \
-		doc/man-pages/pod1/pts_quit.pod \
-		doc/man-pages/pod1/pts_removeuser.pod \
-		doc/man-pages/pod1/pts_rename.pod \
-		doc/man-pages/pod1/pts_setfields.pod \
-		doc/man-pages/pod1/pts_setmax.pod \
-		doc/man-pages/pod1/pts_sleep.pod \
-		doc/man-pages/pod1/pts_source.pod \
-		doc/man-pages/pod1/vos.pod \
-		doc/man-pages/pod1/vos_addsite.pod \
-		doc/man-pages/pod1/vos_backup.pod \
-		doc/man-pages/pod1/vos_backupsys.pod \
-		doc/man-pages/pod1/vos_changeaddr.pod \
-		doc/man-pages/pod1/vos_changeloc.pod \
-		doc/man-pages/pod1/vos_clone.pod \
-		doc/man-pages/pod1/vos_convertROtoRW.pod \
-		doc/man-pages/pod1/vos_copy.pod \
-		doc/man-pages/pod1/vos_create.pod \
-		doc/man-pages/pod1/vos_delentry.pod \
-		doc/man-pages/pod1/vos_dump.pod \
-		doc/man-pages/pod1/vos_endtrans.pod \
-		doc/man-pages/pod1/vos_examine.pod \
-		doc/man-pages/pod1/vos_listaddrs.pod \
-		doc/man-pages/pod1/vos_listpart.pod \
-		doc/man-pages/pod1/vos_listvldb.pod \
-		doc/man-pages/pod1/vos_listvol.pod \
-		doc/man-pages/pod1/vos_lock.pod \
-		doc/man-pages/pod1/vos_move.pod \
-		doc/man-pages/pod1/vos_offline.pod \
-		doc/man-pages/pod1/vos_online.pod \
-		doc/man-pages/pod1/vos_partinfo.pod \
-		doc/man-pages/pod1/vos_release.pod \
-		doc/man-pages/pod1/vos_remove.pod \
-		doc/man-pages/pod1/vos_remsite.pod \
-		doc/man-pages/pod1/vos_rename.pod \
-		doc/man-pages/pod1/vos_restore.pod \
-		doc/man-pages/pod1/vos_setaddrs.pod \
-		doc/man-pages/pod1/vos_setfields.pod \
-		doc/man-pages/pod1/vos_shadow.pod \
-		doc/man-pages/pod1/vos_size.pod \
-		doc/man-pages/pod1/vos_status.pod \
-		doc/man-pages/pod1/vos_syncserv.pod \
-		doc/man-pages/pod1/vos_syncvldb.pod \
-		doc/man-pages/pod1/vos_unlock.pod \
-		doc/man-pages/pod1/vos_unlockvldb.pod \
-		doc/man-pages/pod1/vos_zap.pod ; \
-	fi
-	if test -d doc/man-pages/pod8 ; then \
-	    /bin/rm -f \
-		doc/man-pages/pod8/dafileserver.pod \
-		doc/man-pages/pod8/dasalvager.pod \
-		doc/man-pages/pod8/davolserver.pod \
-		doc/man-pages/pod8/fileserver.pod \
-		doc/man-pages/pod8/salvager.pod \
-		doc/man-pages/pod8/volserver.pod ; \
-	fi
+	for i in doc/man-pages/pod*/*.pod.in; do \
+	    /bin/rm -f $${i%.in}; \
+	done
 
 maintainer-clean: pristine

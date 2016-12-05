@@ -20,6 +20,8 @@
 #include "afs/afs_cbqueue.h"
 #include "afs/afs_osidnlc.h"
 
+#include <opr/ffs.h>
+
 /* Forward declarations. */
 static void afs_GetDownD(int anumber, int *aneedSpace, afs_int32 buckethint);
 static int afs_FreeDiscardedDCache(void);
@@ -153,6 +155,29 @@ struct afs_cacheOps afs_MemCacheOps = {
 
 int cacheDiskType;		/*Type of backing disk for cache */
 struct afs_cacheOps *afs_cacheType;
+
+
+/*
+ * The PFlush algorithm makes use of the fact that Fid.Unique is not used in
+ * below hash algorithms.  Change it if need be so that flushing algorithm
+ * doesn't move things from one hash chain to another.
+ */
+/*Vnode, Chunk -> Hash table index */
+int DCHash(struct VenusFid *fid, afs_int32 chunk)
+{
+    afs_uint32 buf[3];
+
+    buf[0] = fid->Fid.Volume;
+    buf[1] = fid->Fid.Vnode;
+    buf[2] = chunk;
+    return opr_jhash(buf, 3, 0) & (afs_dhashsize - 1);
+}
+/*Vnode -> Other hash table index */
+int DVHash(struct VenusFid *fid)
+{
+    return opr_jhash_int2(fid->Fid.Volume, fid->Fid.Vnode, 0) &
+	(afs_dhashsize - 1);
+}
 
 /*!
  * Where is this vcache's entry associated dcache located/
@@ -542,6 +567,23 @@ afs_AdjustSize(struct dcache *adc, afs_int32 newSize)
     afs_int32 oldSize;
 
     AFS_STATCNT(afs_AdjustSize);
+
+    if (newSize > afs_OtherCSize && !(adc->f.fid.Fid.Vnode & 1)) {
+        /* No non-dir cache files should be larger than the chunk size.
+         * (Directory blobs are fetched in a single chunk file, so directories
+         * can be larger.) If someone is requesting that a chunk is larger than
+         * the chunk size, something strange is happening. Log a message about
+         * it, to give a hint to subsequent strange behavior, if any occurs. */
+        static int warned;
+        if (!warned) {
+            warned = 1;
+            afs_warn("afs: Warning: dcache %d is very large (%d > %d). This "
+                     "should not happen, but trying to continue regardless. If "
+                     "AFS starts hanging or behaving strangely, this might be "
+                     "why.\n",
+                     adc->index, newSize, afs_OtherCSize);
+        }
+    }
 
     adc->dflags |= DFEntryMod;
     oldSize = ((adc->f.chunkBytes + afs_fsfragsize) ^ afs_fsfragsize) >> 10;	/* round up */
@@ -2207,10 +2249,13 @@ afs_GetDCache(struct vcache *avc, afs_size_t abyte,
 		maxGoodLength = avc->f.truncPos;
 
 	    size = AFS_CHUNKSIZE(abyte);	/* expected max size */
-	    if (Position + size > maxGoodLength)
+            if (Position > maxGoodLength) { /* If we're beyond EOF */
+                size = 0;
+	    } else if (Position + size > maxGoodLength) {
 		size = maxGoodLength - Position;
-	    if (size < 0)
-		size = 0;	/* Handle random races */
+            }
+            osi_Assert(size >= 0);
+
 	    if (size > tdc->f.chunkBytes) {
 		/* pre-reserve estimated space for file */
 		afs_AdjustSize(tdc, size);	/* changes chunkBytes */
@@ -2234,12 +2279,12 @@ afs_GetDCache(struct vcache *avc, afs_size_t abyte,
 		 * avc->f.truncPos to reappear, instead of extending the file
 		 * with NUL bytes. */
 		size = AFS_CHUNKSIZE(abyte);
-		if (Position + size > avc->f.truncPos) {
+                if (Position > avc->f.truncPos) {
+                    size = 0;
+		} else if (Position + size > avc->f.truncPos) {
 		    size = avc->f.truncPos - Position;
 		}
-		if (size < 0) {
-		    size = 0;
-		}
+                osi_Assert(size >= 0);
 	    }
 	}
 	if (afs_mariner && !tdc->f.chunk)
@@ -2378,13 +2423,7 @@ afs_GetDCache(struct vcache *avc, afs_size_t abyte,
 		    afs_CFileTruncate(file, size);	/* prune it */
 		} else {
 		    if (!setLocks || slowPass) {
-			ObtainWriteLock(&afs_xcbhash, 453);
-			afs_DequeueCallback(avc);
-			avc->f.states &= ~(CStatd | CUnique);
-			avc->callback = NULL;
-			ReleaseWriteLock(&afs_xcbhash);
-			if (avc->f.fid.Fid.Vnode & 1 || (vType(avc) == VDIR))
-			    osi_dnlc_purgedp(avc);
+			afs_StaleVCacheFlags(avc, AFS_STALEVC_CLEARCB, CUnique);
 		    } else {
 			/* Something lost.  Forget about performance, and go
 			 * back with a vcache write lock.
@@ -2398,6 +2437,13 @@ afs_GetDCache(struct vcache *avc, afs_size_t abyte,
 			afs_PutDCache(tdc);
 			tdc = 0;
 			ReleaseReadLock(&avc->lock);
+
+			if (tc) {
+			    /* If we have a connection, we must put it back,
+			     * since afs_Analyze will not be called here. */
+			    afs_PutConn(tc, rxconn, SHARED_LOCK);
+			}
+
 			slowPass = 1;
 			goto RetryGetDCache;
 		    }
@@ -2452,12 +2498,7 @@ afs_GetDCache(struct vcache *avc, afs_size_t abyte,
 	    ReleaseWriteLock(&tdc->lock);
 	    afs_PutDCache(tdc);
 	    if (!afs_IsDynroot(avc)) {
-		ObtainWriteLock(&afs_xcbhash, 454);
-		afs_DequeueCallback(avc);
-		avc->f.states &= ~(CStatd | CUnique);
-		ReleaseWriteLock(&afs_xcbhash);
-		if (avc->f.fid.Fid.Vnode & 1 || (vType(avc) == VDIR))
-		    osi_dnlc_purgedp(avc);
+		afs_StaleVCacheFlags(avc, 0, CUnique);
 		/*
 		 * Locks held:
 		 * avc->lock(W); assert(!setLocks || slowPass)
@@ -2681,11 +2722,7 @@ afs_WriteThroughDSlots(void)
 	 */
 	struct afs_fheader theader;
 
-	theader.magic = AFS_FHMAGIC;
-	theader.firstCSize = AFS_FIRSTCSIZE;
-	theader.otherCSize = AFS_OTHERCSIZE;
-	theader.version = AFS_CI_VERSION;
-	theader.dataSize = sizeof(struct fcache);
+	afs_InitFHeader(&theader);
 	afs_osi_Write(afs_cacheInodep, 0, &theader, sizeof(theader));
     }
     ReleaseWriteLock(&afs_xdcache);
@@ -2700,14 +2737,14 @@ afs_WriteThroughDSlots(void)
  *
  * Parameters:
  *	aslot : Dcache slot to look at.
- *      needvalid : Whether the specified slot should already exist
+ *      type : What 'type' of dslot to get; see the dslot_state enum
  *
  * Environment:
  *	Must be called with afs_xdcache write-locked.
  */
 
 struct dcache *
-afs_MemGetDSlot(afs_int32 aslot, int indexvalid, int datavalid)
+afs_MemGetDSlot(afs_int32 aslot, dslot_state type)
 {
     struct dcache *tdc;
     int existing = 0;
@@ -2728,10 +2765,14 @@ afs_MemGetDSlot(afs_int32 aslot, int indexvalid, int datavalid)
 	return tdc;
     }
 
-    /* if 'indexvalid' is true, the slot must already exist and be populated
-     * somewhere. for memcache, the only place that dcache entries exist is
-     * in memory, so if we did not find it above, something is very wrong. */
-    osi_Assert(!indexvalid);
+    /* if we got here, the given slot is not in memory in our list of known
+     * slots. for memcache, the only place a dslot can exist is in memory, so
+     * if the caller is expecting to get back a known dslot, and we've reached
+     * here, something is very wrong. DSLOT_NEW is the only type of dslot that
+     * may not exist; for all others, the caller assumes the given dslot
+     * already exists. so, 'type' had better be DSLOT_NEW here, or something is
+     * very wrong. */
+    osi_Assert(type == DSLOT_NEW);
 
     if (!afs_freeDSList)
 	afs_GetDownDSlot(4);
@@ -2792,20 +2833,13 @@ unsigned int last_error = 0, lasterrtime = 0;
  *
  * Parameters:
  *	aslot : Dcache slot to look at.
- *      indexvalid : 1 if we know the slot we're giving is valid, and thus
- *                   reading the dcache from the disk index should succeed. 0
- *                   if we are initializing a new dcache, and so reading from
- *                   the disk index may fail.
- *      datavalid : 0 if we are loading a dcache entry from the free or
- *                  discard list, so we know the data in the given dcache is
- *                  not valid. 1 if we are loading a known used dcache, so the
- *                  data in the dcache must be valid.
+ *      type : What 'type' of dslot to get; see the dslot_state enum
  *
  * Environment:
  *	afs_xdcache lock write-locked.
  */
 struct dcache *
-afs_UFSGetDSlot(afs_int32 aslot, int indexvalid, int datavalid)
+afs_UFSGetDSlot(afs_int32 aslot, dslot_state type)
 {
     afs_int32 code;
     struct dcache *tdc;
@@ -2868,7 +2902,10 @@ afs_UFSGetDSlot(afs_int32 aslot, int indexvalid, int datavalid)
 	last_error = code;
 #endif
 	lasterrtime = osi_Time();
-	if (indexvalid) {
+	if (type != DSLOT_NEW) {
+	    /* If we are requesting a non-DSLOT_NEW slot, this is an error.
+	     * non-DSLOT_NEW slots are supposed to already exist, so if we
+	     * failed to read in the slot, something is wrong. */
 	    struct osi_stat tstat;
 	    if (afs_osi_Stat(afs_cacheInodep, &tstat)) {
 		tstat.size = -1;
@@ -2888,22 +2925,22 @@ afs_UFSGetDSlot(afs_int32 aslot, int indexvalid, int datavalid)
     }
     if (!afs_CellNumValid(tdc->f.fid.Cell)) {
 	entryok = 0;
-	if (datavalid) {
+	if (type == DSLOT_VALID) {
 	    osi_Panic("afs: needed valid dcache but index %d off %d has "
 	              "invalid cell num %d\n",
 	              (int)aslot, off, (int)tdc->f.fid.Cell);
 	}
     }
 
-    if (datavalid && tdc->f.fid.Fid.Volume == 0) {
+    if (type == DSLOT_VALID && tdc->f.fid.Fid.Volume == 0) {
 	osi_Panic("afs: invalid zero-volume dcache entry at slot %d off %d",
 	          (int)aslot, off);
     }
 
-    if (indexvalid && !datavalid) {
-	/* we know that the given dslot does exist, but the data in it is not
-	 * valid. this only occurs when we pull a dslot from the free or
-	 * discard list, so be sure not to re-use the data; force invalidation.
+    if (type == DSLOT_UNUSED) {
+	/* the requested dslot is known to exist, but contain invalid data
+	 * (this happens when we're using a dslot from the free or discard
+	 * list). be sure not to re-use the data in it, so force invalidation.
 	 */
 	entryok = 0;
     }
@@ -2918,14 +2955,12 @@ afs_UFSGetDSlot(afs_int32 aslot, int indexvalid, int datavalid)
 	tdc->f.states &= ~(DRO|DBackup|DRW);
 	afs_DCMoveBucket(tdc, 0, 0);
     } else {
-	if (&tdc->f != 0) {
-	    if (tdc->f.states & DRO) {
-		afs_DCMoveBucket(tdc, 0, 2);
-	    } else if (tdc->f.states & DBackup) {
-		afs_DCMoveBucket(tdc, 0, 1);
-	    } else {
-		afs_DCMoveBucket(tdc, 0, 1);
-	    }
+	if (tdc->f.states & DRO) {
+	    afs_DCMoveBucket(tdc, 0, 2);
+	} else if (tdc->f.states & DBackup) {
+	    afs_DCMoveBucket(tdc, 0, 1);
+	} else {
+	    afs_DCMoveBucket(tdc, 0, 1);
 	}
     }
     tdc->refCount = 1;
@@ -3225,6 +3260,7 @@ afs_dcacheInit(int afiles, int ablocks, int aDentries, int achunk, int aflags)
     struct dcache *tdp;
     int i;
     int code;
+    int afs_dhashbits;
 
     afs_freeDCList = NULLIDX;
     afs_discardDCList = NULLIDX;
@@ -3246,8 +3282,18 @@ afs_dcacheInit(int afiles, int ablocks, int aDentries, int achunk, int aflags)
     if (!aDentries)
 	aDentries = DDSIZE;
 
+    /* afs_dhashsize defaults to 1024 */
     if (aDentries > 512)
 	afs_dhashsize = 2048;
+    /* Try to keep the average chain length around two unless the table
+     * would be ridiculously big. */
+    if (aDentries > 4096) {
+	afs_dhashbits = opr_fls(aDentries) - 3;
+	/* Cap the hash tables to 32k entries. */
+	if (afs_dhashbits > 15)
+	    afs_dhashbits = 15;
+	afs_dhashsize = opr_jhash_size(afs_dhashbits);
+    }
     /* initialize hash tables */
     afs_dvhashTbl = afs_osi_Alloc(afs_dhashsize * sizeof(afs_int32));
     osi_Assert(afs_dvhashTbl != NULL);

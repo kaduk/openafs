@@ -70,8 +70,6 @@ rx_IncrementTimeAndCount
 rx_Init
 rx_InitHost
 rx_InterruptCall
-rx_KeepAliveOff
-rx_KeepAliveOn
 rx_KeyCreate
 rx_MyMaxSendSize
 rx_NewCall
@@ -92,7 +90,6 @@ rx_SecurityObjectOf
 rx_ServerProc
 rx_ServiceIdOf
 rx_ServiceOf
-rx_SetBusyChannelError
 rx_SetConnDeadTime
 rx_SetConnHardDeadTime
 rx_SetConnIdleDeadTime

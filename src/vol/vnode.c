@@ -30,6 +30,7 @@
 #ifdef AFS_PTHREAD_ENV
 #include <opr/lock.h>
 #endif
+#include <opr/jhash.h>
 #include "rx/rx_queue.h"
 #include <afs/afsint.h>
 #include "nfs.h"
@@ -52,35 +53,6 @@
 struct VnodeClassInfo VnodeClassInfo[nVNODECLASSES];
 
 void VNLog(afs_int32 aop, afs_int32 anparms, ... );
-
-extern int LogLevel;
-
-
-
-
-#define BAD_IGET	-1000
-
-/* There are two separate vnode queue types defined here:
- * Each hash conflict chain -- is singly linked, with a single head
- * pointer. New entries are added at the beginning. Old
- * entries are removed by linear search, which generally
- * only occurs after a disk read).
- * LRU chain -- is doubly linked, single head pointer.
- * Entries are added at the head, reclaimed from the tail,
- * or removed from anywhere in the queue.
- */
-
-
-/* Vnode hash table.  Find hash chain by taking lower bits of
- * (volume_hash_offset + vnode).
- * This distributes the root inodes of the volumes over the
- * hash table entries and also distributes the vnodes of
- * volumes reasonably fairly.  The volume_hash_offset field
- * for each volume is established as the volume comes on line
- * by using the VOLUME_HASH_OFFSET macro.  This distributes the
- * volumes fairly among the cache entries, both when servicing
- * a small number of volumes and when servicing a large number.
- */
 
 /* logging stuff for finding bugs */
 #define	THELOGSIZE	5120
@@ -109,37 +81,33 @@ VNLog(afs_int32 aop, afs_int32 anparms, ... )
     va_end(ap);
 }
 
-/* VolumeHashOffset -- returns a new value to be stored in the
- * volumeHashOffset of a Volume structure.  Called when a
- * volume is initialized.  Sets the volumeHashOffset so that
- * vnode cache entries are distributed reasonably between
- * volumes (the root vnodes of the volumes will hash to
- * different values, and spacing is maintained between volumes
- * when there are not many volumes represented), and spread
- * equally amongst vnodes within a single volume.
- */
-int
-VolumeHashOffset_r(void)
-{
-    static int nextVolumeHashOffset = 0;
-    /* hashindex Must be power of two in size */
-#   define hashShift 3
-#   define hashMask ((1<<hashShift)-1)
-    static byte hashindex[1 << hashShift] =
-	{ 0, 128, 64, 192, 32, 160, 96, 224 };
-    int offset;
-    offset = hashindex[nextVolumeHashOffset & hashMask]
-	+ (nextVolumeHashOffset >> hashShift);
-    nextVolumeHashOffset++;
-    return offset;
-}
 
-/* Change hashindex (above) if you change this constant */
-#define VNODE_HASH_TABLE_SIZE 256
+/* Vnode hash table.  Just use the Jenkins hash of the vnode number,
+ * with the volume ID as an initval because it's there.  (That will
+ * make the same vnode number in different volumes hash to a different
+ * value, which would probably not even be a big deal anyway.)
+ */
+
+#define VNODE_HASH_TABLE_BITS 11
+#define VNODE_HASH_TABLE_SIZE opr_jhash_size(VNODE_HASH_TABLE_BITS)
+#define VNODE_HASH_TABLE_MASK opr_jhash_mask(VNODE_HASH_TABLE_BITS)
 private Vnode *VnodeHashTable[VNODE_HASH_TABLE_SIZE];
 #define VNODE_HASH(volumeptr,vnodenumber)\
-    ((volumeptr->vnodeHashOffset + vnodenumber)&(VNODE_HASH_TABLE_SIZE-1))
+    (opr_jhash_int((vnodenumber), V_id((volumeptr))) & VNODE_HASH_TABLE_MASK)
 
+
+
+#define BAD_IGET	-1000
+
+/* There are two separate vnode queue types defined here:
+ * Each hash conflict chain -- is singly linked, with a single head
+ * pointer. New entries are added at the beginning. Old
+ * entries are removed by linear search, which generally
+ * only occurs after a disk read).
+ * LRU chain -- is doubly linked, single head pointer.
+ * Entries are added at the head, reclaimed from the tail,
+ * or removed from anywhere in the queue.
+ */
 
 /**
  * add a vnode to the volume's vnode list.
@@ -981,7 +949,7 @@ VnLoad(Error * ec, Volume * vp, Vnode * vnp,
 	    Log("VnLoad: Couldn't read vnode %u, volume %" AFS_VOLID_FMT " (%s); volume needs salvage\n", Vn_id(vnp), afs_printable_VolumeId_lu(V_id(vp)), V_name(vp));
 	} else {
 	    /* vnode is not allocated */
-	    if (LogLevel >= 5)
+	    if (GetLogLevel() >= 5)
 		Log("VnLoad: Couldn't read vnode %u, volume %" AFS_VOLID_FMT " (%s); read %d bytes, errno %d\n",
 		    Vn_id(vnp), afs_printable_VolumeId_lu(V_id(vp)), V_name(vp), (int)nBytes, errno);
 	    *ec = VNOVNODE;
@@ -1428,8 +1396,8 @@ VPutVnode_r(Error * ec, Vnode * vnp)
 	    if (vnp->changed_newTime)
 	    {
 		V_updateDate(vp) = vp->updateTime = now;
-		if(V_volUpCounter(vp)< UINT_MAX)
-			V_volUpCounter(vp)++;
+		if(V_volUpdateCounter(vp)< UINT_MAX)
+			V_volUpdateCounter(vp)++;
 	    }
 
 	    /* The vnode has been changed. Write it out to disk */

@@ -327,13 +327,17 @@ _afsconf_CellServDBPath(struct afsconf_dir *adir, char **path)
     /* NT client CellServDB has different file name than NT server or Unix */
     if (_afsconf_IsClientConfigDirectory(adir->name)) {
 	if (!afssw_GetClientCellServDBDir(&p)) {
-	    asprintf(path, "%s/%s", p, AFSDIR_CELLSERVDB_FILE_NTCLIENT);
+	    if (asprintf(path, "%s/%s", p, AFSDIR_CELLSERVDB_FILE_NTCLIENT) < 0)
+		*path = NULL;
 	    free(p);
 	} else {
-	    asprintf(path, "%s/%s", adir->name, AFSDIR_CELLSERVDB_FILE_NTCLIENT);
+	    if (asprintf(path, "%s/%s", adir->name,
+			 AFSDIR_CELLSERVDB_FILE_NTCLIENT) < 0)
+		*path = NULL;
 	}
     } else {
-	asprintf(path, "%s/%s", adir->name, AFSDIR_CELLSERVDB_FILE);
+	if (asprintf(path, "%s/%s", adir->name, AFSDIR_CELLSERVDB_FILE) < 0)
+	    *path = NULL;
     }
     return;
 }
@@ -341,7 +345,8 @@ _afsconf_CellServDBPath(struct afsconf_dir *adir, char **path)
 static void
 _afsconf_CellServDBPath(struct afsconf_dir *adir, char **path)
 {
-    asprintf(path, "%s/%s", adir->name, AFSDIR_CELLSERVDB_FILE);
+    if (asprintf(path, "%s/%s", adir->name, AFSDIR_CELLSERVDB_FILE) < 0)
+	*path = NULL;
 }
 #endif /* AFS_NT40_ENV */
 
@@ -448,7 +453,8 @@ afsconf_Open(const char *adir)
 	    /* The "AFSCONF" environment (or contents of "/.AFSCONF") will be typically set to something like "/afs/<cell>/common/etc" where, by convention, the default files for "ThisCell" and "CellServDB" will reside; note that a major drawback is that a given afs client on that cell may NOT contain the same contents... */
 	    char *home_dir;
 	    afsconf_FILE *fp;
-	    size_t len;
+	    size_t len = 0;
+	    int r;
 
 	    if (!(home_dir = getenv("HOME"))) {
 		/* Our last chance is the "/.AFSCONF" file */
@@ -456,13 +462,11 @@ afsconf_Open(const char *adir)
 		if (fp == 0)
 		    goto fail;
 
-		fgets(afs_confdir, 128, fp);
-		fclose(fp);
 	    } else {
 		char *pathname = NULL;
 
-		asprintf(&pathname, "%s/%s", home_dir, ".AFSCONF");
-		if (pathname == NULL)
+		r = asprintf(&pathname, "%s/%s", home_dir, ".AFSCONF");
+		if (r < 0 || pathname == NULL)
 		    goto fail;
 
 		fp = fopen(pathname, "r");
@@ -474,10 +478,10 @@ afsconf_Open(const char *adir)
 		    if (fp == 0)
 			goto fail;
 		}
-		fgets(afs_confdir, 128, fp);
-		fclose(fp);
 	    }
-	    len = strlen(afs_confdir);
+	    if (fgets(afs_confdir, 128, fp) != NULL)
+		len = strlen(afs_confdir);
+	    fclose(fp);
 	    if (len == 0)
 		goto fail;
 
@@ -839,7 +843,8 @@ static int
 ParseHostLine(char *aline, struct sockaddr_in *addr, char *aname,
 	      char *aclone)
 {
-    int c1, c2, c3, c4;
+    int i;
+    int c[4];
     afs_int32 code;
     char *tp;
 
@@ -847,25 +852,34 @@ ParseHostLine(char *aline, struct sockaddr_in *addr, char *aname,
 	if (aclone)
 	    *aclone = 1;
 	/* FIXME: length of aname unknown here */
-	code = sscanf(aline, "[%d.%d.%d.%d] #%s", &c1, &c2, &c3, &c4, aname);
+	code = sscanf(aline, "[%d.%d.%d.%d] #%s", &c[0], &c[1], &c[2], &c[3],
+		      aname);
     } else {
 	if (aclone)
 	    *aclone = 0;
 	/* FIXME: length of aname unknown here */
-	code = sscanf(aline, "%d.%d.%d.%d #%s", &c1, &c2, &c3, &c4, aname);
+	code = sscanf(aline, "%d.%d.%d.%d #%s", &c[0], &c[1], &c[2], &c[3],
+		      aname);
     }
     if (code != 5)
 	return AFSCONF_SYNTAX;
+    for(i = 0; i < 4; ++i) {
+	if (c[i] < 0 || c[i] > 255) {
+	    fprintf(stderr, "Illegal IP address %d.%d.%d.%d\n", c[0], c[1],
+		    c[2], c[3]);
+	    return AFSCONF_SYNTAX;
+	}
+    }
     addr->sin_family = AF_INET;
     addr->sin_port = 0;
 #ifdef STRUCT_SOCKADDR_HAS_SA_LEN
     addr->sin_len = sizeof(struct sockaddr_in);
 #endif
     tp = (char *)&addr->sin_addr;
-    *tp++ = c1;
-    *tp++ = c2;
-    *tp++ = c3;
-    *tp++ = c4;
+    *tp++ = c[0];
+    *tp++ = c[1];
+    *tp++ = c[2];
+    *tp++ = c[3];
     return 0;
 }
 
@@ -960,11 +974,12 @@ afsconf_GetExtendedCellInfo(struct afsconf_dir *adir, char *acellName,
 int
 afsconf_LookupServer(const char *service, const char *protocol,
 		     const char *cellName, unsigned short afsdbPort,
-		     int *cellHostAddrs, char cellHostNames[][MAXHOSTCHARS],
+		     afs_uint32 *cellHostAddrs, char cellHostNames[][MAXHOSTCHARS],
 		     unsigned short ports[], unsigned short ipRanks[],
 		     int *numServers, int *ttl, char **arealCellName)
 {
     int code = 0;
+    int r;
     int len;
     unsigned char answer[4096];
     unsigned char *p;
@@ -1002,25 +1017,26 @@ afsconf_LookupServer(const char *service, const char *protocol,
 #endif
 
  retryafsdb:
+    r = -1;
     switch (pass) {
     case 0:
 	dnstype = T_SRV;
-	asprintf(&dotcellname, "_%s._%s.%s.", IANAname, protocol, cellName);
+	r = asprintf(&dotcellname, "_%s._%s.%s.", IANAname, protocol, cellName);
 	break;
     case 1:
 	dnstype = T_AFSDB;
-	asprintf(&dotcellname, "%s.", cellName);
+	r = asprintf(&dotcellname, "%s.", cellName);
 	break;
     case 2:
 	dnstype = T_SRV;
-	asprintf(&dotcellname, "_%s._%s.%s", IANAname, protocol, cellName);
+	r = asprintf(&dotcellname, "_%s._%s.%s", IANAname, protocol, cellName);
 	break;
     case 3:
 	dnstype = T_AFSDB;
-	asprintf(&dotcellname, "%s", cellName);
+	r = asprintf(&dotcellname, "%s", cellName);
 	break;
     }
-    if (dotcellname == NULL)
+    if (r < 0 || dotcellname == NULL)
 	goto findservererror;
 
     LOCK_GLOBAL_MUTEX;
@@ -1098,7 +1114,7 @@ afsconf_LookupServer(const char *service, const char *protocol,
 		/* Do we want to get TTL data for the A record as well? */
 		(he = gethostbyname(host))) {
 		if (he->h_addrtype == AF_INET) {
-		    afs_int32 ipaddr;
+		    afs_uint32 ipaddr;
 		    memcpy(&ipaddr, he->h_addr, sizeof(ipaddr));
 		    cellHostAddrs[server_num] = ipaddr;
 		    ports[server_num] = afsdbPort;
@@ -1132,7 +1148,7 @@ afsconf_LookupServer(const char *service, const char *protocol,
 		/* Do we want to get TTL data for the A record as well? */
 		(he = gethostbyname(host))) {
 		if (he->h_addrtype == AF_INET) {
-		    afs_int32 ipaddr;
+		    afs_uint32 ipaddr;
 
 		    memcpy(&ipaddr, he->h_addr, sizeof(ipaddr));
 		    cellHostAddrs[server_num] = ipaddr;
@@ -1182,7 +1198,7 @@ int
 afsconf_GetAfsdbInfo(char *acellName, char *aservice,
 		     struct afsconf_cell *acellInfo)
 {
-    afs_int32 cellHostAddrs[AFSMAXCELLHOSTS];
+    afs_uint32 cellHostAddrs[AFSMAXCELLHOSTS];
     char cellHostNames[AFSMAXCELLHOSTS][MAXHOSTCHARS];
     unsigned short ipRanks[AFSMAXCELLHOSTS];
     unsigned short ports[AFSMAXCELLHOSTS];
@@ -1250,7 +1266,7 @@ afsconf_GetAfsdbInfo(char *acellName, char *aservice,
     int tservice = afsconf_FindService(aservice);   /* network byte order */
     const char *ianaName = afsconf_FindIANAName(aservice);
     struct afsconf_entry DNSce;
-    afs_int32 cellHostAddrs[AFSMAXCELLHOSTS];
+    afs_uint32 cellHostAddrs[AFSMAXCELLHOSTS];
     char cellHostNames[AFSMAXCELLHOSTS][MAXHOSTCHARS];
     unsigned short ipRanks[AFSMAXCELLHOSTS];
     unsigned short ports[AFSMAXCELLHOSTS];          /* network byte order */
@@ -1470,7 +1486,7 @@ afsconf_GetCellInfo(struct afsconf_dir *adir, char *acellName, char *aservice,
  *
  * @return status
  *    @retval 0 success
- *    @retval AFSCONF_UNKNOWN failed to get cellname
+ *    @retval AFSCONF_NOCELLNAME cannot determine local cell name
  *
  * @internal
  */
@@ -1503,7 +1519,7 @@ _afsconf_GetLocalCell(struct afsconf_dir *adir, char **pname, int check)
 	if (adir->cellName) {
 	    *pname = adir->cellName;
 	} else
-	    code = AFSCONF_UNKNOWN;
+	    code = AFSCONF_NOCELLNAME;
     }
     return code;
 }

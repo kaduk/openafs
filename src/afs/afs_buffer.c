@@ -236,7 +236,7 @@ DRead(struct dcache *adc, int page, struct DirBuffer *entry)
 	afs_reset_inode(&tb->inode);
 	tb->lockers--;
 	ReleaseWriteLock(&tb->lock);
-	return EIO;
+	return ENOENT; /* past the end */
     }
     tfile = afs_CFileOpen(&adc->f.inode);
     code =
@@ -379,6 +379,8 @@ afs_newslot(struct dcache *adc, afs_int32 apage, struct buffer *lp)
 	AFS_STATS(afs_stats_cmperf.bufFlushDirty++);
     }
 
+    /* Zero out the data so we don't leak something we shouldn't. */
+    memset(lp->data, 0, AFS_BUFFER_PAGESIZE);
     /* Now fill in the header. */
     lp->fid = adc->index;
     afs_copy_inode(&lp->inode, &adc->f.inode);

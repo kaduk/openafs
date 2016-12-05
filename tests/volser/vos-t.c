@@ -57,7 +57,10 @@ TestListAddrs(struct ubik_client *client, char *dirname)
     is_int(0, code, "Second address registration succeeds");
 
     /* Now we need to run vos ListAddrs and see what happens ... */
-    pipe(outpipe);
+    if (pipe(outpipe) < 0) {
+	perror("pipe");
+	exit(1);
+    }
     pid = fork();
     if (pid == 0) {
 	char *build, *binPath;
@@ -70,7 +73,10 @@ TestListAddrs(struct ubik_client *client, char *dirname)
 	if (build == NULL)
 	    build = "..";
 
-	asprintf(&binPath, "%s/../src/volser/vos", build);
+	if (asprintf(&binPath, "%s/../src/volser/vos", build) < 0) {
+	    fprintf(stderr, "Out of memory building vos arguments\n");
+	    exit(1);
+	}
 	execl(binPath, "vos",
 	      "listaddrs", "-config", dirname, "-noauth", NULL);
 	exit(1);

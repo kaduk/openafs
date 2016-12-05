@@ -56,6 +56,7 @@
 #define XBSA_TCMAIN
 #include "butc_xbsa.h"
 #include "butc_prototypes.h"
+#include "butc_internal.h"
 
 #define N_SECURITY_OBJECTS 3
 #define ERRCODE_RANGE 8		/* from error_table.h */
@@ -954,7 +955,7 @@ WorkerBee(struct cmd_syndesc *as, void *arock)
 	struct stat sbuf;
 	afs_int32 statcode;
 #ifndef AFS_NT40_ENV
-	char path[AFSDIR_PATH_MAX];
+	char *path;
 #endif
 
 	statcode = stat(centralLogFile, &sbuf);
@@ -966,7 +967,8 @@ WorkerBee(struct cmd_syndesc *as, void *arock)
 	}
 #ifndef AFS_NT40_ENV
 	/* Make sure it is not in AFS, has to have been created first */
-	if (!realpath(centralLogFile, path)) {
+	path = malloc(AFSDIR_PATH_MAX);
+	if (path == NULL || !realpath(centralLogFile, path)) {
 	    fprintf(stderr,
 		    "Warning: can't determine real path of '%s' (%d)\n",
 		    centralLogFile, errno);
@@ -977,6 +979,7 @@ WorkerBee(struct cmd_syndesc *as, void *arock)
 		exit(1);
 	    }
 	}
+	free(path);
 #endif
 
 	/* Write header if created it */
@@ -1175,7 +1178,7 @@ main(int argc, char **argv)
 
     setlinebuf(stdout);
 
-    ts = cmd_CreateSyntax(NULL, WorkerBee, NULL, "tape coordinator");
+    ts = cmd_CreateSyntax(NULL, WorkerBee, NULL, 0, "tape coordinator");
     cmd_AddParm(ts, "-port", CMD_SINGLE, CMD_OPTIONAL, "port offset");
     cmd_AddParm(ts, "-debuglevel", CMD_SINGLE, CMD_OPTIONAL, "0 | 1 | 2");
     cmd_AddParm(ts, "-cell", CMD_SINGLE, CMD_OPTIONAL, "cell name");

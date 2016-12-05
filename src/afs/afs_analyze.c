@@ -197,6 +197,9 @@ VLDB_Same(struct VenusFid *afid, struct vrequest *areq)
 	    }
 	}
 
+	tvp->states &= ~VRecheck;     /* Just checked it. */
+	tvp->setupTime = osi_Time();  /* Time the vldb was checked. */
+
 	ReleaseWriteLock(&tvp->lock);
 	afs_PutVolume(tvp, WRITE_LOCK);
     } else {			/* can't find volume */
@@ -276,8 +279,8 @@ afs_BlackListOnce(struct vrequest *areq, struct VenusFid *afid,
 
 /*!
  * \brief
- *	Analyze the outcome of an RPC operation, taking whatever support
- *	actions are necessary.
+ *	Clear any cached status for the target FID of a failed fileserver
+ *	write RPC.
  *
  * \param[in]     afid   The FID of the file involved in the action.  This argument
  *                       may be null if none was involved.
@@ -314,7 +317,8 @@ afs_ClearStatus(struct VenusFid *afid, int op, struct volume *avp)
 	ObtainReadLock(&afs_xvcache);
 	if ((tvc = afs_FindVCache(afid, 0, 0))) {
 	    ReleaseReadLock(&afs_xvcache);
-	    tvc->f.states &= ~(CStatd | CUnique);
+	    afs_StaleVCacheFlags(tvc, AFS_STALEVC_NOCB | AFS_STALEVC_NODNLC,
+				 CUnique);
 	    afs_PutVCache(tvc);
 	} else {
 	    ReleaseReadLock(&afs_xvcache);
@@ -385,6 +389,7 @@ afs_PrintServerErrors(struct vrequest *areq, struct VenusFid *afid)
  *	actions are necessary.
  *
  * \param[in]     aconn  Ptr to the relevant connection on which the call was made.
+ * \param[in]     rxconn Ptr to the rx_connection.
  * \param[in]     acode  The return code experienced by the RPC.
  * \param[in]     fid    The FID of the file involved in the action.  This argument
  *                       may be null if none was involved.
@@ -621,11 +626,11 @@ afs_Analyze(struct afs_conn *aconn, struct rx_connection *rxconn,
     if (acode == -455)
 	acode = 455;
 #endif /* AFS_64BIT_CLIENT */
-    if (acode == RX_MSGSIZE || acode == RX_CALL_BUSY) {
+    if (acode == RX_MSGSIZE) {
 	shouldRetry = 1;
 	goto out;
     }
-    if (acode == RX_CALL_TIMEOUT || acode == RX_CALL_IDLE || acode == VNOSERVICE) {
+    if (acode == RX_CALL_TIMEOUT || acode == VNOSERVICE) {
 	serversleft = afs_BlackListOnce(areq, afid, tsp);
 	if (afid)
 	    tvp = afs_FindVolume(afid, READ_LOCK);

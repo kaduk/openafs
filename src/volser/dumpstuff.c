@@ -62,7 +62,7 @@ static int DumpVnodeIndex(struct iod *iodp, Volume * vp,
 			  VnodeClass class, afs_int32 fromtime,
 			  int forcedump);
 static int DumpVnode(struct iod *iodp, struct VnodeDiskObject *v,
-		     int volid, int vnodeNumber, int dumpEverything);
+		     VolumeId volid, int vnodeNumber, int dumpEverything);
 static int ReadDumpHeader(struct iod *iodp, struct DumpHeader *hp);
 static int ReadVnodes(struct iod *iodp, Volume * vp, int incremental,
 		      afs_foff_t * Lbuf, afs_int32 s1, afs_foff_t * Sbuf,
@@ -82,7 +82,7 @@ static int SizeDumpVnodeIndex(struct iod *iodp, Volume * vp,
 			      int forcedump,
 			      struct volintSize *size);
 static int SizeDumpVnode(struct iod *iodp, struct VnodeDiskObject *v,
-			 int volid, int vnodeNumber, int dumpEverything,
+			 VolumeId volid, int vnodeNumber, int dumpEverything,
 			 struct volintSize *size);
 
 #define MAX_SECTIONS    3
@@ -265,12 +265,17 @@ ReadString(struct iod *iodp, char *to, int maxa)
     }
 }
 
-static void
-ReadByteString(struct iod *iodp, byte * to,
-	       int size)
+static int
+ReadByteString(struct iod *iodp, byte * to, int size)
 {
-    while (size--)
-	*to++ = iod_getc(iodp);
+    int nbytes = 0;
+    int c;
+
+    while (size-- > 0 && (c = iod_getc(iodp)) != EOF) {
+	*to++ = c;
+	nbytes++;
+    }
+    return nbytes;
 }
 
 /*
@@ -1042,10 +1047,12 @@ DumpDumpHeader(struct iod *iodp, Volume * vp,
 	dumpTimes[1] = V_updateDate(vp);	/* until last update */
 	break;
     case readonlyVolume:
-	dumpTimes[1] = V_copyDate(vp);		/* until clone was made */
+	dumpTimes[1] = V_creationDate(vp);	/* until clone was updated */
 	break;
     case backupVolume:
-	dumpTimes[1] = V_backupDate(vp);	/* until backup was made */
+	/* until backup was made */
+	dumpTimes[1] = V_backupDate(vp) != 0 ? V_backupDate(vp) :
+					       V_creationDate(vp);
 	break;
     default:
 	code = EINVAL;
@@ -1056,12 +1063,13 @@ DumpDumpHeader(struct iod *iodp, Volume * vp,
 }
 
 static int
-DumpVnode(struct iod *iodp, struct VnodeDiskObject *v, int volid,
+DumpVnode(struct iod *iodp, struct VnodeDiskObject *v, VolumeId volid,
 	  int vnodeNumber, int dumpEverything)
 {
     int code = 0;
     IHandle_t *ihP;
     FdHandle_t *fdP;
+    afs_ino_str_t stmp;
 
     if (!v || v->type == vNull)
 	return code;
@@ -1090,7 +1098,11 @@ DumpVnode(struct iod *iodp, struct VnodeDiskObject *v, int volid,
     if (!code)
 	code = DumpInt32(iodp, 's', v->serverModifyTime);
     if (v->type == vDirectory) {
-	acl_HtonACL(VVnodeDiskACL(v));
+	code = acl_HtonACL(VVnodeDiskACL(v));
+	if (code) {
+	    Log("DumpVnode: Skipping invalid acl vnode %u (volume %"AFS_VOLID_FMT")\n",
+		 vnodeNumber, afs_printable_VolumeId_lu(volid));
+	}
 	if (!code)
 	    code =
 		DumpByteString(iodp, 'A', (byte *) VVnodeDiskACL(v),
@@ -1101,7 +1113,11 @@ DumpVnode(struct iod *iodp, struct VnodeDiskObject *v, int volid,
 	IH_INIT(ihP, iodp->device, iodp->parentId, VNDISK_GET_INO(v));
 	fdP = IH_OPEN(ihP);
 	if (fdP == NULL) {
-	    Log("1 Volser: DumpVnode: dump: Unable to open inode %llu for vnode %u (volume %i); not dumped, error %d\n", (afs_uintmax_t) VNDISK_GET_INO(v), vnodeNumber, volid, errno);
+	    Log("1 Volser: DumpVnode: dump: Unable to open inode %s "
+		"for vnode %u (volume %" AFS_VOLID_FMT "); "
+		"not dumped, error %d\n",
+		PrintInode(stmp, VNDISK_GET_INO(v)), vnodeNumber,
+		afs_printable_VolumeId_lu(volid), errno);
 	    IH_RELEASE(ihP);
 	    return VOLSERREAD_DUMPERROR;
 	}
@@ -1110,10 +1126,11 @@ DumpVnode(struct iod *iodp, struct VnodeDiskObject *v, int volid,
 	if (indexlen != disklen) {
 	    FDH_REALLYCLOSE(fdP);
 	    IH_RELEASE(ihP);
-	    Log("DumpVnode: volume %lu vnode %lu has inconsistent length "
-	        "(index %lu disk %lu); aborting dump\n",
-	        (unsigned long)volid, (unsigned long)vnodeNumber,
-	        (unsigned long)indexlen, (unsigned long)disklen);
+	    Log("DumpVnode: volume %"AFS_VOLID_FMT" "
+		"vnode %lu has inconsistent length "
+		"(index %lu disk %lu); aborting dump\n",
+		afs_printable_VolumeId_lu(volid), (unsigned long)vnodeNumber,
+		(unsigned long)indexlen, (unsigned long)disklen);
 	    return VOLSERREAD_DUMPERROR;
 	}
 	code = DumpFile(iodp, vnodeNumber, fdP);
@@ -1138,6 +1155,7 @@ ProcessIndex(Volume * vp, VnodeClass class, afs_foff_t ** Bufp, int *sizep,
     struct VnodeClassInfo *vcp = &VnodeClassInfo[class];
     char buf[SIZEOF_LARGEDISKVNODE], zero[SIZEOF_LARGEDISKVNODE];
     struct VnodeDiskObject *vnode = (struct VnodeDiskObject *)buf;
+    afs_ino_str_t stmp;
 
     memset(zero, 0, sizeof(zero));	/* zero out our proto-vnode */
     fdP = IH_OPEN(vp->vnodeIndex[class].handle);
@@ -1156,9 +1174,12 @@ ProcessIndex(Volume * vp, VnodeClass class, afs_foff_t ** Bufp, int *sizep,
 		    if (vnode->type != vNull && VNDISK_GET_INO(vnode)) {
 			cnt1++;
 			if (DoLogging) {
-			    Log("RestoreVolume %u Cleanup: Removing old vnode=%u inode=%llu size=unknown\n",
-                     V_id(vp), bitNumberToVnodeNumber(i, class),
-                     (afs_uintmax_t) VNDISK_GET_INO(vnode));
+			    Log("RestoreVolume %"AFS_VOLID_FMT" "
+				"Cleanup: Removing old vnode=%u inode=%s "
+				"size=unknown\n",
+				afs_printable_VolumeId_lu(V_id(vp)),
+				bitNumberToVnodeNumber(i, class),
+				PrintInode(stmp, VNDISK_GET_INO(vnode)));
 			}
 			IH_DEC(V_linkHandle(vp), VNDISK_GET_INO(vnode),
 			       V_parentId(vp));
@@ -1347,6 +1368,7 @@ ReadVnodes(struct iod *iodp, Volume * vp, int incremental,
     FdHandle_t *fdP;
     Inode nearInode AFS_UNUSED;
     afs_int32 critical = 0;
+    int nbytes;
 
     tag = iod_getc(iodp);
     V_pref(vp, nearInode);
@@ -1412,9 +1434,18 @@ ReadVnodes(struct iod *iodp, Volume * vp, int incremental,
 		    return VOLSERREAD_DUMPERROR;
 		break;
 	    case 'A':
-		ReadByteString(iodp, (byte *) VVnodeDiskACL(vnode),
+		nbytes = ReadByteString(iodp, (byte *) VVnodeDiskACL(vnode),
 			       VAclDiskSize(vnode));
-		acl_NtohACL(VVnodeDiskACL(vnode));
+		if (nbytes != VAclDiskSize(vnode)) {
+		    Log("ReadVnodes: could not read acl for vnode %lu in dump.\n",
+			 (unsigned long)vnodeNumber);
+		    return VOLSERREAD_DUMPERROR;
+		}
+		if (acl_NtohACL(VVnodeDiskACL(vnode)) != 0) {
+		    Log("ReadVnodes: invalid acl for vnode %lu in dump.\n",
+			 (unsigned long)vnodeNumber);
+		    return VOLSERREAD_DUMPERROR;
+		}
 		break;
 	    case 'h':
 	    case 'f':{
@@ -1794,7 +1825,7 @@ SizeDumpDumpHeader(struct iod *iodp, Volume * vp,
 }
 
 static int
-SizeDumpVnode(struct iod *iodp, struct VnodeDiskObject *v, int volid,
+SizeDumpVnode(struct iod *iodp, struct VnodeDiskObject *v, VolumeId volid,
 	      int vnodeNumber, int dumpEverything,
 	      struct volintSize *v_size)
 {

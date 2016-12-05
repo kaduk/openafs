@@ -72,6 +72,15 @@
 #include "rx_conn.h"
 #include "rx_call.h"
 
+/*!
+ * \brief structure used to keep track of allocated packets
+ */
+struct rx_mallocedPacket {
+    struct opr_queue entry;	/*!< chained using opr_queue */
+    struct rx_packet *addr;	/*!< address of the first element */
+    afs_uint32 size;		/*!< array size in bytes */
+};
+
 #ifdef RX_LOCKS_DB
 /* rxdb_fileID is used to identify the lock location, along with line#. */
 static int rxdb_fileID = RXDB_FILE_RX_PACKET;
@@ -536,6 +545,33 @@ rxi_AllocDataBuf(struct rx_packet *p, int nb, int class)
     return nb;
 }
 
+/**
+ * Register allocated packets.
+ *
+ * @param[in] addr array of packets
+ * @param[in] npkt number of packets
+ *
+ * @return none
+ */
+static void
+registerPackets(struct rx_packet *addr, afs_uint32 npkt)
+{
+    struct rx_mallocedPacket *mp;
+
+    mp = osi_Alloc(sizeof(*mp));
+
+    osi_Assert(mp != NULL);
+    memset(mp, 0, sizeof(*mp));
+
+    mp->addr = addr;
+    mp->size = npkt * sizeof(struct rx_packet);
+    osi_Assert(npkt <= MAX_AFS_UINT32 / sizeof(struct rx_packet));
+
+    MUTEX_ENTER(&rx_mallocedPktQ_lock);
+    opr_queue_Append(&rx_mallocedPacketQueue, &mp->entry);
+    MUTEX_EXIT(&rx_mallocedPktQ_lock);
+}
+
 /* Add more packet buffers */
 #ifdef RX_ENABLE_TSFPQ
 void
@@ -549,6 +585,7 @@ rxi_MorePackets(int apackets)
     getme = apackets * sizeof(struct rx_packet);
     p = osi_Alloc(getme);
     osi_Assert(p);
+    registerPackets(p, apackets);
 
     PIN(p, getme);		/* XXXXX */
     memset(p, 0, getme);
@@ -603,6 +640,7 @@ rxi_MorePackets(int apackets)
     getme = apackets * sizeof(struct rx_packet);
     p = osi_Alloc(getme);
     osi_Assert(p);
+    registerPackets(p, apackets);
 
     PIN(p, getme);		/* XXXXX */
     memset(p, 0, getme);
@@ -645,6 +683,7 @@ rxi_MorePacketsTSFPQ(int apackets, int flush_global, int num_keep_local)
 
     getme = apackets * sizeof(struct rx_packet);
     p = osi_Alloc(getme);
+    registerPackets(p, apackets);
 
     PIN(p, getme);		/* XXXXX */
     memset(p, 0, getme);
@@ -713,6 +752,7 @@ rxi_MorePacketsNoLock(int apackets)
         }
     } while(p == NULL);
     memset(p, 0, getme);
+    registerPackets(p, apackets);
 
 #ifdef RX_ENABLE_TSFPQ
     RX_TS_INFO_GET(rx_ts_info);
@@ -749,11 +789,19 @@ rxi_MorePacketsNoLock(int apackets)
 void
 rxi_FreeAllPackets(void)
 {
-    /* must be called at proper interrupt level, etcetera */
-    /* MTUXXX need to free all Packets */
-    osi_Free(rx_mallocedP,
-	     (rx_maxReceiveWindow + 2) * sizeof(struct rx_packet));
-    UNPIN(rx_mallocedP, (rx_maxReceiveWindow + 2) * sizeof(struct rx_packet));
+    struct rx_mallocedPacket *mp;
+
+    MUTEX_ENTER(&rx_mallocedPktQ_lock);
+
+    while (!opr_queue_IsEmpty(&rx_mallocedPacketQueue)) {
+	mp = opr_queue_First(&rx_mallocedPacketQueue,
+			     struct rx_mallocedPacket, entry);
+	opr_queue_Remove(&mp->entry);
+	osi_Free(mp->addr, mp->size);
+	UNPIN(mp->addr, mp->size);
+	osi_Free(mp, sizeof(*mp));
+    }
+    MUTEX_EXIT(&rx_mallocedPktQ_lock);
 }
 
 #ifdef RX_ENABLE_TSFPQ
@@ -1116,32 +1164,6 @@ rxi_AllocPacketNoLock(int class)
     struct rx_ts_info_t * rx_ts_info;
 
     RX_TS_INFO_GET(rx_ts_info);
-
-#ifdef KERNEL
-    if (rxi_OverQuota(class)) {
-	rxi_NeedMorePackets = TRUE;
-        if (rx_stats_active) {
-            switch (class) {
-            case RX_PACKET_CLASS_RECEIVE:
-                rx_atomic_inc(rx_stats.receivePktAllocFailures);
-                break;
-            case RX_PACKET_CLASS_SEND:
-                rx_atomic_inc(&rx_stats.sendPktAllocFailures);
-                break;
-            case RX_PACKET_CLASS_SPECIAL:
-                rx_atomic_inc(&rx_stats.specialPktAllocFailures);
-                break;
-            case RX_PACKET_CLASS_RECV_CBUF:
-                rx_atomic_inc(&rx_stats.receiveCbufPktAllocFailures);
-                break;
-            case RX_PACKET_CLASS_SEND_CBUF:
-                rx_atomic_inc(&rx_stats.sendCbufPktAllocFailures);
-                break;
-            }
-	}
-        return (struct rx_packet *)0;
-    }
-#endif /* KERNEL */
 
     if (rx_stats_active)
         rx_atomic_inc(&rx_stats.packetRequests);
@@ -2032,16 +2054,16 @@ rxi_ReceiveDebugPacket(struct rx_packet *ap, osi_socket asocket,
 		return ap;
 
 	    /* Since its all int32s convert to network order with a loop. */
-        if (rx_stats_active)
-	    MUTEX_ENTER(&rx_stats_mutex);
+	    if (rx_stats_active)
+		MUTEX_ENTER(&rx_stats_mutex);
 	    s = (afs_int32 *) & rx_stats;
 	    for (i = 0; i < sizeof(rx_stats) / sizeof(afs_int32); i++, s++)
 		rx_PutInt32(ap, i * sizeof(afs_int32), htonl(*s));
 
 	    tl = ap->length;
 	    ap->length = sizeof(rx_stats);
-        if (rx_stats_active)
-	    MUTEX_EXIT(&rx_stats_mutex);
+	    if (rx_stats_active)
+		MUTEX_EXIT(&rx_stats_mutex);
 	    rxi_SendDebugPacket(ap, asocket, ahost, aport, istack);
 	    ap->length = tl;
 	    break;
@@ -2104,6 +2126,7 @@ rxi_SendDebugPacket(struct rx_packet *apacket, osi_socket asocket,
     taddr.sin_family = AF_INET;
     taddr.sin_port = aport;
     taddr.sin_addr.s_addr = ahost;
+    memset(&taddr.sin_zero, 0, sizeof(taddr.sin_zero));
 #ifdef STRUCT_SOCKADDR_HAS_SA_LEN
     taddr.sin_len = sizeof(struct sockaddr_in);
 #endif
@@ -2204,6 +2227,7 @@ rxi_SendPacket(struct rx_call *call, struct rx_connection *conn,
     addr.sin_family = AF_INET;
     addr.sin_port = peer->port;
     addr.sin_addr.s_addr = peer->host;
+    memset(&addr.sin_zero, 0, sizeof(addr.sin_zero));
 
     /* This stuff should be revamped, I think, so that most, if not
      * all, of the header stuff is always added here.  We could
@@ -2357,6 +2381,7 @@ rxi_SendPacketList(struct rx_call *call, struct rx_connection *conn,
     addr.sin_family = AF_INET;
     addr.sin_port = peer->port;
     addr.sin_addr.s_addr = peer->host;
+    memset(&addr.sin_zero, 0, sizeof(addr.sin_zero));
 
     if (len + 1 > RX_MAXIOVECS) {
 	osi_Panic("rxi_SendPacketList, len > RX_MAXIOVECS\n");
@@ -2370,19 +2395,17 @@ rxi_SendPacketList(struct rx_call *call, struct rx_connection *conn,
     conn->serial += len;
     for (i = 0; i < len; i++) {
 	p = list[i];
+	/* a ping *or* a sequenced packet can count */
 	if (p->length > conn->peer->maxPacketSize) {
-	    /* a ping *or* a sequenced packet can count */
-	    if ((p->length > conn->peer->maxPacketSize)) {
-		if (((p->header.type == RX_PACKET_TYPE_ACK) &&
-		     (p->header.flags & RX_REQUEST_ACK)) &&
-		    ((i == 0) || (p->length >= conn->lastPingSize))) {
-		    conn->lastPingSize = p->length;
-		    conn->lastPingSizeSer = serial + i;
-		} else if ((p->header.seq != 0) &&
-			   ((i == 0) || (p->length >= conn->lastPacketSize))) {
-		    conn->lastPacketSize = p->length;
-		    conn->lastPacketSizeSeq = p->header.seq;
-		}
+	    if (((p->header.type == RX_PACKET_TYPE_ACK) &&
+		 (p->header.flags & RX_REQUEST_ACK)) &&
+		((i == 0) || (p->length >= conn->lastPingSize))) {
+		conn->lastPingSize = p->length;
+		conn->lastPingSizeSer = serial + i;
+	    } else if ((p->header.seq != 0) &&
+		       ((i == 0) || (p->length >= conn->lastPacketSize))) {
+		conn->lastPacketSize = p->length;
+		conn->lastPacketSizeSeq = p->header.seq;
 	    }
 	}
     }
@@ -2562,6 +2585,7 @@ rxi_SendRawAbort(osi_socket socket, afs_uint32 host, u_short port,
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = host;
     addr.sin_port = port;
+    memset(&addr.sin_zero, 0, sizeof(addr.sin_zero));
 #ifdef STRUCT_SOCKADDR_HAS_SA_LEN
     addr.sin_len = sizeof(struct sockaddr_in);
 #endif

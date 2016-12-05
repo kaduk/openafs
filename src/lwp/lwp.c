@@ -35,9 +35,9 @@ int setlim(int limcon, uchar_t hard, int limit);
 
 #ifndef AFS_ARM_LINUX20_ENV
 #if defined(AFS_OSF_ENV) || defined(AFS_S390_LINUX20_ENV)
-extern int PRE_Block;		/* from preempt.c */
+int PRE_Block;	/* Remnants of preemption support. */
 #else
-extern char PRE_Block;		/* from preempt.c */
+char PRE_Block;	/* Remnants of preemption support. */
 #endif
 #endif
 
@@ -979,11 +979,15 @@ Overflow_Complain(void)
     currenttime = time(0);
     timeStamp = ctime(&currenttime);
     timeStamp[24] = 0;
-    write(2, timeStamp, strlen(timeStamp));
+    if (write(2, timeStamp, strlen(timeStamp)) < 0)
+	return;
 
-    write(2, msg1, strlen(msg1));
-    write(2, lwp_cpptr->name, strlen(lwp_cpptr->name));
-    write(2, msg2, strlen(msg2));
+    if (write(2, msg1, strlen(msg1)) < 0)
+	return;
+    if (write(2, lwp_cpptr->name, strlen(lwp_cpptr->name)) < 0)
+	return;
+    if (write(2, msg2, strlen(msg2)) < 0)
+	return;
 }
 
 static void

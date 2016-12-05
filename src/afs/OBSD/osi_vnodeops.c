@@ -978,7 +978,9 @@ afs_obsd_lock(void *v)
 
     if (!vc)
 	panic("afs_obsd_lock: null vcache");
-    return afs_osi_lockmgr(&vc->rwlock, ap->a_flags | LK_CANRECURSE, VP_INTERLOCK, ap->a_p);
+    return afs_osi_lockmgr(&vc->rwlock,
+	(ap->a_flags & LK_RECURSEFAIL) ? ap->a_flags : ap->a_flags | LK_CANRECURSE,
+	VP_INTERLOCK, ap->a_p);
 }
 
 int
@@ -1030,6 +1032,9 @@ afs_obsd_strategy(void *v)
     struct ucred *credp = osi_curcred();
     long len = abp->b_bcount;
     int code;
+
+    memset(&tuio, 0, sizeof(tuio));
+    memset(&tiovec, 0, sizeof(tiovec));
 
     AFS_STATCNT(afs_strategy);
 

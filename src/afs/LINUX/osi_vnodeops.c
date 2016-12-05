@@ -1,7 +1,7 @@
 /*
  * Copyright 2000, International Business Machines Corporation and others.
  * All Rights Reserved.
- * 
+ *
  * This software has been released under the terms of the IBM Public
  * License.  For details, see the LICENSE file in the top-level source
  * directory or online at http://www.openafs.org/dl/license10.html
@@ -14,7 +14,7 @@
  * So far the only truly scary part is that Linux relies on the inode cache
  * to be up to date. Don't you dare break a callback and expect an fstat
  * to give you meaningful information. This appears to be fixed in the 2.1
- * development kernels. As it is we can fix this now by intercepting the 
+ * development kernels. As it is we can fix this now by intercepting the
  * stat calls.
  */
 
@@ -289,7 +289,7 @@ afs_linux_write(struct file *fp, const char *buf, size_t count, loff_t * offp)
 }
 #endif
 
-extern int BlobScan(struct dcache * afile, afs_int32 ablob);
+extern int BlobScan(struct dcache * afile, afs_int32 ablob, afs_int32 *ablobOut);
 
 /* This is a complete rewrite of afs_readdir, since we can make use of
  * filldir instead of afs_readdir_move. Note that changes to vcache/dcache
@@ -307,7 +307,7 @@ afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
     struct dcache *tdc;
     int code;
     int offset;
-    int dirpos;
+    afs_int32 dirpos;
     struct DirEntry *de;
     struct DirBuffer entry;
     ino_t ino;
@@ -339,7 +339,7 @@ afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
     tdc = afs_GetDCache(avc, (afs_size_t) 0, treq, &origOffset, &tlen, 1);
     len = tlen;
     if (!tdc) {
-	code = -ENOENT;
+	code = -EIO;
 	goto out;
     }
     ObtainWriteLock(&avc->lock, 811);
@@ -385,8 +385,8 @@ afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
     offset = (int) fp->f_pos;
 #endif
     while (1) {
-	dirpos = BlobScan(tdc, offset);
-	if (!dirpos)
+	code = BlobScan(tdc, offset, &dirpos);
+	if (code || !dirpos)
 	    break;
 
 	code = afs_dir_GetVerifiedBlob(tdc, dirpos, &entry);
@@ -403,7 +403,7 @@ afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
 		UpgradeSToWLock(&avc->lock, 814);
 		avc->f.states |= CCorrupt;
 	    }
-	    code = -ENOENT;
+	    code = -EIO;
 	    goto unlock_out;
         }
 
@@ -425,7 +425,7 @@ afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
 	    if ((avc->f.states & CForeign) == 0 && (ntohl(de->fid.vnode) & 1)) {
 		type = DT_DIR;
 	    } else if ((tvc = afs_FindVCache(&afid, 0, 0))) {
-		if (tvc->mvstat) {
+		if (tvc->mvstat != AFS_MVSTAT_FILE) {
 		    type = DT_DIR;
 		} else if (((tvc->f.states) & (CStatd | CTruth))) {
 		    /* CTruth will be set if the object has
@@ -443,7 +443,7 @@ afs_linux_readdir(struct file *fp, void *dirbuf, filldir_t filldir)
 		/* clean up from afs_FindVCache */
 		afs_PutVCache(tvc);
 	    }
-	    /* 
+	    /*
 	     * If this is NFS readdirplus, then the filler is going to
 	     * call getattr on this inode, which will deadlock if we're
 	     * holding the GLOCK.
@@ -583,13 +583,13 @@ afs_linux_fsync(struct file *fp, int datasync)
     cred_t *credp = crref();
 
 #if defined(FOP_FSYNC_TAKES_RANGE)
-    mutex_lock(&ip->i_mutex);
+    afs_linux_lock_inode(ip);
 #endif
     AFS_GLOCK();
     code = afs_fsync(VTOAFS(ip), credp);
     AFS_GUNLOCK();
 #if defined(FOP_FSYNC_TAKES_RANGE)
-    mutex_unlock(&ip->i_mutex);
+    afs_linux_unlock_inode(ip);
 #endif
     crfree(credp);
     return afs_convert_code(code);
@@ -604,7 +604,7 @@ afs_linux_lock(struct file *fp, int cmd, struct file_lock *flp)
     struct vcache *vcp = VTOAFS(FILE_INODE(fp));
     cred_t *credp = crref();
     struct AFS_FLOCK flock;
-    
+
     /* Convert to a lock format afs_lockctl understands. */
     memset(&flock, 0, sizeof(flock));
     flock.l_type = flp->fl_type;
@@ -630,7 +630,7 @@ afs_linux_lock(struct file *fp, int cmd, struct file_lock *flp)
     code = afs_convert_code(afs_lockctl(vcp, &flock, cmd, credp));
     AFS_GUNLOCK();
 
-    if ((code == 0 || flp->fl_type == F_UNLCK) && 
+    if ((code == 0 || flp->fl_type == F_UNLCK) &&
         (cmd == F_SETLK || cmd == F_SETLKW)) {
 	code = afs_posix_lock_file(fp, flp);
 	if (code && flp->fl_type != F_UNLCK) {
@@ -653,7 +653,7 @@ afs_linux_lock(struct file *fp, int cmd, struct file_lock *flp)
             return 0;
         }
     }
-    
+
     /* Convert flock back to Linux's file_lock */
     flp->fl_type = flock.l_type;
     flp->fl_pid = flock.l_pid;
@@ -696,7 +696,7 @@ afs_linux_flock(struct file *fp, int cmd, struct file_lock *flp) {
     code = afs_convert_code(afs_lockctl(vcp, &flock, cmd, credp));
     AFS_GUNLOCK();
 
-    if ((code == 0 || flp->fl_type == F_UNLCK) && 
+    if ((code == 0 || flp->fl_type == F_UNLCK) &&
         (cmd == F_SETLK || cmd == F_SETLKW)) {
 	flp->fl_flags &=~ FL_SLEEP;
 	code = flock_lock_file_wait(fp, flp);
@@ -819,8 +819,10 @@ struct file_operations afs_file_fops = {
 #ifdef STRUCT_FILE_OPERATIONS_HAS_READ_ITER
   .read_iter =	afs_linux_read_iter,
   .write_iter =	afs_linux_write_iter,
+# if !defined(HAVE_LINUX___VFS_READ)
   .read =	new_sync_read,
   .write =	new_sync_write,
+# endif
 #elif defined(HAVE_LINUX_GENERIC_FILE_AIO_READ)
   .aio_read =	afs_linux_aio_read,
   .aio_write =	afs_linux_aio_write,
@@ -844,7 +846,7 @@ struct file_operations afs_file_fops = {
 #if defined(STRUCT_FILE_OPERATIONS_HAS_SENDFILE)
   .sendfile =   generic_file_sendfile,
 #endif
-#if defined(STRUCT_FILE_OPERATIONS_HAS_SPLICE)
+#if defined(STRUCT_FILE_OPERATIONS_HAS_SPLICE) && !defined(HAVE_LINUX_DEFAULT_FILE_SPLICE_READ)
 # if defined(HAVE_LINUX_ITER_FILE_SPLICE_WRITE)
   .splice_write = iter_file_splice_write,
 # else
@@ -932,44 +934,6 @@ canonical_dentry(struct inode *ip)
  * AFS Linux dentry operations
  **********************************************************************/
 
-/* fix_bad_parent() : called if this dentry's vcache is a root vcache
- * that has its mvid (parent dir's fid) pointer set to the wrong directory
- * due to being mounted in multiple points at once. fix_bad_parent()
- * calls afs_lookup() to correct the vcache's mvid, as well as the volume's
- * dotdotfid and mtpoint fid members.
- * Parameters:
- *   dp - dentry to be checked.
- *   credp - credentials
- *   vcp, pvc - item's and parent's vcache pointer
- * Return Values:
- *   None.
- * Sideeffects:
- *   This dentry's vcache's mvid will be set to the correct parent directory's
- *   fid.
- *   This root vnode's volume will have its dotdotfid and mtpoint fids set
- *   to the correct parent and mountpoint fids.
- */
-
-static inline void
-fix_bad_parent(struct dentry *dp, cred_t *credp, struct vcache *vcp, struct vcache *pvc) 
-{
-    struct vcache *avc = NULL;
-    int code;
-
-    /* force a lookup, so vcp->mvid is fixed up */
-    code = afs_lookup(pvc, (char *)dp->d_name.name, &avc, credp);
-    if (code || vcp != avc) {	/* bad, very bad.. */
-	afs_Trace4(afs_iclSetp, CM_TRACE_TMP_1S3L, ICL_TYPE_STRING,
-		   "check_bad_parent: bad pointer returned from afs_lookup origvc newvc dentry",
-		   ICL_TYPE_POINTER, vcp, ICL_TYPE_POINTER, avc,
-		   ICL_TYPE_POINTER, dp);
-    }
-    if (avc)
-	AFS_RELE(AFSTOV(avc));
-
-    return;
-}
-
 /* afs_linux_revalidate
  * Ensure vcache is stat'd before use. Return 0 if entry is valid.
  */
@@ -981,7 +945,7 @@ afs_linux_revalidate(struct dentry *dp)
     cred_t *credp;
     int code;
 
-    if (afs_shuttingdown)
+    if (afs_shuttingdown != AFS_RUNNING)
 	return EIO;
 
     AFS_GLOCK();
@@ -991,30 +955,11 @@ afs_linux_revalidate(struct dentry *dp)
 	goto out;
     }
 
-#ifdef notyet
-    /* Make this a fast path (no crref), since it's called so often. */
-    if (vcp->states & CStatd) {
-	struct vcache *pvc = VTOAFS(dp->d_parent->d_inode);
-
-	if (*dp->d_name.name != '/' && vcp->mvstat == 2) {	/* root vnode */
-	    if (vcp->mvid->Fid.Volume != pvc->fid.Fid.Volume) {	/* bad parent */
-		credp = crref();
-		AFS_GLOCK();
-		fix_bad_parent(dp);	/* check and correct mvid */
-		AFS_GUNLOCK();
-		crfree(credp);
-	    }
-	}
-	afs_DestroyAttr(vattr);
-	return 0;
-    }
-#endif
-
     /* This avoids the crref when we don't have to do it. Watch for
      * changes in afs_getattr that don't get replicated here!
      */
     if (vcp->f.states & CStatd &&
-        (!afs_fakestat_enable || vcp->mvstat != 1) &&
+        (!afs_fakestat_enable || vcp->mvstat != AFS_MVSTAT_MTPT) &&
 	!afs_nfsexporter &&
 	(vType(vcp) == VDIR || vType(vcp) == VLNK)) {
 	code = afs_CopyOutAttrs(vcp, vattr);
@@ -1155,7 +1100,7 @@ parent_vcache_dv(struct inode *inode, cred_t *credp)
      * us.  The fake entry is the one with the useful DataVersion.
      */
     pvcp = VTOAFS(inode);
-    if (pvcp->mvstat == 1 && afs_fakestat_enable) {
+    if (pvcp->mvstat == AFS_MVSTAT_MTPT && afs_fakestat_enable) {
 	struct vrequest treq;
 	struct afs_fakestat_state fakestate;
 
@@ -1176,7 +1121,7 @@ parent_vcache_dv(struct inode *inode, cred_t *credp)
 /* Validate a dentry. Return 1 if unchanged, 0 if VFS layer should re-evaluate.
  * In kernels 2.2.10 and above, we are passed an additional flags var which
  * may have either the LOOKUP_FOLLOW OR LOOKUP_DIRECTORY set in which case
- * we are advised to follow the entry if it is a link or to make sure that 
+ * we are advised to follow the entry if it is a link or to make sure that
  * it is a directory. But since the kernel itself checks these possibilities
  * later on, we shouldn't have to do it until later. Perhaps in the future..
  *
@@ -1196,7 +1141,6 @@ afs_linux_dentry_revalidate(struct dentry *dp, int flags)
     struct dentry *parent;
     int valid;
     struct afs_fakestat_state fakestate;
-    int locked = 0;
     int force_drop = 0;
     afs_uint32 parent_dv;
 
@@ -1210,6 +1154,7 @@ afs_linux_dentry_revalidate(struct dentry *dp, int flags)
        return -ECHILD;
 #endif
 
+    AFS_GLOCK();
     afs_InitFakeStat(&fakestate);
 
     if (dp->d_inode) {
@@ -1218,25 +1163,16 @@ afs_linux_dentry_revalidate(struct dentry *dp, int flags)
 	if (vcp == afs_globalVp)
 	    goto good_dentry;
 
-	parent = dget_parent(dp);
-	pvcp = VTOAFS(parent->d_inode);
-
-	if ((vcp->mvstat == 1) || (vcp->mvstat == 2) ||
-		(pvcp->mvstat == 1 && afs_fakestat_enable)) {	/* need to lock */
-	    credp = crref();
-	    AFS_GLOCK();
-	    locked = 1;
-	}
-
-	if (locked && vcp->mvstat == 1) {         /* mount point */
-	    if (vcp->mvid && (vcp->f.states & CMValid)) {
+	if (vcp->mvstat == AFS_MVSTAT_MTPT) {
+	    if (vcp->mvid.target_root && (vcp->f.states & CMValid)) {
 		int tryEvalOnly = 0;
 		int code = 0;
 		struct vrequest *treq = NULL;
 
+		credp = crref();
+
 		code = afs_CreateReq(&treq, credp);
 		if (code) {
-		    dput(parent);
 		    goto bad_dentry;
 		}
 		if ((strcmp(dp->d_name.name, ".directory") == 0)) {
@@ -1247,18 +1183,14 @@ afs_linux_dentry_revalidate(struct dentry *dp, int flags)
 		else
 		    code = afs_EvalFakeStat(&vcp, &fakestate, treq);
 		afs_DestroyReq(treq);
-		if ((tryEvalOnly && vcp->mvstat == 1) || code) {
+		if ((tryEvalOnly && vcp->mvstat == AFS_MVSTAT_MTPT) || code) {
 		    /* a mount point, not yet replaced by its directory */
-		    dput(parent);
 		    goto bad_dentry;
 		}
 	    }
-	} else
-	    if (locked && *dp->d_name.name != '/' && vcp->mvstat == 2) {	/* root vnode */
-		if (vcp->mvid->Fid.Volume != pvcp->f.fid.Fid.Volume) {	/* bad parent */
-		    fix_bad_parent(dp, credp, vcp, pvcp);	/* check and correct mvid */
-		}
-	    }
+	} else if (vcp->mvstat == AFS_MVSTAT_ROOT && *dp->d_name.name != '/') {
+	    osi_Assert(vcp->mvid.parent != NULL);
+	}
 
 #ifdef notdef
 	/* If the last looker changes, we should make sure the current
@@ -1267,7 +1199,6 @@ afs_linux_dentry_revalidate(struct dentry *dp, int flags)
 	 */
 	if (vcp->last_looker != treq.uid) {
 	    if (!afs_AccessOK(vcp, (vType(vcp) == VREG) ? PRSFS_READ : PRSFS_LOOKUP, &treq, CHECK_MODE_BITS)) {
-		dput(parent);
 		goto bad_dentry;
 	    }
 
@@ -1275,6 +1206,8 @@ afs_linux_dentry_revalidate(struct dentry *dp, int flags)
 	}
 #endif
 
+	parent = dget_parent(dp);
+	pvcp = VTOAFS(parent->d_inode);
 	parent_dv = parent_vcache_dv(parent->d_inode, credp);
 
 	/* If the parent's DataVersion has changed or the vnode
@@ -1282,18 +1215,42 @@ afs_linux_dentry_revalidate(struct dentry *dp, int flags)
 	 * isn't enough since the vnode may have been renamed.
 	 */
 
-	if ((!locked) && (parent_dv > dp->d_time || !(vcp->f.states & CStatd)) ) {
-	    credp = crref();
-	    AFS_GLOCK();
-	    locked = 1;
-	}
-
-	if (locked && (parent_dv > dp->d_time || !(vcp->f.states & CStatd))) {
+	if (parent_dv > dp->d_time || !(vcp->f.states & CStatd)) {
 	    struct vattr *vattr = NULL;
 	    int code;
+	    int lookup_good;
 
+	    if (credp == NULL) {
+		credp = crref();
+	    }
 	    code = afs_lookup(pvcp, (char *)dp->d_name.name, &tvc, credp);
-	    if (code || tvc != vcp) {
+
+	    if (code) {
+		/* We couldn't perform the lookup, so we're not okay. */
+		lookup_good = 0;
+
+	    } else if (tvc == vcp) {
+		/* We got back the same vcache, so we're good. */
+		lookup_good = 1;
+
+	    } else if (tvc == VTOAFS(dp->d_inode)) {
+		/* We got back the same vcache, so we're good. This is
+		 * different from the above case, because sometimes 'vcp' is
+		 * not the same as the vcache for dp->d_inode, if 'vcp' was a
+		 * mtpt and we evaluated it to a root dir. In rare cases,
+		 * afs_lookup might not evalute the mtpt when we do, or vice
+		 * versa, so the previous case will not succeed. But this is
+		 * still 'correct', so make sure not to mark the dentry as
+		 * invalid; it still points to the same thing! */
+		lookup_good = 1;
+
+	    } else {
+		/* We got back a different file, so we're definitely not
+		 * okay. */
+		lookup_good = 0;
+	    }
+
+	    if (!lookup_good) {
 		dput(parent);
 		/* Force unhash; the name doesn't point to this file
 		 * anymore. */
@@ -1328,23 +1285,22 @@ afs_linux_dentry_revalidate(struct dentry *dp, int flags)
 	/* unlikely--the vcache entry hasn't changed */
 
 	dput(parent);
+
     } else {
-#ifdef notyet
-	/* If this code is ever enabled, we should use dget_parent to handle
-	 * getting the parent, and dput() to dispose of it. See above for an
-	 * example ... */
-	pvcp = VTOAFS(dp->d_parent->d_inode);
-	if (hgetlo(pvcp->f.m.DataVersion) > dp->d_time)
+
+	/* 'dp' represents a cached negative lookup. */
+
+	parent = dget_parent(dp);
+	pvcp = VTOAFS(parent->d_inode);
+	parent_dv = parent_vcache_dv(parent->d_inode, credp);
+
+	if (parent_dv > dp->d_time || !(pvcp->f.states & CStatd)
+	    || afs_IsDynroot(pvcp)) {
+	    dput(parent);
 	    goto bad_dentry;
-#endif
+	}
 
-	/* No change in parent's DataVersion so this negative
-	 * lookup is still valid.  BUT, if a server is down a
-	 * negative lookup can result so there should be a
-	 * liftime as well.  For now, always expire.
-	 */
-
-	goto bad_dentry;
+	dput(parent);
     }
 
   good_dentry:
@@ -1354,11 +1310,8 @@ afs_linux_dentry_revalidate(struct dentry *dp, int flags)
     /* Clean up */
     if (tvc)
 	afs_PutVCache(tvc);
-    afs_PutFakeStat(&fakestate);	/* from here on vcp may be no longer valid */
-    if (locked) {
-	/* we hold the global lock if we evaluated a mount point */
-	AFS_GUNLOCK();
-    }
+    afs_PutFakeStat(&fakestate);
+    AFS_GUNLOCK();
     if (credp)
 	crfree(credp);
 
@@ -1380,7 +1333,7 @@ afs_linux_dentry_revalidate(struct dentry *dp, int flags)
   bad_dentry:
     if (have_submounts(dp))
 	valid = 1;
-    else 
+    else
 	valid = 0;
     goto done;
 }
@@ -1419,9 +1372,17 @@ afs_dentry_automount(afs_linux_path_t *path)
 {
     struct dentry *target;
 
-    /* avoid symlink resolution limits when resolving; we cannot contribute to
-     * an infinite symlink loop */
+    /*
+     * Avoid symlink resolution limits when resolving; we cannot contribute to
+     * an infinite symlink loop.
+     *
+     * On newer kernels the field has moved to the private nameidata structure
+     * so we can't adjust it here.  This may cause ELOOP when using a path with
+     * 40 or more directories that are not already in the dentry cache.
+     */
+#if defined(STRUCT_TASK_STRUCT_HAS_TOTAL_LINK_COUNT)
     current->total_link_count--;
+#endif
 
     target = canonical_dentry(path->dentry->d_inode);
 
@@ -1540,7 +1501,7 @@ afs_linux_lookup(struct inode *dip, struct dentry *dp)
 
     AFS_GLOCK();
     code = afs_lookup(VTOAFS(dip), (char *)comp, &vcp, credp);
-    
+
     if (!code) {
 	struct vattr *vattr = NULL;
 	struct vcache *parent_vc = VTOAFS(dip);
@@ -1582,9 +1543,22 @@ afs_linux_lookup(struct inode *dip, struct dentry *dp)
 	d_prune_aliases(ip);
 
 #ifdef STRUCT_DENTRY_OPERATIONS_HAS_D_AUTOMOUNT
-	ip->i_flags |= S_AUTOMOUNT;
+	/* Only needed if this is a volume root */
+	if (vcp->mvstat == 2)
+	    ip->i_flags |= S_AUTOMOUNT;
 #endif
     }
+    /*
+     * Take an extra reference so the inode doesn't go away if
+     * d_splice_alias drops our reference on error.
+     */
+    if (ip)
+#ifdef HAVE_LINUX_IHOLD
+	ihold(ip);
+#else
+	igrab(ip);
+#endif
+
     newdp = d_splice_alias(ip, dp);
 
  done:
@@ -1593,10 +1567,31 @@ afs_linux_lookup(struct inode *dip, struct dentry *dp)
     /* It's ok for the file to not be found. That's noted by the caller by
      * seeing that the dp->d_inode field is NULL.
      */
-    if (!code || code == ENOENT)
-	return newdp;
-    else 
+    if (!code || code == ENOENT) {
+	/*
+	 * d_splice_alias can return an error (EIO) if there is an existing
+	 * connected directory alias for this dentry.
+	 */
+	if (!IS_ERR(newdp)) {
+	    iput(ip);
+	    return newdp;
+	} else {
+	    d_add(dp, ip);
+	    /*
+	     * Depending on the kernel version, d_splice_alias may or may
+	     * not drop the inode reference on error.  If it didn't, do it
+	     * here.
+	     */
+#if defined(D_SPLICE_ALIAS_LEAK_ON_ERROR)
+	    iput(ip);
+#endif
+	    return NULL;
+	}
+    } else {
+	if (ip)
+	    iput(ip);
 	return ERR_PTR(afs_convert_code(code));
+    }
 }
 
 static int
@@ -1660,7 +1655,7 @@ afs_linux_sillyrename(struct inode *dir, struct dentry *dentry,
 		      VTOAFS(dir), (char *)__dp->d_name.name,
 		      credp);
     if (!code) {
-	tvc->mvid = (void *) __name;
+	tvc->mvid.silly_name = __name;
 	crhold(credp);
 	if (tvc->uncred) {
 	    crfree(tvc->uncred);
@@ -1668,15 +1663,14 @@ afs_linux_sillyrename(struct inode *dir, struct dentry *dentry,
 	tvc->uncred = credp;
 	tvc->f.states |= CUnlinked;
 	afs_linux_set_nfsfs_renamed(dentry);
+
+	__dp->d_time = 0;		/* force to revalidate */
+	d_move(dentry, __dp);
     } else {
 	osi_FreeSmallSpace(__name);
     }
     AFS_GUNLOCK();
 
-    if (!code) {
-	__dp->d_time = hgetlo(VTOAFS(dir)->f.m.DataVersion);
-	d_move(dentry, __dp);
-    }
     dput(__dp);
 
     return code;
@@ -1770,7 +1764,7 @@ afs_linux_mkdir(struct inode *dip, struct dentry *dp, int mode)
 #if !defined(STRUCT_SUPER_BLOCK_HAS_S_D_OP)
 	dp->d_op = &afs_dentry_operations;
 #endif
-	dp->d_time = hgetlo(VTOAFS(dip)->f.m.DataVersion);
+	dp->d_time = parent_vcache_dv(dip, credp);
 	d_instantiate(dp, ip);
     }
     afs_DestroyAttr(vattr);
@@ -1814,13 +1808,22 @@ afs_linux_rmdir(struct inode *dip, struct dentry *dp)
 
 static int
 afs_linux_rename(struct inode *oldip, struct dentry *olddp,
-		 struct inode *newip, struct dentry *newdp)
+		 struct inode *newip, struct dentry *newdp
+#ifdef HAVE_LINUX_INODE_OPERATIONS_RENAME_TAKES_FLAGS
+		 , unsigned int flags
+#endif
+		)
 {
     int code;
     cred_t *credp = crref();
     const char *oldname = olddp->d_name.name;
     const char *newname = newdp->d_name.name;
     struct dentry *rehash = NULL;
+
+#ifdef HAVE_LINUX_INODE_OPERATIONS_RENAME_TAKES_FLAGS
+    if (flags)
+	return -EINVAL;		/* no support for new flags yet */
+#endif
 
     /* Prevent any new references during rename operation. */
 
@@ -1846,7 +1849,7 @@ afs_linux_rename(struct inode *oldip, struct dentry *olddp,
 }
 
 
-/* afs_linux_ireadlink 
+/* afs_linux_ireadlink
  * Internal readlink which can return link contents to user or kernel space.
  * Note that the buffer is NOT supposed to be null-terminated.
  */
@@ -1857,6 +1860,9 @@ afs_linux_ireadlink(struct inode *ip, char *target, int maxlen, uio_seg_t seg)
     cred_t *credp = crref();
     struct uio tuio;
     struct iovec iov;
+
+    memset(&tuio, 0, sizeof(tuio));
+    memset(&iov, 0, sizeof(iov));
 
     setup_uio(&tuio, &iov, target, (afs_offs_t) 0, maxlen, UIO_READ, seg);
     code = afs_readlink(VTOAFS(ip), &tuio, credp);
@@ -1869,7 +1875,7 @@ afs_linux_ireadlink(struct inode *ip, char *target, int maxlen, uio_seg_t seg)
 }
 
 #if !defined(USABLE_KERNEL_PAGE_SYMLINK_CACHE)
-/* afs_linux_readlink 
+/* afs_linux_readlink
  * Fill target (which is in user space) with contents of symlink.
  */
 static int
@@ -1888,14 +1894,22 @@ afs_linux_readlink(struct dentry *dp, char *target, int maxlen)
 /* afs_linux_follow_link
  * a file system dependent link following routine.
  */
+#if defined(HAVE_LINUX_INODE_OPERATIONS_FOLLOW_LINK_NO_NAMEIDATA)
+static const char *afs_linux_follow_link(struct dentry *dentry, void **link_data)
+#else
 static int afs_linux_follow_link(struct dentry *dentry, struct nameidata *nd)
+#endif
 {
     int code;
     char *name;
 
     name = kmalloc(PATH_MAX, GFP_NOFS);
     if (!name) {
+#if defined(HAVE_LINUX_INODE_OPERATIONS_FOLLOW_LINK_NO_NAMEIDATA)
+	return ERR_PTR(-EIO);
+#else
 	return -EIO;
+#endif
     }
 
     AFS_GLOCK();
@@ -1903,14 +1917,32 @@ static int afs_linux_follow_link(struct dentry *dentry, struct nameidata *nd)
     AFS_GUNLOCK();
 
     if (code < 0) {
+#if defined(HAVE_LINUX_INODE_OPERATIONS_FOLLOW_LINK_NO_NAMEIDATA)
+	return ERR_PTR(code);
+#else
 	return code;
+#endif
     }
 
     name[code] = '\0';
+#if defined(HAVE_LINUX_INODE_OPERATIONS_FOLLOW_LINK_NO_NAMEIDATA)
+    return *link_data = name;
+#else
     nd_set_link(nd, name);
     return 0;
+#endif
 }
 
+#if defined(HAVE_LINUX_INODE_OPERATIONS_PUT_LINK_NO_NAMEIDATA)
+static void
+afs_linux_put_link(struct inode *inode, void *link_data)
+{
+    char *name = link_data;
+
+    if (name && !IS_ERR(name))
+	kfree(name);
+}
+#else
 static void
 afs_linux_put_link(struct dentry *dentry, struct nameidata *nd)
 {
@@ -1919,6 +1951,7 @@ afs_linux_put_link(struct dentry *dentry, struct nameidata *nd)
     if (name && !IS_ERR(name))
 	kfree(name);
 }
+#endif /* HAVE_LINUX_INODE_OPERATIONS_PUT_LINK_NO_NAMEIDATA */
 
 #endif /* USABLE_KERNEL_PAGE_SYMLINK_CACHE */
 
@@ -1947,7 +1980,7 @@ afs_linux_read_cache(struct file *cachefp, struct page *page,
     /* If we're trying to read a page that's past the end of the disk
      * cache file, then just return a zeroed page */
     if (AFS_CHUNKOFFSET(offset) >= i_size_read(cacheinode)) {
-	zero_user_segment(page, 0, PAGE_CACHE_SIZE);
+	zero_user_segment(page, 0, PAGE_SIZE);
 	SetPageUptodate(page);
 	if (task)
 	    unlock_page(page);
@@ -1956,7 +1989,7 @@ afs_linux_read_cache(struct file *cachefp, struct page *page,
 
     /* From our offset, we now need to work out which page in the disk
      * file it corresponds to. This will be fun ... */
-    pageindex = (offset - AFS_CHUNKTOBASE(chunk)) >> PAGE_CACHE_SHIFT;
+    pageindex = (offset - AFS_CHUNKTOBASE(chunk)) >> PAGE_SHIFT;
 
     while (cachepage == NULL) {
         cachepage = find_get_page(cachemapping, pageindex);
@@ -1974,12 +2007,12 @@ afs_linux_read_cache(struct file *cachefp, struct page *page,
 	        cachepage = newpage;
 	        newpage = NULL;
 
-	        page_cache_get(cachepage);
+	        get_page(cachepage);
                 if (!pagevec_add(lrupv, cachepage))
                     __pagevec_lru_add_file(lrupv);
 
 	    } else {
-		page_cache_release(newpage);
+		put_page(newpage);
 		newpage = NULL;
 		if (code != -EEXIST)
 		    goto out;
@@ -2020,7 +2053,7 @@ afs_linux_read_cache(struct file *cachefp, struct page *page,
 
 out:
     if (cachepage)
-	page_cache_release(cachepage);
+	put_page(cachepage);
 
     return code;
 }
@@ -2187,7 +2220,7 @@ afs_linux_fillpage(struct file *fp, struct page *pp)
 	       99999);	/* not a possible code value */
 
     code = afs_rdwr(avc, auio, UIO_READ, 0, credp);
-	
+
     afs_Trace4(afs_iclSetp, CM_TRACE_READPAGE, ICL_TYPE_POINTER, ip,
 	       ICL_TYPE_POINTER, pp, ICL_TYPE_INT32, cnt, ICL_TYPE_INT32,
 	       code);
@@ -2233,7 +2266,7 @@ afs_linux_prefetch(struct file *fp, struct page *pp)
 	    if (tdc) {
 		if (!(tdc->mflags & DFNextStarted))
 		    afs_PrefetchChunk(avc, tdc, credp, treq);
-		    afs_PutDCache(tdc);
+		afs_PutDCache(tdc);
 	    }
 	    ReleaseWriteLock(&avc->lock);
 	}
@@ -2291,7 +2324,7 @@ afs_linux_bypass_readpages(struct file *fp, struct address_space *mapping,
 	/* If we allocate a page and don't remove it from page_list,
 	 * the page cache gets upset. */
 	list_del(&pp->lru);
-	isize = (i_size_read(fp->f_mapping->host) - 1) >> PAGE_CACHE_SHIFT;
+	isize = (i_size_read(fp->f_mapping->host) - 1) >> PAGE_SHIFT;
 	if(pp->index > isize) {
 	    if(PageLocked(pp))
 		unlock_page(pp);
@@ -2308,7 +2341,7 @@ afs_linux_bypass_readpages(struct file *fp, struct address_space *mapping,
         if(base_index != pp->index) {
             if(PageLocked(pp))
 		 unlock_page(pp);
-            page_cache_release(pp);
+            put_page(pp);
 	    iovecp[page_ix].iov_base = (void *) 0;
 	    base_index++;
 	    ancr->length -= PAGE_SIZE;
@@ -2318,7 +2351,7 @@ afs_linux_bypass_readpages(struct file *fp, struct address_space *mapping,
         if(code) {
 	    if(PageLocked(pp))
 		unlock_page(pp);
-	    page_cache_release(pp);
+	    put_page(pp);
 	    iovecp[page_ix].iov_base = (void *) 0;
 	} else {
 	    page_count++;
@@ -2378,7 +2411,7 @@ afs_linux_bypass_readpage(struct file *fp, struct page *pp)
      * it as up to date.
      */
     if (page_offset(pp) >=  i_size_read(fp->f_mapping->host)) {
-	zero_user_segment(pp, 0, PAGE_CACHE_SIZE);
+	zero_user_segment(pp, 0, PAGE_SIZE);
 	SetPageUptodate(pp);
 	unlock_page(pp);
 	return 0;
@@ -2540,13 +2573,13 @@ afs_linux_readpages(struct file *fp, struct address_space *mapping,
 
 	if (tdc && !add_to_page_cache(page, mapping, page->index,
 				      GFP_KERNEL)) {
-	    page_cache_get(page);
+	    get_page(page);
 	    if (!pagevec_add(&lrupv, page))
 		__pagevec_lru_add_file(&lrupv);
 
 	    afs_linux_read_cache(cacheFp, page, tdc->f.chunk, &lrupv, task);
 	}
-	page_cache_release(page);
+	put_page(page);
     }
     if (pagevec_count(&lrupv))
        __pagevec_lru_add_file(&lrupv);
@@ -2572,10 +2605,27 @@ out:
  * locked */
 static inline int
 afs_linux_prepare_writeback(struct vcache *avc) {
-    if (avc->f.states & CPageWrite) {
-	return AOP_WRITEPAGE_ACTIVATE;
+    pid_t pid;
+    struct pagewriter *pw;
+
+    pid = MyPidxx2Pid(MyPidxx);
+    /* Prevent recursion into the writeback code */
+    spin_lock(&avc->pagewriter_lock);
+    list_for_each_entry(pw, &avc->pagewriters, link) {
+	if (pw->writer == pid) {
+	    spin_unlock(&avc->pagewriter_lock);
+	    return AOP_WRITEPAGE_ACTIVATE;
+	}
     }
-    avc->f.states |= CPageWrite;
+    spin_unlock(&avc->pagewriter_lock);
+
+    /* Add ourselves to writer list */
+    pw = osi_Alloc(sizeof(struct pagewriter));
+    pw->writer = pid;
+    spin_lock(&avc->pagewriter_lock);
+    list_add_tail(&pw->link, &avc->pagewriters);
+    spin_unlock(&avc->pagewriter_lock);
+
     return 0;
 }
 
@@ -2594,7 +2644,26 @@ afs_linux_dopartialwrite(struct vcache *avc, cred_t *credp) {
 
 static inline void
 afs_linux_complete_writeback(struct vcache *avc) {
-    avc->f.states &= ~CPageWrite;
+    struct pagewriter *pw, *store;
+    pid_t pid;
+    struct list_head tofree;
+
+    INIT_LIST_HEAD(&tofree);
+    pid = MyPidxx2Pid(MyPidxx);
+    /* Remove ourselves from writer list */
+    spin_lock(&avc->pagewriter_lock);
+    list_for_each_entry_safe(pw, store, &avc->pagewriters, link) {
+	if (pw->writer == pid) {
+	    list_del(&pw->link);
+	    /* osi_Free may sleep so we need to defer it */
+	    list_add_tail(&pw->link, &tofree);
+	}
+    }
+    spin_unlock(&avc->pagewriter_lock);
+    list_for_each_entry_safe(pw, store, &tofree, link) {
+	list_del(&pw->link);
+	osi_Free(pw, sizeof(struct pagewriter));
+    }
 }
 
 /* Writeback a given page syncronously. Called with no AFS locks held */
@@ -2610,6 +2679,9 @@ afs_linux_page_writeback(struct inode *ip, struct page *pp,
     struct uio tuio;
     struct iovec iovec;
     int f_flags = 0;
+
+    memset(&tuio, 0, sizeof(tuio));
+    memset(&iovec, 0, sizeof(iovec));
 
     buffer = kmap(pp) + offset;
     base = page_offset(pp) + offset;
@@ -2688,12 +2760,12 @@ afs_linux_writepage(struct page *pp)
     struct inode *inode;
     struct vcache *vcp;
     cred_t *credp;
-    unsigned int to = PAGE_CACHE_SIZE;
+    unsigned int to = PAGE_SIZE;
     loff_t isize;
     int code = 0;
     int code1 = 0;
 
-    page_cache_get(pp);
+    get_page(pp);
 
     inode = mapping->host;
     vcp = VTOAFS(inode);
@@ -2762,7 +2834,7 @@ afs_linux_writepage(struct page *pp)
 
 done:
     end_page_writeback(pp);
-    page_cache_release(pp);
+    put_page(pp);
 
     if (code1)
 	return code1;
@@ -2851,10 +2923,10 @@ afs_linux_prepare_write(struct file *file, struct page *page, unsigned from,
 	/* Is the location we are writing to beyond the end of the file? */
 	if (pagebase >= isize ||
 	    ((from == 0) && (pagebase + to) >= isize)) {
-	    zero_user_segments(page, 0, from, to, PAGE_CACHE_SIZE);
+	    zero_user_segments(page, 0, from, to, PAGE_SIZE);
 	    SetPageChecked(page);
 	/* Are we we writing a full page */
-	} else if (from == 0 && to == PAGE_CACHE_SIZE) {
+	} else if (from == 0 && to == PAGE_SIZE) {
 	    SetPageChecked(page);
 	/* Is the page readable, if it's wronly, we don't care, because we're
 	 * not actually going to read from it ... */
@@ -2875,12 +2947,12 @@ afs_linux_write_end(struct file *file, struct address_space *mapping,
                                 struct page *page, void *fsdata)
 {
     int code;
-    unsigned int from = pos & (PAGE_CACHE_SIZE - 1);
+    unsigned int from = pos & (PAGE_SIZE - 1);
 
-    code = afs_linux_commit_write(file, page, from, from + len);
+    code = afs_linux_commit_write(file, page, from, from + copied);
 
     unlock_page(page);
-    page_cache_release(page);
+    put_page(page);
     return code;
 }
 
@@ -2890,8 +2962,8 @@ afs_linux_write_begin(struct file *file, struct address_space *mapping,
                                 struct page **pagep, void **fsdata)
 {
     struct page *page;
-    pgoff_t index = pos >> PAGE_CACHE_SHIFT;
-    unsigned int from = pos & (PAGE_CACHE_SIZE - 1);
+    pgoff_t index = pos >> PAGE_SHIFT;
+    unsigned int from = pos & (PAGE_SIZE - 1);
     int code;
 
     page = grab_cache_page_write_begin(mapping, index, flags);
@@ -2900,7 +2972,7 @@ afs_linux_write_begin(struct file *file, struct address_space *mapping,
     code = afs_linux_prepare_write(file, page, from, from + len);
     if (code) {
 	unlock_page(page);
-	page_cache_release(page);
+	put_page(page);
     }
 
     return code;
@@ -3028,7 +3100,9 @@ static struct address_space_operations afs_symlink_aops = {
 static struct inode_operations afs_symlink_iops = {
 #if defined(USABLE_KERNEL_PAGE_SYMLINK_CACHE)
   .readlink = 		page_readlink,
-# if defined(HAVE_LINUX_PAGE_FOLLOW_LINK)
+# if defined(HAVE_LINUX_PAGE_GET_LINK)
+  .get_link =		page_get_link,
+# elif defined(HAVE_LINUX_PAGE_FOLLOW_LINK)
   .follow_link =	page_follow_link,
 # else
   .follow_link =	page_follow_link_light,
@@ -3045,11 +3119,12 @@ static struct inode_operations afs_symlink_iops = {
 void
 afs_fill_inode(struct inode *ip, struct vattr *vattr)
 {
-	
     if (vattr)
 	vattr2inode(ip, vattr);
 
+#ifdef STRUCT_ADDRESS_SPACE_HAS_BACKING_DEV_INFO
     ip->i_mapping->backing_dev_info = afs_backing_dev_info;
+#endif
 /* Reset ops if symlink or directory. */
     if (S_ISREG(ip->i_mode)) {
 	ip->i_op = &afs_file_iops;
@@ -3062,6 +3137,9 @@ afs_fill_inode(struct inode *ip, struct vattr *vattr)
 
     } else if (S_ISLNK(ip->i_mode)) {
 	ip->i_op = &afs_symlink_iops;
+#if defined(HAVE_LINUX_INODE_NOHIGHMEM)
+	inode_nohighmem(ip);
+#endif
 #if defined(USABLE_KERNEL_PAGE_SYMLINK_CACHE)
 	ip->i_data.a_ops = &afs_symlink_aops;
 	ip->i_mapping = &ip->i_data;

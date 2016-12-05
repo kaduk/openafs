@@ -45,6 +45,7 @@ int parseServerList(struct cmd_item *);
 char lcell[MAXKTCREALMLEN];
 afs_uint32 myHost = 0;
 int helpOption;
+static struct logOptions logopts;
 
 /* server's global configuration information. This is exported to other
  * files/routines
@@ -139,7 +140,7 @@ initializeArgHandler(void)
 
     cmd_SetBeforeProc(MyBeforeProc, NULL);
 
-    cptr = cmd_CreateSyntax(NULL, argHandler, NULL, "Backup database server");
+    cptr = cmd_CreateSyntax(NULL, argHandler, NULL, 0, "Backup database server");
 
     cmd_AddParm(cptr, "-database", CMD_SINGLE, CMD_OPTIONAL,
 		"database directory");
@@ -173,6 +174,9 @@ initializeArgHandler(void)
 
     cmd_AddParm(cptr, "-audit-interface", CMD_SINGLE, CMD_OPTIONAL,
 		"audit interface (file or sysvmq)");
+
+    cmd_AddParm(cptr, "-transarc-logs", CMD_FLAG, CMD_OPTIONAL,
+		"enable Transarc style logging");
 }
 
 int
@@ -250,6 +254,11 @@ argHandler(struct cmd_syndesc *as, void *arock)
 	    BUDB_EXIT(-1);
 	}
     }
+    /* -transarc-logs */
+    if (as->parms[11].items != 0) {
+	logopts.lopt_rotateOnOpen = 1;
+	logopts.lopt_rotateStyle = logRotate_old;
+    }
 
     /* -auditlog */
     /* needs to be after -audit-interface, so we osi_audit_interface
@@ -322,13 +331,13 @@ truncateDatabase(void)
 {
     char *path;
     afs_int32 code = 0;
-    int fd;
+    int fd,r;
 
-    asprintf(&path, "%s%s%s",
-	     globalConfPtr->databaseDirectory,
-	     globalConfPtr->databaseName,
-	     globalConfPtr->databaseExtension);
-    if (path == NULL)
+    r = asprintf(&path, "%s%s%s",
+		 globalConfPtr->databaseDirectory,
+		 globalConfPtr->databaseName,
+		 globalConfPtr->databaseExtension);
+    if (r < 0 || path == NULL)
 	ERROR(-1);
 
     fd = open(path, O_RDWR, 0755);
@@ -362,6 +371,7 @@ main(int argc, char **argv)
     time_t currentTime;
     afs_int32 code = 0;
     afs_uint32 host = ntohl(INADDR_ANY);
+    int r;
 
     char  clones[MAXHOSTSPERCELL];
 
@@ -398,6 +408,10 @@ main(int argc, char **argv)
 
     memset(&cellinfo_s, 0, sizeof(cellinfo_s));
     memset(clones, 0, sizeof(clones));
+
+    memset(&logopts, 0, sizeof(logopts));
+    logopts.lopt_dest = logDest_file;
+    logopts.lopt_filename = AFSDIR_SERVER_BUDBLOG_FILEPATH;
 
     osi_audit_init();
     osi_audit(BUDB_StartEvent, 0, AUD_END);
@@ -441,7 +455,7 @@ main(int argc, char **argv)
 	BUDB_EXIT(0);
 
     /* open the log file */
-    OpenLog(AFSDIR_SERVER_BUDBLOG_FILEPATH);
+    OpenLog(&logopts);
 
     /* open the cell's configuration directory */
     LogDebug(4, "opening %s\n", globalConfPtr->cellConfigdir);
@@ -495,9 +509,9 @@ main(int argc, char **argv)
 
     LogError(0, "Will allocate %d ubik buffers\n", ubik_nBuffers);
 
-    asprintf(&dbNamePtr, "%s%s", globalConfPtr->databaseDirectory,
-	     globalConfPtr->databaseName);
-    if (dbNamePtr == 0)
+    r = asprintf(&dbNamePtr, "%s%s", globalConfPtr->databaseDirectory,
+		 globalConfPtr->databaseName);
+    if (r < 0 || dbNamePtr == 0)
 	ERROR(-1);
 
     rx_SetRxDeadTime(60);	/* 60 seconds inactive before timeout */

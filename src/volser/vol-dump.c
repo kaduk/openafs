@@ -272,7 +272,7 @@ main(int argc, char **argv)
 	                "trying to continue anyway\n");
     }
 
-    ts = cmd_CreateSyntax(NULL, handleit, NULL,
+    ts = cmd_CreateSyntax(NULL, handleit, NULL, 0,
 			  "Dump a volume to a 'vos dump' format file without using volserver");
     cmd_AddParm(ts, "-part", CMD_LIST, CMD_OPTIONAL, "AFS partition name");
     cmd_AddParm(ts, "-volumeid", CMD_LIST, CMD_OPTIONAL, "Volume id");
@@ -380,10 +380,12 @@ DumpDumpHeader(int dumpfd, Volume * vp, afs_int32 fromtime)
 	dumpTimes[1] = V_updateDate(vp);	/* until last update */
 	break;
     case readonlyVolume:
-	dumpTimes[1] = V_copyDate(vp);		/* until clone was made */
+	dumpTimes[1] = V_creationDate(vp);	/* until clone was updated */
 	break;
     case backupVolume:
-	dumpTimes[1] = V_backupDate(vp);	/* until backup was made */
+	/* until backup was made */
+	dumpTimes[1] = V_backupDate(vp) != 0 ? V_backupDate(vp) :
+					       V_creationDate(vp);
 	break;
     default:
 	code = EINVAL;
@@ -673,7 +675,7 @@ DumpFile(int dumpfd, int vnode, FdHandle_t * handleP,  struct VnodeDiskObject *v
 
 
 static int
-DumpVnode(int dumpfd, struct VnodeDiskObject *v, int volid, int vnodeNumber,
+DumpVnode(int dumpfd, struct VnodeDiskObject *v, VolumeId volid, int vnodeNumber,
 	  int dumpEverything, struct Volume *vp)
 {
     int code = 0;
@@ -711,7 +713,11 @@ DumpVnode(int dumpfd, struct VnodeDiskObject *v, int volid, int vnodeNumber,
     if (!code)
 	code = DumpInt32(dumpfd, 's', v->serverModifyTime);
     if (v->type == vDirectory) {
-	acl_HtonACL(VVnodeDiskACL(v));
+	code = acl_HtonACL(VVnodeDiskACL(v));
+	if (code) {
+	    fprintf(stderr, "Skipping invalid acl in vnode %u (volume %"AFS_VOLID_FMT")\n",
+			vnodeNumber, afs_printable_VolumeId_lu(volid));
+	}
 	if (!code)
 	    code =
 		DumpByteString(dumpfd, 'A', (byte *) VVnodeDiskACL(v),
@@ -723,9 +729,10 @@ DumpVnode(int dumpfd, struct VnodeDiskObject *v, int volid, int vnodeNumber,
 	fdP = IH_OPEN(ihP);
 	if (fdP == NULL) {
 	    fprintf(stderr,
-		    "Unable to open inode %s for vnode %u (volume %i); not dumped, error %d\n",
-		    PrintInode(stmp, VNDISK_GET_INO(v)), vnodeNumber, volid,
-		    errno);
+		    "Unable to open inode %s for vnode %u "
+		    "(volume %"AFS_VOLID_FMT"); not dumped, error %d\n",
+		    PrintInode(stmp, VNDISK_GET_INO(v)), vnodeNumber,
+		    afs_printable_VolumeId_lu(volid), errno);
 	}
 	else
 	{

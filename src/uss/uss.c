@@ -96,7 +96,7 @@ extern int uss_perr;
 
 static char Template[300] = "uss.template";	/*Default name */
 
-extern FILE *yyin, *yyout;	/*YACC input & output files */
+extern FILE *uss_yyin, *uss_yyout;	/*YACC input & output files */
 extern int doUnlog;
 int uss_BulkExpires = 0;
 int local_Cell = 1;
@@ -1652,15 +1652,15 @@ DoAdd(void)
      * Open up the template file before doing any real processing,
      * so we can quit early should it not be found.
      */
-    if (yyin == NULL) {
-	if ((yyin = uss_procs_FindAndOpen(Template)) == NULL) {
+    if (uss_yyin == NULL) {
+	if ((uss_yyin = uss_procs_FindAndOpen(Template)) == NULL) {
 	    fprintf(stderr, "%s: ** Can't open template file '%s'\n",
 		    uss_whoami, Template);
 	    return (-1);
 	}
-	yyout = fopen("/dev/null", "w");
+	uss_yyout = fopen("/dev/null", "w");
     } else
-	rewind(yyin);
+	rewind(uss_yyin);
 
     /*
      * Add the new user to the Protection DB.
@@ -1803,7 +1803,7 @@ main(int argc, char *argv[])
     sigaction(SIGSEGV, &nsa, NULL);
 #endif
     strcpy(uss_whoami, argv[0]);
-    yyin = NULL;
+    uss_yyin = NULL;
 
     uss_fs_InBuff = malloc(USS_FS_MAX_SIZE);	/*Cache Manager input buff */
     uss_fs_OutBuff = malloc(USS_FS_MAX_SIZE);	/*Cache Manager output buff */
@@ -1814,7 +1814,7 @@ main(int argc, char *argv[])
 
     /* ----------------------------- add ----------------------------- */
 
-    cs = cmd_CreateSyntax("add", AddUser, NULL, "create a new user account");
+    cs = cmd_CreateSyntax("add", AddUser, NULL, 0, "create a new user account");
     cmd_AddParm(cs, "-user", CMD_SINGLE, 0, "login name");
     cmd_AddParm(cs, "-realname", CMD_SINGLE, CMD_OPTIONAL,
 		"full name in quotes");
@@ -1849,7 +1849,7 @@ main(int argc, char *argv[])
 
     /* ---------------------------- bulk ----------------------------- */
 
-    cs = cmd_CreateSyntax("bulk", HandleBulk, NULL, "bulk input mode");
+    cs = cmd_CreateSyntax("bulk", HandleBulk, NULL, 0, "bulk input mode");
     cmd_AddParm(cs, "-file", CMD_SINGLE, 0, "bulk input file");
     cmd_Seek(cs, AUSS_TEMPLATE);
     cmd_AddParm(cs, "-template", CMD_SINGLE, CMD_OPTIONAL,
@@ -1874,7 +1874,7 @@ main(int argc, char *argv[])
 
     /* ---------------------------- delete --------------------------- */
 
-    cs = cmd_CreateSyntax("delete", DelUser, NULL, "delete a user account");
+    cs = cmd_CreateSyntax("delete", DelUser, NULL, 0, "delete a user account");
     cmd_AddParm(cs, "-user", CMD_SINGLE, 0, "login name");
     cmd_AddParm(cs, "-mountpoint", CMD_SINGLE, CMD_OPTIONAL,
 		"mountpoint for user's volume");
@@ -1908,7 +1908,7 @@ main(int argc, char *argv[])
 #if USS_DONT_HIDE_SOME_FEATURES
     /* ------------------------- purgevolumes ------------------------ */
 
-    cs = cmd_CreateSyntax("purgevolumes", PurgeVolumes, NULL,
+    cs = cmd_CreateSyntax("purgevolumes", PurgeVolumes, NULL, 0,
 			  "destroy a deleted user's volume");
     cmd_AddParm(cs, "-volname", CMD_LIST, CMD_OPTIONAL | CMD_EXPANDS,
 		"Name(s) of volume(s) to destroy");
@@ -1931,7 +1931,7 @@ main(int argc, char *argv[])
 #if USS_DONT_HIDE_SOME_FEATURES
     /* ---------------------------- restore -------------------------- */
 
-    cs = cmd_CreateSyntax("restore", RestoreUser, NULL,
+    cs = cmd_CreateSyntax("restore", RestoreUser, NULL, 0,
 			  "restore a deleted user account");
     cmd_AddParm(cs, "-user", CMD_SINGLE, 0, "login name to restore");
     cmd_AddParm(cs, "-uid", CMD_SINGLE, 0, "user id number");

@@ -32,7 +32,7 @@
 
 
 /* Imported variables */
-extern int afs_shuttingdown;
+extern enum afs_shutdown_state afs_shuttingdown;
 
 /* Exported variables */
 afs_uint32 pag_epoch;
@@ -41,13 +41,6 @@ afs_uint32 pagCounter = 1;
 #else
 afs_uint32 pagCounter = 0;
 #endif /* UKERNEL */
-
-#ifdef AFS_LINUX26_ONEGROUP_ENV
-#define NUMPAGGROUPS 1
-#else
-#define NUMPAGGROUPS 2
-#endif
-/* Local variables */
 
 /*
  * Pags are implemented as follows: the set of groups whose long
@@ -390,7 +383,7 @@ afs_setpag_val(int pagval)
     return (code);
 }
 
-#ifndef AFS_LINUX26_ONEGROUP_ENV
+#ifndef AFS_PAG_ONEGROUP_ENV
 int
 afs_getpag_val(void)
 {
@@ -455,7 +448,7 @@ afs_InitReq(struct vrequest *av, afs_ucred_t *acred)
 
     AFS_STATCNT(afs_InitReq);
     memset(av, 0, sizeof(*av));
-    if (afs_shuttingdown)
+    if (afs_shuttingdown == AFS_SHUTDOWN)
 	return EIO;
 
 #ifdef AFS_LINUX26_ENV
@@ -506,7 +499,7 @@ afs_CreateReq(struct vrequest **avpp, afs_ucred_t *acred)
     int code;
     struct vrequest *treq = NULL;
 
-    if (afs_shuttingdown) {
+    if (afs_shuttingdown == AFS_SHUTDOWN) {
 	return EIO;
     }
     if (!avpp || !acred) {
@@ -541,7 +534,7 @@ afs_DestroyReq(struct vrequest *av)
     }
 }
 
-#ifndef AFS_LINUX26_ONEGROUP_ENV
+#ifndef AFS_PAG_ONEGROUP_ENV
 afs_uint32
 afs_get_pag_from_groups(gid_t g0a, gid_t g1a)
 {
@@ -588,7 +581,8 @@ afs_get_groups_from_pag(afs_uint32 pag, gid_t * g0p, gid_t * g1p)
     *g1p = g1 + 0x3f00;
 }
 #else
-void afs_get_groups_from_pag(afs_uint32 pag, gid_t *g0p, gid_t *g1p)
+void
+afs_get_groups_from_pag(afs_uint32 pag, gid_t *g0p, gid_t *g1p)
 {
     AFS_STATCNT(afs_get_groups_from_pag);
     *g0p = pag;
@@ -631,7 +625,7 @@ osi_get_group_pag(afs_ucred_t *cred)
     if (cred->cr_ngrps < 2)
 	return NOPAG;
 # elif defined(AFS_LINUX26_ENV)
-    if (afs_cr_group_info(cred)->ngroups < NUMPAGGROUPS)
+    if (afs_cr_group_info(cred)->ngroups < AFS_NUMPAGGROUPS)
 	return NOPAG;
 # elif defined(AFS_SGI_ENV) || defined(AFS_SUN5_ENV) || defined(AFS_LINUX20_ENV) || defined(AFS_XBSD_ENV)
 #  if defined(AFS_SUN510_ENV)
