@@ -139,11 +139,7 @@ afs_TransitionToBypass(struct vcache *avc,
     if (aflags & TRANSSetManualBit)
 	setManual = 1;
 
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonLock(&avc->pvnLock, avc);	/* Since afs_TryToSmush will do a pvn_vptrunc */
-#else
     AFS_GLOCK();
-#endif
 
     ObtainWriteLock(&avc->lock, 925);
     /*
@@ -170,16 +166,11 @@ afs_TransitionToBypass(struct vcache *avc,
 	}
     }
 
-#if 0
     /* also cg2v, don't dequeue the callback */
-    ObtainWriteLock(&afs_xcbhash, 956);
-    afs_DequeueCallback(avc);
-    ReleaseWriteLock(&afs_xcbhash);
-#endif
-    avc->f.states &= ~(CStatd | CDirty);      /* next reference will re-stat */
+    /* next reference will re-stat */
+    afs_StaleVCacheFlags(avc, AFS_STALEVC_NOCB, CDirty);
     /* now find the disk cache entries */
     afs_TryToSmush(avc, acred, 1);
-    osi_dnlc_purgedp(avc);
     if (avc->linkData && !(avc->f.states & CCore)) {
 	afs_osi_Free(avc->linkData, strlen(avc->linkData) + 1);
 	avc->linkData = NULL;
@@ -194,11 +185,7 @@ afs_TransitionToBypass(struct vcache *avc,
 
 done:
     ReleaseWriteLock(&avc->lock);
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonUnlock(&avc->pvnLock, avc);
-#else
     AFS_GUNLOCK();
-#endif
 }
 
 /*
@@ -224,11 +211,7 @@ afs_TransitionToCaching(struct vcache *avc,
     if (aflags & TRANSSetManualBit)
 	setManual = 1;
 
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonLock(&avc->pvnLock, avc);	/* Since afs_TryToSmush will do a pvn_vptrunc */
-#else
     AFS_GLOCK();
-#endif
     ObtainWriteLock(&avc->lock, 926);
     /*
      * Someone may have beat us to doing the transition - we had no lock
@@ -238,13 +221,11 @@ afs_TransitionToCaching(struct vcache *avc,
 	goto done;
 
     /* Ok, we actually do need to flush */
-    ObtainWriteLock(&afs_xcbhash, 957);
-    afs_DequeueCallback(avc);
-    avc->f.states &= ~(CStatd | CDirty);	/* next reference will re-stat cache entry */
-    ReleaseWriteLock(&afs_xcbhash);
+    /* next reference will re-stat cache entry */
+    afs_StaleVCacheFlags(avc, 0, CDirty);
+
     /* now find the disk cache entries */
     afs_TryToSmush(avc, acred, 1);
-    osi_dnlc_purgedp(avc);
     if (avc->linkData && !(avc->f.states & CCore)) {
 	afs_osi_Free(avc->linkData, strlen(avc->linkData) + 1);
 	avc->linkData = NULL;
@@ -259,11 +240,7 @@ afs_TransitionToCaching(struct vcache *avc,
 
 done:
     ReleaseWriteLock(&avc->lock);
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonUnlock(&avc->pvnLock, avc);
-#else
     AFS_GUNLOCK();
-#endif
 }
 
 /* In the case where there's an error in afs_NoCacheFetchProc or
@@ -637,6 +614,7 @@ afs_PrefetchNoCache(struct vcache *avc,
 	    } else {
 		afs_warn("BYPASS: StartRXAFS_FetchData failed: %d\n", code);
 		unlock_and_release_pages(auio);
+		afs_PutConn(tc, rxconn, SHARED_LOCK);
 		goto done;
 	    }
 	    if (code == 0) {

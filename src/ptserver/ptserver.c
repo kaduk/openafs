@@ -114,6 +114,10 @@
 
 #include <roken.h>
 #include <afs/opr.h>
+#ifdef AFS_PTHREAD_ENV
+# include <opr/softsig.h>
+# include <afs/procmgmt_softsig.h> /* must come after softsig.h */
+#endif
 
 #ifdef AFS_NT40_ENV
 #include <WINNT/afsevent.h>
@@ -222,12 +226,15 @@ enum optionsList {
     OPT_debug,
     OPT_logfile,
     OPT_threads,
+#ifdef HAVE_SYSLOG
     OPT_syslog,
+#endif
     OPT_peer,
     OPT_process,
     OPT_rxbind,
     OPT_rxmaxmtu,
-    OPT_dotted
+    OPT_dotted,
+    OPT_transarc_logs
 };
 
 int
@@ -248,7 +255,7 @@ main(int argc, char **argv)
 
     char *pr_dbaseName;
     char *configDir;
-    char *logFile;
+    struct logOptions logopts;
     char *whoami = "ptserver";
 
     char *auditFileName = NULL;
@@ -284,7 +291,7 @@ main(int argc, char **argv)
 
     pr_dbaseName = strdup(AFSDIR_SERVER_PRDB_FILEPATH);
     configDir = strdup(AFSDIR_SERVER_ETC_DIRPATH);
-    logFile = strdup(AFSDIR_SERVER_PTLOG_FILEPATH);
+    memset(&logopts, 0, sizeof(logopts));
 
 #if defined(SUPERGROUPS)
     /* make sure the structures for database records are the same size */
@@ -302,14 +309,14 @@ main(int argc, char **argv)
 
     cmd_DisableAbbreviations();
     cmd_DisablePositionalCommands();
-    opts = cmd_CreateSyntax(NULL, NULL, NULL, NULL);
+    opts = cmd_CreateSyntax(NULL, NULL, NULL, 0, NULL);
 
 /* ptserver specific options */
     cmd_AddParmAtOffset(opts, OPT_database, "-database", CMD_SINGLE,
 		        CMD_OPTIONAL, "database file");
     cmd_AddParmAlias(opts, OPT_database, "-db");
 
-    cmd_AddParmAtOffset(opts, OPT_access, "-default_access", CMD_SINGLE,
+    cmd_AddParmAtOffset(opts, OPT_access, "-default_access", CMD_LIST,
 		        CMD_OPTIONAL, "default access flags for new entries");
 #if defined(SUPERGROUPS)
     cmd_AddParmAtOffset(opts, OPT_groupdepth, "-groupdepth", CMD_SINGLE,
@@ -334,10 +341,12 @@ main(int argc, char **argv)
 		        CMD_OPTIONAL, "location of logfile");
     cmd_AddParmAtOffset(opts, OPT_threads, "-p", CMD_SINGLE,
 		        CMD_OPTIONAL, "number of threads");
-#if !defined(AFS_NT40_ENV)
+#ifdef HAVE_SYSLOG
     cmd_AddParmAtOffset(opts, OPT_syslog, "-syslog", CMD_SINGLE_OR_FLAG, 
 		        CMD_OPTIONAL, "log to syslog");
 #endif
+    cmd_AddParmAtOffset(opts, OPT_transarc_logs, "-transarc-logs", CMD_FLAG,
+			CMD_OPTIONAL, "enable Transarc style logging");
 
     /* rx options */
     cmd_AddParmAtOffset(opts, OPT_peer, "-enable_peer_stats", CMD_FLAG,
@@ -393,9 +402,7 @@ main(int argc, char **argv)
 	free(interface);
     }
 
-    cmd_OptionAsInt(opts, OPT_debug, &LogLevel);
     cmd_OptionAsString(opts, OPT_database, &pr_dbaseName);
-    cmd_OptionAsString(opts, OPT_logfile, &logFile);
 
     if (cmd_OptionAsInt(opts, OPT_threads, &lwps) == 0) {
 	if (lwps > 64) {	/* maximum of 64 */
@@ -409,12 +416,34 @@ main(int argc, char **argv)
 	}
     }
 
-#ifndef AFS_NT40_ENV
+#ifdef HAVE_SYSLOG
     if (cmd_OptionPresent(opts, OPT_syslog)) {
-	serverLogSyslog = 1;
-	cmd_OptionAsInt(opts, OPT_syslog, &serverLogSyslogFacility);
-    }
+	if (cmd_OptionPresent(opts, OPT_logfile)) {
+	    fprintf(stderr, "Invalid options: -syslog and -logfile are exclusive.");
+	    PT_EXIT(1);
+	}
+	if (cmd_OptionPresent(opts, OPT_transarc_logs)) {
+	    fprintf(stderr, "Invalid options: -syslog and -transarc-logs are exclusive.");
+	    PT_EXIT(1);
+	}
+	logopts.lopt_dest = logDest_syslog;
+	logopts.lopt_facility = LOG_DAEMON;
+	logopts.lopt_tag = "ptserver";
+	cmd_OptionAsInt(opts, OPT_syslog, &logopts.lopt_facility);
+    } else
 #endif
+    {
+	logopts.lopt_dest = logDest_file;
+	if (cmd_OptionPresent(opts, OPT_transarc_logs)) {
+	    logopts.lopt_rotateOnOpen = 1;
+	    logopts.lopt_rotateStyle = logRotate_old;
+	}
+	if (cmd_OptionPresent(opts, OPT_logfile))
+	    cmd_OptionAsString(opts, OPT_logfile, (char**)&logopts.lopt_filename);
+	else
+	    logopts.lopt_filename = AFSDIR_SERVER_PTLOG_FILEPATH;
+    }
+    cmd_OptionAsInt(opts, OPT_debug, &logopts.lopt_logLevel);
 
     /* rx options */
     if (cmd_OptionPresent(opts, OPT_peer))
@@ -437,11 +466,13 @@ main(int argc, char **argv)
 	osi_audit(PTS_StartEvent, 0, AUD_END);
     }
 
-#ifndef AFS_NT40_ENV
-    serverLogSyslogTag = "ptserver";
-#endif
-    OpenLog(logFile);	/* set up logging */
+    OpenLog(&logopts);
+#ifdef AFS_PTHREAD_ENV
+    opr_softsig_Init();
+    SetupLogSoftSignals();
+#else
     SetupLogSignals();
+#endif
 
     prdir = afsconf_Open(configDir);
     if (!prdir) {

@@ -165,8 +165,7 @@ extern u_short rx_PortOf(struct rx_peer *peer);
 #define RX_CALL_IOVEC_WAIT	16384	/* waiting thread is using an iovec */
 #define RX_CALL_HAVE_LAST	32768	/* Last packet has been received */
 #define RX_CALL_NEED_START	0x10000	/* tells rxi_Start to start again */
-#define RX_CALL_PEER_BUSY	0x20000 /* the last packet we received on this call was a
-                                         * BUSY packet; i.e. the channel for this call is busy */
+/* 0x20000 was RX_CALL_PEER_BUSY */
 #define RX_CALL_ACKALL_SENT     0x40000 /* ACKALL has been sent on the call */
 #define RX_CALL_FLUSH		0x80000 /* Transmit queue should be flushed to peer */
 #endif
@@ -240,12 +239,6 @@ rx_IsLoopbackAddr(afs_uint32 addr)
 
 /* Define procedure to set service dead time */
 #define rx_SetIdleDeadTime(service,time) ((service)->idleDeadTime = (time))
-
-/*
- * Define error to return in server connections when failing to answer.
- * (server only) For example, AFS viced sends VNOSERVICE.
- */
-#define rx_SetServerIdleDeadErr(service,err) ((service)->idleDeadErr = (err))
 
 /* Define procedures for getting and setting before and after execute-request procs */
 #define rx_SetAfterProc(service,proc) ((service)->afterProc = (proc))
@@ -347,7 +340,6 @@ struct rx_service {
     u_short connDeadTime;	/* Seconds until a client of this service will be declared dead, if it is not responding */
     u_short idleDeadTime;	/* Time a server will wait for I/O to start up again */
     u_char checkReach;		/* Check for asymmetric clients? */
-    afs_int32 idleDeadErr;
     int nSpecific;		/* number entries in specific data */
     void **specific;		/* pointer to connection specific data */
 #ifdef	RX_ENABLE_LOCKS
@@ -496,17 +488,11 @@ struct rx_ackPacket {
 /* EMSGSIZE returned from network.  Packet too big, must fragment */
 #define RX_MSGSIZE		    (-8)
 
-/*
- * Idle dead timeout error.  This error is never sent on the wire.
- * rxi_SendCallAbort() translates RX_CALL_IDLE to RX_CALL_TIMEOUT.
- */
-#define RX_CALL_IDLE                (-9)
+/* The value -9 was previously used for RX_CALL_IDLE but is now free for
+ * reuse. */
 
-/*
- * Busy call channel error.  This error is never sent on the wire.
- * rxi_SendCallAbort() translates RX_CALL_BUSY to RX_CALL_TIMEOUT.
- */
-#define RX_CALL_BUSY                (-10)
+/* The value -10 was previously used for RX_CALL_BUSY but is now free for
+ * reuse. */
 
 /* transient failure detected ( possibly the server is restarting ) */
 /* this should be equal to VRESTARTING ( util/errors.h ) for old clients to work */
@@ -521,8 +507,20 @@ typedef enum {
     RX_SECIDX_K5   = 5,		/** kerberos 5 tickets as tokens. */
 } rx_securityIndex;
 
+/*
+ * We use an enum for the symbol definitions but have no need for a typedef
+ * because the enum is at least as wide as 'int' and these have to fit into
+ * a field of type 'char'.  Direct assigment will do the right thing if the
+ * enum value fits into that type.
+ */
+enum {
+    RX_SECTYPE_UNK = 0,
+    RX_SECTYPE_NULL = 1,
+    RX_SECTYPE_VAB = 2,
+    RX_SECTYPE_KAD = 3,
+};
 struct rx_securityObjectStats {
-    char type;			/* 0:unk 1:null,2:vab 3:kad */
+    char type;			/* An RX_SECTYPE_* value */
     char level;
     char sparec[10];		/* force correct alignment */
     afs_int32 flags;		/* 1=>unalloc, 2=>auth, 4=>expired */

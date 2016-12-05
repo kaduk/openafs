@@ -107,6 +107,17 @@ afs_dynrootCellInit(void)
     return 0;
 }
 
+/*!
+ * Returns non-zero if the volume is the dynroot volume.
+ */
+int
+afs_IsDynrootVolume(struct volume *v)
+{
+    return (afs_dynrootEnable
+	    && v->cell == afs_dynrootCell
+	    && v->volume == AFS_DYNROOT_VOLUME);
+}
+
 /*
  * Returns non-zero iff fid corresponds to the top of the dynroot volume.
  */
@@ -295,8 +306,7 @@ afs_DynrootInvalidate(void)
 	ReleaseReadLock(&afs_xvcache);
     } while (retry);
     if (tvc) {
-	tvc->f.states &= ~(CStatd | CUnique);
-	osi_dnlc_purgedp(tvc);
+	afs_StaleVCacheFlags(tvc, AFS_STALEVC_NOCB, CUnique);
 	afs_PutVCache(tvc);
     }
 }

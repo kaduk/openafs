@@ -41,7 +41,7 @@
 #define	AFS_MINBUFFERS	50
 #endif
 
-#if (defined(AFS_SUN5_ENV) || (defined(AFS_LINUX24_ENV) && defined(HAVE_LINUX_COMPLETION_H)) || defined(AFS_DARWIN80_ENV)) && !defined(UKERNEL)
+#if (defined(AFS_SUN5_ENV) || defined(AFS_LINUX26_ENV) || defined(AFS_DARWIN80_ENV)) && !defined(UKERNEL)
 /* If AFS_DAEMONOP_ENV is defined, it indicates we run "daemon" AFS syscalls by
  * spawning a kernel thread to do the work, instead of running them in the
  * calling process. */
@@ -87,9 +87,8 @@ afs_int32 afs_rx_idledead_rep = AFS_IDLEDEADTIME_REP;
 
 static int afscall_set_rxpck_received = 0;
 
-#if defined(AFS_HPUX_ENV)
-extern int afs_vfs_mount();
-#endif /* defined(AFS_HPUX_ENV) */
+/* From afs_util.c */
+extern afs_int32 afs_md5inum;
 
 /* This is code which needs to be called once when the first daemon enters
  * the client. A non-zero return means an error and AFS should not start.
@@ -122,8 +121,6 @@ afs_InitSetup(int preallocs)
 #endif /* AFS_NOSTATS */
 
     memset(afs_zeros, 0, AFS_ZEROS);
-
-    rx_SetBusyChannelError(1);  /* turn on busy call error reporting */
 
     /* start RX */
     if(!afscall_set_rxpck_received)
@@ -282,9 +279,9 @@ afs_DaemonOp(long parm, long parm2, long parm3, long parm4, long parm5,
 #endif
 
 
-#if defined(AFS_LINUX24_ENV) && defined(HAVE_LINUX_COMPLETION_H)
+#if defined(AFS_LINUX26_ENV)
 struct afsd_thread_info {
-# if defined(AFS_LINUX26_ENV) && !defined(INIT_WORK_HAS_DATA)
+# if !defined(INIT_WORK_HAS_DATA)
     struct work_struct tq;
 # endif
     unsigned long parm;
@@ -917,12 +914,6 @@ afs_syscall_call(long parm, long parm2, long parm3,
 	osi_Assert(tbuffer1 != NULL);
 	code = afs_InitDynroot();
 	if (!code) {
-#if 0
-	    /* wait for basic init - XXX can't find any reason we need this? */
-	    while (afs_initState < AFSOP_START_BKG)
-		afs_osi_Sleep(&afs_initState);
-#endif
-
 	    AFS_COPYIN(AFSKPTR(parm2), (caddr_t)tcell->hosts, sizeof(tcell->hosts),
 		       code);
 	}
@@ -1231,22 +1222,6 @@ afs_syscall_call(long parm, long parm2, long parm3,
 	if (!code)
 	    AFS_COPYOUT((caddr_t) & mtu, AFSKPTR(parm3),
 			sizeof(afs_int32), code);
-#ifdef AFS_AIX32_ENV
-/* this is disabled for now because I can't figure out how to get access
- * to these kernel variables.  It's only for supporting user-mode rx
- * programs -- it makes a huge difference on the 220's in my testbed,
- * though I don't know why. The bosserver does this with /etc/no, so it's
- * being handled a different way for the servers right now.  */
-/*      {
-	static adjusted = 0;
-	extern u_long sb_max_dflt;
-	if (!adjusted) {
-	  adjusted = 1;
-	  if (sb_max_dflt < 131072) sb_max_dflt = 131072;
-	  if (sb_max < 131072) sb_max = 131072;
-	}
-      } */
-#endif /* AFS_AIX32_ENV */
     } else if (parm == AFSOP_GETMASK) {	/* parm2 == addr in net order */
 	afs_uint32 mask = 0;
 #if	!defined(AFS_SUN5_ENV)
@@ -1329,6 +1304,19 @@ afs_syscall_call(long parm, long parm2, long parm3,
 	    afs_osi_Free(seedbuf, parm3);
 	}
 #endif
+    } else if (parm == AFSOP_SET_INUMCALC) {
+	switch (parm2) {
+	case AFS_INUMCALC_COMPAT:
+	    afs_md5inum = 0;
+	    code = 0;
+	    break;
+	case AFS_INUMCALC_MD5:
+	    afs_md5inum = 1;
+	    code = 0;
+	    break;
+	default:
+	    code = EINVAL;
+	}
     } else {
 	code = EINVAL;
     }
@@ -1368,7 +1356,7 @@ afs_CheckInit(void)
     return code;
 }
 
-int afs_shuttingdown = 0;
+enum afs_shutdown_state afs_shuttingdown = AFS_RUNNING;
 void
 afs_shutdown(void)
 {
@@ -1383,15 +1371,15 @@ afs_shutdown(void)
       return;
     }
 
-    if (afs_shuttingdown)
+    if (afs_shuttingdown != AFS_RUNNING)
 	return;
 
-    /* Give up all of our callbacks if we can. This must be done before setting
-     * afs_shuttingdown, since it calls afs_InitReq, which will fail if
-     * afs_shuttingdown is set. */
+    afs_shuttingdown = AFS_FLUSHING_CB;
+
+    /* Give up all of our callbacks if we can. */
     afs_FlushVCBs(2);
 
-    afs_shuttingdown = 1;
+    afs_shuttingdown = AFS_SHUTDOWN;
 
     if (afs_cold_shutdown)
 	afs_warn("afs: COLD ");
@@ -1471,6 +1459,7 @@ afs_shutdown(void)
     afs_warn("NetIfPoller... ");
     osi_StopNetIfPoller();
 #endif
+    rxi_FreeAllPackets();
 
     afs_termState = AFSOP_STOP_COMPLETE;
 
@@ -1512,7 +1501,7 @@ afs_shutdown(void)
     memset(&afs_stats_cmfullperf, 0, sizeof(struct afs_stats_CMFullPerf));
     afs_warn(" ALL allocated tables... ");
 
-    afs_shuttingdown = 0;
+    afs_shuttingdown = AFS_RUNNING;
     afs_warn("done\n");
 
     return;			/* Just kill daemons for now */

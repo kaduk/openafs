@@ -41,7 +41,7 @@ static int DoStat(char *aname, struct rx_connection *aconn,
 #include "bosprototypes.h"
 
 /* command offsets for bos salvage command */
-#define ADDPARMOFFSET 10
+#define ADDPARMOFFSET 11
 
 /* dummy routine for the audit work.  It should do nothing since audits */
 /* occur at the server level and bos is not a server. */
@@ -99,7 +99,7 @@ GetConn(struct cmd_syndesc *as, int aencrypt)
     hostname = as->parms[0].items->data;
     th = hostutil_GetHostByName(hostname);
     if (!th) {
-	printf("bos: can't find address for host '%s'\n", hostname);
+	fprintf(stderr, "bos: can't find address for host '%s'\n", hostname);
 	exit(1);
     }
     memcpy(&addr, th->h_addr, sizeof(afs_int32));
@@ -124,7 +124,7 @@ GetConn(struct cmd_syndesc *as, int aencrypt)
 	 * directory */
 	tdir = afsconf_Open(confdir);
 	if (tdir == NULL) {
-	    printf("bos: can't open cell database (%s)\n", confdir);
+	    fprintf(stderr, "bos: can't open cell database (%s)\n", confdir);
 	    exit(1);
 	}
     }
@@ -161,15 +161,15 @@ SetAuth(struct cmd_syndesc *as, void *arock)
     afs_int32 flag;
     char *tp;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     tp = as->parms[1].items->data;
     if (strcmp(tp, "on") == 0)
 	flag = 0;		/* auth req.: noauthflag is false */
     else if (strcmp(tp, "off") == 0)
 	flag = 1;
     else {
-	printf
-	    ("bos: illegal authentication specifier '%s', must be 'off' or 'on'.\n",
+	fprintf
+	    (stderr, "bos: illegal authentication specifier '%s', must be 'off' or 'on'.\n",
 	     tp);
 	return 1;
     }
@@ -226,7 +226,7 @@ Prune(struct cmd_syndesc *as, void *arock)
     struct rx_connection *tconn;
     afs_int32 flags;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     flags = 0;
     if (as->parms[1].items)
 	flags |= BOZO_PRUNEBAK;
@@ -248,10 +248,10 @@ Exec(struct cmd_syndesc *as, void *arock)
     struct rx_connection *tconn;
     afs_int32 code;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     code = BOZO_Exec(tconn, as->parms[1].items->data);
     if (code)
-	printf("bos: failed to execute command (%s)\n", em(code));
+	fprintf(stderr, "bos: failed to execute command (%s)\n", em(code));
     return code;
 }
 
@@ -267,7 +267,7 @@ GetDate(struct cmd_syndesc *as, void *arock)
 
     tconn = GetConn(as, 0);
     if (!as->parms[1].items) {
-	printf("bos: no files to check\n");
+	fprintf(stderr, "bos: no files to check\n");
 	return 1;
     }
 
@@ -282,7 +282,7 @@ GetDate(struct cmd_syndesc *as, void *arock)
 	ComputeDestDir(ti->data, destDir, tbuffer, sizeof(tbuffer));
 	code = BOZO_GetDates(tconn, tbuffer, &time, &bakTime, &oldTime);
 	if (code) {
-	    printf("bos: failed to check date on %s (%s)\n", ti->data,
+	    fprintf(stderr, "bos: failed to check date on %s (%s)\n", ti->data,
 		   em(code));
 	    return 1;
 	} else {
@@ -314,9 +314,9 @@ UnInstall(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
     struct rx_connection *tconn;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     if (!as->parms[1].items) {
-	printf("bos: no files to uninstall\n");
+	fprintf(stderr, "bos: no files to uninstall\n");
 	return 1;
     }
 
@@ -331,7 +331,7 @@ UnInstall(struct cmd_syndesc *as, void *arock)
 	ComputeDestDir(ti->data, destDir, tbuffer, sizeof(tbuffer));
 	code = BOZO_UnInstall(tconn, tbuffer);
 	if (code) {
-	    printf("bos: failed to uninstall %s (%s)\n", ti->data, em(code));
+	    fprintf(stderr, "bos: failed to uninstall %s (%s)\n", ti->data, em(code));
 	    return 1;
 	} else
 	    printf("bos: uninstalled file %s\n", ti->data);
@@ -350,7 +350,7 @@ GetServerGoal(struct rx_connection *aconn, char *aname)
     tp = buffer;
     code = BOZO_GetInstanceInfo(aconn, aname, &tp, &istatus);
     if (code) {
-	printf("bos: failed to get instance info for '%s' (%s)\n", aname,
+	fprintf(stderr, "bos: failed to get instance info for '%s' (%s)\n", aname,
 	       em(code));
 	/* if we can't get the answer, assume its running */
 	return BSTAT_NORMAL;
@@ -373,9 +373,9 @@ Install(struct cmd_syndesc *as, void *arock)
     struct rx_call *tcall;
     char destDir[256];
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     if (!as->parms[1].items) {
-	printf("bos: no files to install\n");
+	fprintf(stderr, "bos: no files to install\n");
 	return 1;
     }
 
@@ -390,12 +390,12 @@ Install(struct cmd_syndesc *as, void *arock)
 	fd = open(ti->data, O_RDONLY);
 	if (fd < 0) {
 	    /* better to quit on error than continue for install command */
-	    printf("bos: can't find file '%s', quitting\n", ti->data);
+	    fprintf(stderr, "bos: can't find file '%s', quitting\n", ti->data);
 	    return 1;
 	}
 	code = fstat(fd, &tstat);
 	if (code) {
-	    printf("bos: failed to stat file %s, errno is %d\n", ti->data,
+	    fprintf(stderr, "bos: failed to stat file %s, errno is %d\n", ti->data,
 		   errno);
 	    return 1;
 	}
@@ -410,7 +410,7 @@ Install(struct cmd_syndesc *as, void *arock)
 	}
 	code = rx_EndCall(tcall, code);
 	if (code) {
-	    printf("bos: failed to install %s (%s)\n", ti->data, em(code));
+	    fprintf(stderr, "bos: failed to install %s (%s)\n", ti->data, em(code));
 	    return 1;
 	} else
 	    printf("bos: installed file %s\n", ti->data);
@@ -425,23 +425,23 @@ Shutdown(struct cmd_syndesc *as, void *arock)
     afs_int32 code;
     struct cmd_item *ti;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     if (as->parms[1].items == 0) {
 	code = BOZO_ShutdownAll(tconn);
 	if (code)
-	    printf("bos: failed to shutdown servers (%s)\n", em(code));
+	    fprintf(stderr, "bos: failed to shutdown servers (%s)\n", em(code));
     } else {
 	for (ti = as->parms[1].items; ti; ti = ti->next) {
 	    code = BOZO_SetTStatus(tconn, ti->data, BSTAT_SHUTDOWN);
 	    if (code)
-		printf("bos: failed to shutdown instance %s (%s)\n", ti->data,
+		fprintf(stderr, "bos: failed to shutdown instance %s (%s)\n", ti->data,
 		       em(code));
 	}
     }
     if (as->parms[8].items) {
 	code = BOZO_WaitAll(tconn);
 	if (code)
-	    printf("bos: can't wait for processes to shutdown (%s)\n",
+	    fprintf(stderr, "bos: can't wait for processes to shutdown (%s)\n",
 		   em(code));
     }
     return 0;
@@ -461,27 +461,27 @@ GetRestartCmd(struct cmd_syndesc *as, void *arock)
 
     code = BOZO_GetRestartTime(tconn, 1, (struct bozo_netKTime *) &generalTime);
     if (code) {
-	printf("bos: failed to retrieve restart information (%s)\n",
+	fprintf(stderr, "bos: failed to retrieve restart information (%s)\n",
 	       em(code));
 	return code;
     }
     code = BOZO_GetRestartTime(tconn, 2, (struct bozo_netKTime *) &newBinaryTime);
     if (code) {
-	printf("bos: failed to retrieve restart information (%s)\n",
+	fprintf(stderr, "bos: failed to retrieve restart information (%s)\n",
 	       em(code));
 	return code;
     }
 
     code = ktime_DisplayString(&generalTime, messageBuffer);
     if (code) {
-	printf("bos: failed to decode restart time (%s)\n", em(code));
+	fprintf(stderr, "bos: failed to decode restart time (%s)\n", em(code));
 	return code;
     }
     printf("Server %s restarts %s\n", hostp, messageBuffer);
 
     code = ktime_DisplayString(&newBinaryTime, messageBuffer);
     if (code) {
-	printf("bos: failed to decode restart time (%s)\n", em(code));
+	fprintf(stderr, "bos: failed to decode restart time (%s)\n", em(code));
 	return code;
     }
     printf("Server %s restarts for new binaries %s\n", hostp, messageBuffer);
@@ -500,7 +500,7 @@ SetRestartCmd(struct cmd_syndesc *as, void *arock)
     struct rx_connection *tconn;
 
     count = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     if (as->parms[2].items) {
 	count++;
 	type = 1;
@@ -510,21 +510,21 @@ SetRestartCmd(struct cmd_syndesc *as, void *arock)
 	type = 2;
     }
     if (count > 1) {
-	printf("bos: can't specify more than one restart time at a time\n");
+	fprintf(stderr, "bos: can't specify more than one restart time at a time\n");
 	return -1;
     }
     if (count == 0)
 	type = 1;		/* by default set general restart time */
 
     if ((code = ktime_ParsePeriodic(as->parms[1].items->data, &restartTime))) {
-	printf("bos: failed to parse '%s' as periodic restart time(%s)\n",
+	fprintf(stderr, "bos: failed to parse '%s' as periodic restart time(%s)\n",
 	       as->parms[1].items->data, em(code));
 	return code;
     }
 
     code = BOZO_SetRestartTime(tconn, type, (struct bozo_netKTime *) &restartTime);
     if (code) {
-	printf("bos: failed to set restart time at server (%s)\n", em(code));
+	fprintf(stderr, "bos: failed to set restart time at server (%s)\n", em(code));
 	return code;
     }
     return 0;
@@ -537,16 +537,16 @@ Startup(struct cmd_syndesc *as, void *arock)
     afs_int32 code;
     struct cmd_item *ti;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     if (as->parms[1].items == 0) {
 	code = BOZO_StartupAll(tconn);
 	if (code)
-	    printf("bos: failed to startup servers (%s)\n", em(code));
+	    fprintf(stderr, "bos: failed to startup servers (%s)\n", em(code));
     } else {
 	for (ti = as->parms[1].items; ti; ti = ti->next) {
 	    code = BOZO_SetTStatus(tconn, ti->data, BSTAT_NORMAL);
 	    if (code)
-		printf("bos: failed to start instance %s (%s)\n", ti->data,
+		fprintf(stderr, "bos: failed to start instance %s (%s)\n", ti->data,
 		       em(code));
 	}
     }
@@ -560,37 +560,37 @@ Restart(struct cmd_syndesc *as, void *arock)
     afs_int32 code;
     struct cmd_item *ti;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     if (as->parms[2].items) {
 	/* this is really a rebozo command */
 	if (as->parms[1].items) {
 	    /* specified specific things to restart, can't do this at the same
 	     * time */
-	    printf
-		("bos: can't specify both '-bos' and specific servers to restart.\n");
+	    fprintf
+		(stderr, "bos: can't specify both '-bos' and specific servers to restart.\n");
 	    return 1;
 	}
 	/* otherwise do a rebozo */
 	code = BOZO_ReBozo(tconn);
 	if (code)
-	    printf("bos: failed to restart bosserver (%s)\n", em(code));
+	    fprintf(stderr, "bos: failed to restart bosserver (%s)\n", em(code));
 	return code;
     }
     if (as->parms[1].items == 0) {
 	if (as->parms[3].items) {	/* '-all' */
 	    code = BOZO_RestartAll(tconn);
 	    if (code)
-		printf("bos: failed to restart servers (%s)\n", em(code));
+		fprintf(stderr, "bos: failed to restart servers (%s)\n", em(code));
 	} else
-	    printf("bos: To restart all processes please specify '-all'\n");
+	    fprintf(stderr, "bos: To restart all processes please specify '-all'\n");
     } else {
 	if (as->parms[3].items) {
-	    printf("bos: Can't use '-all' along with individual instances\n");
+	    fprintf(stderr, "bos: Can't use '-all' along with individual instances\n");
 	} else {
 	    for (ti = as->parms[1].items; ti; ti = ti->next) {
 		code = BOZO_Restart(tconn, ti->data);
 		if (code)
-		    printf("bos: failed to restart instance %s (%s)\n",
+		    fprintf(stderr, "bos: failed to restart instance %s (%s)\n",
 			   ti->data, em(code));
 	    }
 	}
@@ -604,10 +604,10 @@ SetCellName(struct cmd_syndesc *as, void *arock)
     struct rx_connection *tconn;
     afs_int32 code;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     code = BOZO_SetCellName(tconn, as->parms[1].items->data);
     if (code)
-	printf("bos: failed to set cell (%s)\n", em(code));
+	fprintf(stderr, "bos: failed to set cell (%s)\n", em(code));
     return 0;
 }
 
@@ -619,7 +619,7 @@ AddHost(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
     char name[MAXHOSTCHARS];
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	if (as->parms[2].items) {
 	    if (strlen(ti->data) > MAXHOSTCHARS - 3) {
@@ -633,7 +633,7 @@ AddHost(struct cmd_syndesc *as, void *arock)
 	} else
 	    code = BOZO_AddCellHost(tconn, ti->data);
 	if (code)
-	    printf("bos: failed to add host %s (%s)\n", ti->data, em(code));
+	    fprintf(stderr, "bos: failed to add host %s (%s)\n", ti->data, em(code));
     }
     return 0;
 }
@@ -645,11 +645,11 @@ RemoveHost(struct cmd_syndesc *as, void *arock)
     afs_int32 code;
     struct cmd_item *ti;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_DeleteCellHost(tconn, ti->data);
 	if (code)
-	    printf("bos: failed to delete host %s (%s)\n", ti->data,
+	    fprintf(stderr, "bos: failed to delete host %s (%s)\n", ti->data,
 		   em(code));
     }
     return 0;
@@ -668,7 +668,7 @@ ListHosts(struct cmd_syndesc *as, void *arock)
     tconn = GetConn(as, 0);
     code = BOZO_GetCellName(tconn, &tp);
     if (code) {
-	printf("bos: failed to get cell name (%s)\n", em(code));
+	fprintf(stderr, "bos: failed to get cell name (%s)\n", em(code));
 	exit(1);
     }
     printf("Cell name is %s\n", tbuffer);
@@ -677,7 +677,7 @@ ListHosts(struct cmd_syndesc *as, void *arock)
 	if (code == BZDOM)
 	    break;
 	if (code != 0) {
-	    printf("bos: failed to get cell host %d (%s)\n", i, em(code));
+	    fprintf(stderr, "bos: failed to get cell host %d (%s)\n", i, em(code));
 	    exit(1);
 	}
 	printf("    Host %d is %s\n", i + 1, tbuffer);
@@ -755,7 +755,7 @@ AddKey(struct cmd_syndesc *as, void *arock)
     }
     code = BOZO_AddKey(tconn, temp, ktc_to_bozoptr(&tkey));
     if (code) {
-	printf("bos: failed to set key %d (%s)\n", temp, em(code));
+	fprintf(stderr, "bos: failed to set key %d (%s)\n", temp, em(code));
 	exit(1);
     }
     return 0;
@@ -769,12 +769,12 @@ RemoveKey(struct cmd_syndesc *as, void *arock)
     afs_int32 temp;
     struct cmd_item *ti;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	temp = atoi(ti->data);
 	code = BOZO_DeleteKey(tconn, temp);
 	if (code) {
-	    printf("bos: failed to delete key %d (%s)\n", temp, em(code));
+	    fprintf(stderr, "bos: failed to delete key %d (%s)\n", temp, em(code));
 	    exit(1);
 	}
     }
@@ -816,7 +816,7 @@ ListKeys(struct cmd_syndesc *as, void *arock)
 	printf("Keys last changed on %s.\n", DateOf(keyInfo.mod_sec));
     }
     if (code != BZDOM)
-	printf("bos: %s error encountered while listing keys\n", em(code));
+	fprintf(stderr, "bos: %s error encountered while listing keys\n", em(code));
     else
 	printf("All done.\n");
     return 0;
@@ -831,11 +831,11 @@ AddSUser(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
 
     failed = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_AddSUser(tconn, ti->data);
 	if (code) {
-	    printf("bos: failed to add user '%s' (%s)\n", ti->data, em(code));
+	    fprintf(stderr, "bos: failed to add user '%s' (%s)\n", ti->data, em(code));
 	    failed = 1;
 	}
     }
@@ -851,15 +851,15 @@ RemoveSUser(struct cmd_syndesc *as, void *arock)
     int failed;
 
     failed = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_DeleteSUser(tconn, ti->data);
 	if (code) {
-	    printf("bos: failed to delete user '%s', ", ti->data);
+	    fprintf(stderr, "bos: failed to delete user '%s', ", ti->data);
 	    if (code == ENOENT)
-		printf("(no such user)\n");
+		fprintf(stderr, "(no such user)\n");
 	    else
-		printf("(%s)\n", em(code));
+		fprintf(stderr, "(%s)\n", em(code));
 	    failed = 1;
 	}
     }
@@ -898,7 +898,7 @@ ListSUsers(struct cmd_syndesc *as, void *arock)
     }
     if (code != 1) {
 	/* a real error code, instead of scanned past end */
-	printf("bos: failed to retrieve super-user list (%s)\n", em(code));
+	fprintf(stderr, "bos: failed to retrieve super-user list (%s)\n", em(code));
 	return code;
     }
     if (lastNL == 0)
@@ -931,7 +931,7 @@ StatServer(struct cmd_syndesc *as, void *arock)
 	if (code == BZDOM)
 	    break;
 	if (code) {
-	    printf("bos: failed to contact host's bosserver (%s).\n",
+	    fprintf(stderr, "bos: failed to contact host's bosserver (%s).\n",
 		   em(code));
 	    break;
 	}
@@ -950,7 +950,7 @@ CreateServer(struct cmd_syndesc *as, void *arock)
     int i;
     char *type, *name, *notifier = NONOTIFIER;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     for (i = 0; i < 6; i++)
 	parms[i] = "";
     for (i = 0, ti = as->parms[3].items; (ti && i < 6); ti = ti->next, i++) {
@@ -965,8 +965,8 @@ CreateServer(struct cmd_syndesc *as, void *arock)
 	BOZO_CreateBnode(tconn, type, name, parms[0], parms[1], parms[2],
 			 parms[3], parms[4], notifier);
     if (code) {
-	printf
-	    ("bos: failed to create new server instance %s of type '%s' (%s)\n",
+	fprintf
+	    (stderr, "bos: failed to create new server instance %s of type '%s' (%s)\n",
 	     name, type, em(code));
     }
     return code;
@@ -980,14 +980,14 @@ DeleteServer(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
 
     code = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_DeleteBnode(tconn, ti->data);
 	if (code) {
 	    if (code == BZBUSY)
-		printf("bos: can't delete running instance '%s'\n", ti->data);
+		fprintf(stderr, "bos: can't delete running instance '%s'\n", ti->data);
 	    else
-		printf("bos: failed to delete instance '%s' (%s)\n", ti->data,
+		fprintf(stderr, "bos: failed to delete instance '%s' (%s)\n", ti->data,
 		       em(code));
 	}
     }
@@ -1002,12 +1002,12 @@ StartServer(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
 
     code = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_SetStatus(tconn, ti->data, BSTAT_NORMAL);
 	if (code)
-	    printf("bos: failed to start instance '%s' (%s)\n", ti->data,
-		   em(code));
+	    fprintf(stderr, "bos: failed to start instance '%s' (%s)\n", 
+                    ti->data, em(code));
     }
     return code;
 }
@@ -1020,17 +1020,17 @@ StopServer(struct cmd_syndesc *as, void *arock)
     struct cmd_item *ti;
 
     code = 0;
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     for (ti = as->parms[1].items; ti; ti = ti->next) {
 	code = BOZO_SetStatus(tconn, ti->data, BSTAT_SHUTDOWN);
 	if (code)
-	    printf("bos: failed to change stop instance '%s' (%s)\n",
+	    fprintf(stderr, "bos: failed to change stop instance '%s' (%s)\n",
 		   ti->data, em(code));
     }
     if (as->parms[8].items) {
 	code = BOZO_WaitAll(tconn);
 	if (code)
-	    printf("bos: can't wait for processes to shutdown (%s)\n",
+	    fprintf(stderr, "bos: can't wait for processes to shutdown (%s)\n",
 		   em(code));
     }
     return code;
@@ -1039,7 +1039,7 @@ StopServer(struct cmd_syndesc *as, void *arock)
 static afs_int32
 DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
 	  char * aoutName, afs_int32 showlog, char * parallel,
-	  char * atmpDir, char * orphans, int dafs)
+	  char * atmpDir, char * orphans, int dafs, int dodirs)
 {
     afs_int32 code;
     char *parms[6];
@@ -1060,12 +1060,12 @@ DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
     if (aparm1) {
 	partNumber = volutil_GetPartitionID(aparm1);
 	if (partNumber < 0) {
-	    printf("bos: could not parse partition ID '%s'\n", aparm1);
+	    fprintf(stderr, "bos: could not parse partition ID '%s'\n", aparm1);
 	    return EINVAL;
 	}
 	tp = volutil_PartitionName(partNumber);
 	if (!tp) {
-	    printf("bos: internal error parsing partition ID '%s'\n", aparm1);
+	    fprintf(stderr, "bos: internal error parsing partition ID '%s'\n", aparm1);
 	    return EINVAL;
 	}
 	strcpy(partName, tp);
@@ -1076,7 +1076,7 @@ DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
     if (aoutName) {
 	outFile = fopen(aoutName, "w");
 	if (!outFile) {
-	    printf("bos: can't open specified SalvageLog file '%s'\n",
+	    fprintf(stderr, "bos: can't open specified SalvageLog file '%s'\n",
 		   aoutName);
 	    return ENOENT;
 	}
@@ -1102,7 +1102,7 @@ DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
 
 	    if ((strlen(tbuffer) + 9 + strlen(partName) + 1 + strlen(aparm2) +
 		 1) > BOZO_BSSIZE) {
-		printf("bos: command line too big\n");
+		fprintf(stderr, "bos: command line too big\n");
 		return (E2BIG);
 	    }
 
@@ -1115,7 +1115,7 @@ DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
 
 	    if ((strlen(tbuffer) + 1 + strlen(partName) + 1 + strlen(aparm2) +
 		 1) > BOZO_BSSIZE) {
-		printf("bos: command line too big\n");
+		fprintf(stderr, "bos: command line too big\n");
 		return (E2BIG);
 	    }
 
@@ -1128,7 +1128,7 @@ DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
 	/* partition salvage */
 	strncpy(tbuffer, AFSDIR_CANONICAL_SERVER_SALVAGER_FILEPATH, BOZO_BSSIZE);
 	if ((strlen(tbuffer) + 4 + strlen(partName) + 1) > BOZO_BSSIZE) {
-	    printf("bos: command line too big\n");
+	    fprintf(stderr, "bos: command line too big\n");
 	    return (E2BIG);
 	}
 	strcat(tbuffer, " -force ");
@@ -1144,7 +1144,7 @@ DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
 	/* add the parallel option if given */
 	if (parallel != NULL) {
 	    if ((strlen(tbuffer) + 11 + strlen(parallel) + 1) > BOZO_BSSIZE) {
-		printf("bos: command line too big\n");
+		fprintf(stderr, "bos: command line too big\n");
 		return (E2BIG);
 	    }
 	    strcat(tbuffer, " -parallel ");
@@ -1154,7 +1154,7 @@ DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
 	/* add the tmpdir option if given */
 	if (atmpDir != NULL) {
 	    if ((strlen(tbuffer) + 9 + strlen(atmpDir) + 1) > BOZO_BSSIZE) {
-		printf("bos: command line too big\n");
+		fprintf(stderr, "bos: command line too big\n");
 		return (E2BIG);
 	    }
 	    strcat(tbuffer, " -tmpdir ");
@@ -1164,11 +1164,19 @@ DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
 	/* add the orphans option if given */
 	if (orphans != NULL) {
 	    if ((strlen(tbuffer) + 10 + strlen(orphans) + 1) > BOZO_BSSIZE) {
-		printf("bos: command line too big\n");
+		fprintf(stderr, "bos: command line too big\n");
 		return (E2BIG);
 	    }
 	    strcat(tbuffer, " -orphans ");
 	    strcat(tbuffer, orphans);
+	}
+	/* add the salvagedirs option if given */
+	if (dodirs) {
+	    if (strlen(tbuffer) + 14 > BOZO_BSSIZE) {
+		fprintf(stderr, "bos: command line too big\n");
+		return (E2BIG);
+	    }
+	    strcat(tbuffer, " -salvagedirs");
 	}
     }
 
@@ -1178,7 +1186,7 @@ DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
 	BOZO_CreateBnode(aconn, "cron", "salvage-tmp", parms[0], parms[1],
 			 parms[2], parms[3], parms[4], notifier);
     if (code) {
-	printf("bos: failed to start 'salvager' (%s)\n", em(code));
+	fprintf(stderr, "bos: failed to start 'salvager' (%s)\n", em(code));
 	goto done;
     }
     /* now wait for bnode to disappear */
@@ -1193,7 +1201,7 @@ DoSalvage(struct rx_connection * aconn, char * aparm1, char * aparm2,
 	    printf("bos: waiting for salvage to complete.\n");
     }
     if (code != BZNOENT) {
-	printf("bos: salvage failed (%s)\n", em(code));
+	fprintf(stderr, "bos: salvage failed (%s)\n", em(code));
 	goto done;
     }
     code = 0;
@@ -1239,7 +1247,7 @@ GetLogCmd(struct cmd_syndesc *as, void *arock)
     int error;
 
     printf("Fetching log file '%s'...\n", as->parms[1].items->data);
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     tcall = rx_NewCall(tconn);
     code = StartBOZO_GetLog(tcall, as->parms[1].items->data);
     if (code) {
@@ -1307,13 +1315,14 @@ SalvageCmd(struct cmd_syndesc *as, void *arock)
     afs_int32 newID;
     extern struct ubik_client *cstruct;
     afs_int32 curGoal, showlog = 0, dafs = 0;
+    int dodirs = 0;
     char *parallel;
     char *tmpDir;
     char *orphans;
     char * serviceName;
 
     /* parm 0 is machine name, 1 is partition, 2 is volume, 3 is -all flag */
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
 
     /* find out whether fileserver is running demand attach fs */
     if (IsDAFS(tconn)) {
@@ -1326,7 +1335,7 @@ SalvageCmd(struct cmd_syndesc *as, void *arock)
     /* we can do a volume, a partition or the whole thing, but not mixtures
      * thereof */
     if (!as->parms[1].items && as->parms[2].items) {
-	printf("bos: must specify partition to salvage individual volume.\n");
+	fprintf(stderr, "bos: must specify partition to salvage individual volume.\n");
 	return -1;
     }
     if (as->parms[5].items && as->parms[3].items) {
@@ -1334,7 +1343,7 @@ SalvageCmd(struct cmd_syndesc *as, void *arock)
 	return -1;
     }
     if (as->parms[4].items && (as->parms[1].items || as->parms[2].items)) {
-	printf("bos: can not specify -all with other flags.\n");
+	fprintf(stderr, "bos: can not specify -all with other flags.\n");
 	return -1;
     }
 
@@ -1365,8 +1374,17 @@ SalvageCmd(struct cmd_syndesc *as, void *arock)
 
     if (dafs) {
 	if (!as->parms[9].items) { /* -forceDAFS flag */
-	    printf("This is a demand attach fileserver.  Are you sure you want to proceed with a manual salvage?\n");
-	    printf("must specify -forceDAFS flag in order to proceed.\n");
+	    fprintf(stderr, "This is a demand attach fileserver.  Are you sure you want to proceed with a manual salvage?\n");
+	    fprintf(stderr, "must specify -forceDAFS flag in order to proceed.\n");
+	    return EINVAL;
+	}
+    }
+
+    if (as->parms[10].items) { /* -salvagedirs */
+	if (as->parms[4].items) { /* -all */
+	    dodirs = 1;
+	} else {
+	    fprintf(stderr, " -salvagedirs only possible with -all.\n");
 	    return EINVAL;
 	}
     }
@@ -1378,23 +1396,23 @@ SalvageCmd(struct cmd_syndesc *as, void *arock)
 	    printf("bos: shutting down '%s'.\n", serviceName);
 	    code = BOZO_SetTStatus(tconn, serviceName, BSTAT_SHUTDOWN);
 	    if (code) {
-		printf("bos: failed to stop '%s' (%s)\n", serviceName, em(code));
+		fprintf(stderr, "bos: failed to stop '%s' (%s)\n", serviceName, em(code));
 		return code;
 	    }
 	    code = BOZO_WaitAll(tconn);	/* wait for shutdown to complete */
 	    if (code)
-		printf
-		    ("bos: failed to wait for file server shutdown, continuing.\n");
+		fprintf
+		    (stderr, "bos: failed to wait for file server shutdown, continuing.\n");
 	}
 	/* now do the salvage operation */
 	printf("Starting salvage.\n");
 	rc = DoSalvage(tconn, NULL, NULL, outName, showlog, parallel, tmpDir,
-		       orphans, dafs);
+		       orphans, dafs, dodirs);
 	if (curGoal == BSTAT_NORMAL) {
 	    printf("bos: restarting %s.\n", serviceName);
 	    code = BOZO_SetTStatus(tconn, serviceName, BSTAT_NORMAL);
 	    if (code) {
-		printf("bos: failed to restart '%s' (%s)\n", serviceName, em(code));
+		fprintf(stderr, "bos: failed to restart '%s' (%s)\n", serviceName, em(code));
 		return code;
 	    }
 	}
@@ -1402,15 +1420,15 @@ SalvageCmd(struct cmd_syndesc *as, void *arock)
 	    return rc;
     } else if (!as->parms[2].items) {
 	if (!as->parms[1].items) {
-	    printf
-		("bos: must specify -all switch to salvage all partitions.\n");
+	    fprintf
+		(stderr, "bos: must specify -all switch to salvage all partitions.\n");
 	    return -1;
 	}
 	if (volutil_GetPartitionID(as->parms[1].items->data) < 0) {
 	    /* can't parse volume ID, so complain before shutting down
 	     * file server.
 	     */
-	    printf("bos: can't interpret %s as partition ID.\n",
+	    fprintf(stderr, "bos: can't interpret %s as partition ID.\n",
 		   as->parms[1].items->data);
 	    return -1;
 	}
@@ -1420,18 +1438,18 @@ SalvageCmd(struct cmd_syndesc *as, void *arock)
 	    printf("bos: shutting down '%s'.\n", serviceName);
 	    code = BOZO_SetTStatus(tconn, serviceName, BSTAT_SHUTDOWN);
 	    if (code) {
-		printf("bos: can't stop '%s' (%s)\n", serviceName, em(code));
+		fprintf(stderr, "bos: can't stop '%s' (%s)\n", serviceName, em(code));
 		return code;
 	    }
 	    code = BOZO_WaitAll(tconn);	/* wait for shutdown to complete */
 	    if (code)
-		printf
-		    ("bos: failed to wait for file server shutdown, continuing.\n");
+		fprintf
+		    (stderr, "bos: failed to wait for file server shutdown, continuing.\n");
 	}
 	/* now do the salvage operation */
 	printf("Starting salvage.\n");
 	rc = DoSalvage(tconn, as->parms[1].items->data, NULL, outName,
-		       showlog, parallel, tmpDir, orphans, dafs);
+		       showlog, parallel, tmpDir, orphans, dafs, 0);
 	if (curGoal == BSTAT_NORMAL) {
 	    printf("bos: restarting '%s'.\n", serviceName);
 	    code = BOZO_SetTStatus(tconn, serviceName, BSTAT_NORMAL);
@@ -1469,14 +1487,14 @@ SalvageCmd(struct cmd_syndesc *as, void *arock)
 	if (code == 0) {
 	    newID = vsu_GetVolumeID(as->parms[2].items->data, cstruct, &err);
 	    if (newID == 0) {
-		printf("bos: can't interpret %s as volume name or ID\n",
+		fprintf(stderr, "bos: can't interpret %s as volume name or ID\n",
 		       as->parms[2].items->data);
 		return -1;
 	    }
 	    sprintf(tname, "%u", newID);
 	} else {
-	    printf
-		("bos: can't initialize volume system client (code %d), trying anyway.\n",
+	    fprintf
+		(stderr, "bos: can't initialize volume system client (code %d), trying anyway.\n",
 		 code);
 	    strncpy(tname, as->parms[2].items->data, sizeof(tname));
 	}
@@ -1484,13 +1502,13 @@ SalvageCmd(struct cmd_syndesc *as, void *arock)
 	    /* can't parse volume ID, so complain before shutting down
 	     * file server.
 	     */
-	    printf("bos: can't interpret %s as partition ID.\n",
+	    fprintf(stderr, "bos: can't interpret %s as partition ID.\n",
 		   as->parms[1].items->data);
 	    return -1;
 	}
 	printf("Starting salvage.\n");
 	rc = DoSalvage(tconn, as->parms[1].items->data, tname, outName,
-		       showlog, parallel, tmpDir, orphans, dafs);
+		       showlog, parallel, tmpDir, orphans, dafs, 0);
 	if (rc)
 	    return rc;
     }
@@ -1529,7 +1547,7 @@ DoStat(IN char *aname,
     tp = buffer;
     code = BOZO_GetInstanceInfo(aconn, aname, &tp, &istatus);
     if (code) {
-	printf("bos: failed to get instance info for '%s' (%s)\n", aname,
+	fprintf(stderr, "bos: failed to get instance info for '%s' (%s)\n", aname,
 	       em(code));
 	return -1;
     }
@@ -1557,7 +1575,7 @@ DoStat(IN char *aname,
     tp = buffer;
     code = BOZO_GetStatus(aconn, aname, &temp, &tp);
     if (code)
-	printf("bos: failed to get status for instance '%s' (%s)\n", aname,
+	fprintf(stderr, "bos: failed to get status for instance '%s' (%s)\n", aname,
 	       em(code));
     else {
 	printf("currently ");
@@ -1639,7 +1657,7 @@ GetRestrict(struct cmd_syndesc *as, void *arock)
     tconn = GetConn(as, 0);
     code = BOZO_GetRestrictedMode(tconn, &val);
     if (code)
-	printf("bos: failed to get restricted mode (%s)\n", em(code));
+	fprintf(stderr, "bos: failed to get restricted mode (%s)\n", em(code));
     else
 	printf("Restricted mode is %s\n", val ? "on" : "off");
 
@@ -1652,11 +1670,11 @@ SetRestrict(struct cmd_syndesc *as, void *arock)
     struct rx_connection *tconn;
     afs_int32 code, val;
 
-    tconn = GetConn(as, 0);
+    tconn = GetConn(as, 1);
     util_GetInt32(as->parms[1].items->data, &val);
     code = BOZO_SetRestrictedMode(tconn, val);
     if (code)
-	printf("bos: failed to set restricted mode (%s)\n", em(code));
+	fprintf(stderr, "bos: failed to set restricted mode (%s)\n", em(code));
     return 0;
 }
 
@@ -1702,7 +1720,7 @@ main(int argc, char **argv)
     /* start up rx */
     code = rx_Init(0);
     if (code) {
-	printf("bos: could not initialize rx (%s)\n", em(code));
+	fprintf(stderr, "bos: could not initialize rx (%s)\n", em(code));
 	exit(1);
     }
 
@@ -1720,12 +1738,12 @@ main(int argc, char **argv)
     initialize_CMD_error_table();
     initialize_BZ_error_table();
 
-    ts = cmd_CreateSyntax("start", StartServer, NULL, "start running a server");
+    ts = cmd_CreateSyntax("start", StartServer, NULL, 0, "start running a server");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-instance", CMD_LIST, 0, "server process name");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("stop", StopServer, NULL, "halt a server instance");
+    ts = cmd_CreateSyntax("stop", StopServer, NULL, 0, "halt a server instance");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-instance", CMD_LIST, 0, "server process name");
     cmd_Seek(ts, 8);
@@ -1733,7 +1751,7 @@ main(int argc, char **argv)
 		"wait for process to stop");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("status", StatServer, NULL,
+    ts = cmd_CreateSyntax("status", StatServer, NULL, 0,
 			  "show server instance status");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-instance", CMD_LIST, CMD_OPTIONAL,
@@ -1741,7 +1759,7 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-long", CMD_FLAG, CMD_OPTIONAL, "long status");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("shutdown", Shutdown, NULL, "shutdown all processes");
+    ts = cmd_CreateSyntax("shutdown", Shutdown, NULL, 0, "shutdown all processes");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-instance", CMD_LIST, CMD_OPTIONAL, "instances");
     cmd_Seek(ts, 8);
@@ -1749,12 +1767,12 @@ main(int argc, char **argv)
 		"wait for process to stop");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("startup", Startup, NULL, "start all processes");
+    ts = cmd_CreateSyntax("startup", Startup, NULL, 0, "start all processes");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-instance", CMD_LIST, CMD_OPTIONAL, "instances");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("restart", Restart, NULL, "restart processes");
+    ts = cmd_CreateSyntax("restart", Restart, NULL, 0, "restart processes");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-instance", CMD_LIST, CMD_OPTIONAL, "instances");
     cmd_AddParm(ts, "-bosserver", CMD_FLAG, CMD_OPTIONAL,
@@ -1764,7 +1782,7 @@ main(int argc, char **argv)
 
 #ifndef OPBOS
 
-    ts = cmd_CreateSyntax("create", CreateServer, NULL,
+    ts = cmd_CreateSyntax("create", CreateServer, NULL, 0,
 			  "create a new server instance");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-instance", CMD_SINGLE, 0, "server process name");
@@ -1774,105 +1792,105 @@ main(int argc, char **argv)
 		"Notifier program");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("delete", DeleteServer, NULL,
+    ts = cmd_CreateSyntax("delete", DeleteServer, NULL, 0,
 			  "delete a server instance");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-instance", CMD_LIST, 0, "server process name");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("adduser", AddSUser, NULL,
+    ts = cmd_CreateSyntax("adduser", AddSUser, NULL, 0,
 			  "add users to super-user list");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-user", CMD_LIST, 0, "user names");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("removeuser", RemoveSUser, NULL,
+    ts = cmd_CreateSyntax("removeuser", RemoveSUser, NULL, 0,
 			  "remove users from super-user list");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-user", CMD_LIST, 0, "user names");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("listusers", ListSUsers, NULL, "list super-users");
+    ts = cmd_CreateSyntax("listusers", ListSUsers, NULL, 0, "list super-users");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("addkey", AddKey, NULL,
+    ts = cmd_CreateSyntax("addkey", AddKey, NULL, 0,
 			  "add keys to key dbase (kvno 999 is bcrypt)");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-key", CMD_SINGLE, CMD_OPTIONAL, "key");
     cmd_AddParm(ts, "-kvno", CMD_SINGLE, 0, "key version number");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("removekey", RemoveKey, NULL,
+    ts = cmd_CreateSyntax("removekey", RemoveKey, NULL, 0,
 			  "remove keys from key dbase");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-kvno", CMD_LIST, 0, "key version number");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("listkeys", ListKeys, NULL, "list keys");
+    ts = cmd_CreateSyntax("listkeys", ListKeys, NULL, 0, "list keys");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-showkey", CMD_FLAG, CMD_OPTIONAL,
 		"show the actual key rather than the checksum");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("listhosts", ListHosts, NULL, "get cell host list");
+    ts = cmd_CreateSyntax("listhosts", ListHosts, NULL, 0, "get cell host list");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     add_std_args(ts);
     cmd_CreateAlias(ts, "getcell");
 
-    ts = cmd_CreateSyntax("setcellname", SetCellName, NULL, "set cell name");
+    ts = cmd_CreateSyntax("setcellname", SetCellName, NULL, 0, "set cell name");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-name", CMD_SINGLE, 0, "cell name");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("addhost", AddHost, NULL, "add host to cell dbase");
+    ts = cmd_CreateSyntax("addhost", AddHost, NULL, 0, "add host to cell dbase");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-host", CMD_LIST, 0, "host name");
     cmd_AddParm(ts, "-clone", CMD_FLAG, CMD_OPTIONAL, "vote doesn't count");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("removehost", RemoveHost, NULL,
+    ts = cmd_CreateSyntax("removehost", RemoveHost, NULL, 0,
 			  "remove host from cell dbase");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-host", CMD_LIST, 0, "host name");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("setauth", SetAuth, NULL,
+    ts = cmd_CreateSyntax("setauth", SetAuth, NULL, 0,
 			  "set authentication required flag");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-authrequired", CMD_SINGLE, 0,
 		"on or off: authentication required for admin requests");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("install", Install, NULL, "install program");
+    ts = cmd_CreateSyntax("install", Install, NULL, 0, "install program");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-file", CMD_LIST, 0, "files to install");
     cmd_AddParm(ts, "-dir", CMD_SINGLE, CMD_OPTIONAL, "destination dir");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("uninstall", UnInstall, NULL, "uninstall program");
+    ts = cmd_CreateSyntax("uninstall", UnInstall, NULL, 0, "uninstall program");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-file", CMD_LIST, 0, "files to uninstall");
     cmd_AddParm(ts, "-dir", CMD_SINGLE, CMD_OPTIONAL, "destination dir");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("getlog", GetLogCmd, NULL, "examine log file");
+    ts = cmd_CreateSyntax("getlog", GetLogCmd, NULL, 0, "examine log file");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-file", CMD_SINGLE, 0, "log file to examine");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("getdate", GetDate, NULL, "get dates for programs");
+    ts = cmd_CreateSyntax("getdate", GetDate, NULL, 0, "get dates for programs");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-file", CMD_LIST, 0, "files to check");
     cmd_AddParm(ts, "-dir", CMD_SINGLE, CMD_OPTIONAL, "destination dir");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("exec", Exec, NULL, "execute shell command on server");
+    ts = cmd_CreateSyntax("exec", Exec, NULL, 0, "execute shell command on server");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-cmd", CMD_SINGLE, 0, "command to execute");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("prune", Prune, NULL, "prune server files");
+    ts = cmd_CreateSyntax("prune", Prune, NULL, 0, "prune server files");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-bak", CMD_FLAG, CMD_OPTIONAL, "delete .BAK files");
     cmd_AddParm(ts, "-old", CMD_FLAG, CMD_OPTIONAL, "delete .OLD files");
@@ -1880,7 +1898,7 @@ main(int argc, char **argv)
     cmd_AddParm(ts, "-all", CMD_FLAG, CMD_OPTIONAL, "delete all junk files");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("setrestart", SetRestartCmd, NULL,
+    ts = cmd_CreateSyntax("setrestart", SetRestartCmd, NULL, 0,
 			  "set restart times");
     cmd_AddParm(ts, "-server", CMD_SINGLE, CMD_REQUIRED, "machine name");
     cmd_AddParm(ts, "-time", CMD_SINGLE, CMD_REQUIRED,
@@ -1892,13 +1910,13 @@ main(int argc, char **argv)
     add_std_args(ts);
     cmd_CreateAlias(ts, "setr");
 
-    ts = cmd_CreateSyntax("getrestart", GetRestartCmd, NULL,
+    ts = cmd_CreateSyntax("getrestart", GetRestartCmd, NULL, 0,
 			  "get restart times");
     cmd_AddParm(ts, "-server", CMD_SINGLE, CMD_REQUIRED, "machine name");
     add_std_args(ts);
     cmd_CreateAlias(ts, "getr");
 
-    ts = cmd_CreateSyntax("salvage", SalvageCmd, NULL,
+    ts = cmd_CreateSyntax("salvage", SalvageCmd, NULL, 0,
 			  "salvage partition or volumes");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-partition", CMD_SINGLE, CMD_OPTIONAL,
@@ -1918,14 +1936,16 @@ main(int argc, char **argv)
 		"ignore | remove | attach");
     cmd_AddParm(ts, "-forceDAFS", CMD_FLAG, CMD_OPTIONAL,
 		"(DAFS) force salvage of demand attach fileserver");
+    cmd_AddParm(ts, "-salvagedirs", CMD_FLAG, CMD_OPTIONAL,
+		"Force rebuild/salvage of all directories");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("getrestricted", GetRestrict, NULL,
+    ts = cmd_CreateSyntax("getrestricted", GetRestrict, NULL, 0,
 			  "get restrict mode");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     add_std_args(ts);
 
-    ts = cmd_CreateSyntax("setrestricted", SetRestrict, NULL,
+    ts = cmd_CreateSyntax("setrestricted", SetRestrict, NULL, 0,
 			  "set restrict mode");
     cmd_AddParm(ts, "-server", CMD_SINGLE, 0, "machine name");
     cmd_AddParm(ts, "-mode", CMD_SINGLE, 0, "mode to set");

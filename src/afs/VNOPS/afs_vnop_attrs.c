@@ -53,7 +53,7 @@ afs_CopyOutAttrs(struct vcache *avc, struct vattr *attrs)
     int fakedir = 0;
 
     AFS_STATCNT(afs_CopyOutAttrs);
-    if (afs_fakestat_enable && avc->mvstat == 1)
+    if (afs_fakestat_enable && avc->mvstat == AFS_MVSTAT_MTPT)
 	fakedir = 1;
     attrs->va_type = fakedir ? VDIR : vType(avc);
 #if defined(AFS_SGI_ENV) || defined(AFS_AIX32_ENV) || defined(AFS_SUN5_ENV) || defined(AFS_DARWIN_ENV)
@@ -101,7 +101,7 @@ afs_CopyOutAttrs(struct vcache *avc, struct vattr *attrs)
 #else /* ! AFS_DARWIN_ENV */
     attrs->va_fsid = 1;
 #endif 
-    if (avc->mvstat == 2) {
+    if (avc->mvstat == AFS_MVSTAT_ROOT) {
 	tvp = afs_GetVolume(&avc->f.fid, 0, READ_LOCK);
 	/* The mount point's vnode. */
 	if (tvp) {
@@ -205,7 +205,7 @@ afs_getattr(OSI_VC_DECL(avc), struct vattr *attrs, afs_ucred_t *acred)
     afs_Trace2(afs_iclSetp, CM_TRACE_GETATTR, ICL_TYPE_POINTER, avc,
 	       ICL_TYPE_OFFSET, ICL_HANDLE_OFFSET(avc->f.m.Length));
 
-    if (afs_fakestat_enable && avc->mvstat == 1) {
+    if (afs_fakestat_enable && avc->mvstat == AFS_MVSTAT_MTPT) {
 	struct afs_fakestat_state fakestat;
 	struct vrequest *ureq = NULL;
 
@@ -241,14 +241,7 @@ afs_getattr(OSI_VC_DECL(avc), struct vattr *attrs, afs_ucred_t *acred)
 
     AFS_DISCON_LOCK();
 
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonLock(&avc->pvnLock, avc);
-#endif
-
-    if (afs_shuttingdown) {
-#ifdef AFS_BOZONLOCK_ENV
-	afs_BozonUnlock(&avc->pvnLock, avc);
-#endif
+    if (afs_shuttingdown != AFS_RUNNING) {
 	AFS_DISCON_UNLOCK();
 	return EIO;
     }
@@ -261,14 +254,10 @@ afs_getattr(OSI_VC_DECL(avc), struct vattr *attrs, afs_ucred_t *acred)
     } else
 	code = 0;
 
-#if defined(AFS_SUN5_ENV) || defined(AFS_BOZONLOCK_ENV)
+#if defined(AFS_SUN5_ENV)
     if (code == 0)
 	osi_FlushPages(avc, acred);
 #endif
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonUnlock(&avc->pvnLock, avc);
-#endif
-
 
     if (code == 0) {
 	osi_FlushText(avc);	/* only needed to flush text if text locked last time */
@@ -369,6 +358,7 @@ afs_VAttrToAS(struct vcache *avc, struct vattr *av,
 {
     int mask;
     mask = 0;
+
     AFS_STATCNT(afs_VAttrToAS);
 #if     defined(AFS_DARWIN80_ENV)
     if (VATTR_IS_ACTIVE(av, va_mode)) {
@@ -494,6 +484,8 @@ afs_setattr(OSI_VC_DECL(avc), struct vattr *attrs,
     if ((code = afs_CreateReq(&treq, acred)))
 	return code;
 
+    memset(&astat, 0, sizeof(astat));
+
     AFS_DISCON_LOCK();
 
     afs_InitFakeStat(&fakestate);
@@ -542,9 +534,6 @@ afs_setattr(OSI_VC_DECL(avc), struct vattr *attrs,
 
     afs_VAttrToAS(avc, attrs, &astat);	/* interpret request */
     code = 0;
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonLock(&avc->pvnLock, avc);
-#endif
 #if	defined(AFS_SUN5_ENV) || defined(AFS_SGI_ENV)
     if (AFS_NFSXLATORREQ(acred)) {
 	avc->execsOrWriters++;
@@ -622,13 +611,8 @@ afs_setattr(OSI_VC_DECL(avc), struct vattr *attrs,
 	    ReleaseSharedLock(&avc->lock);	/* release lock */
         }
         if (code) {
-	    ObtainWriteLock(&afs_xcbhash, 487);
-	    afs_DequeueCallback(avc);
-	    avc->f.states &= ~CStatd;
-	    ReleaseWriteLock(&afs_xcbhash);
-	    if (avc->f.fid.Fid.Vnode & 1 || (vType(avc) == VDIR))
-	        osi_dnlc_purgedp(avc);
 	    /* error?  erase any changes we made to vcache entry */
+	    afs_StaleVCache(avc);
         }
     } else {
 	ObtainSharedLock(&avc->lock, 712);
@@ -641,9 +625,6 @@ afs_setattr(OSI_VC_DECL(avc), struct vattr *attrs,
     if (AFS_NFSXLATORREQ(acred)) {
 	avc->execsOrWriters--;
     }
-#endif
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonUnlock(&avc->pvnLock, avc);
 #endif
 #if defined(AFS_SGI_ENV)
     AFS_RWUNLOCK((vnode_t *) avc, VRWLOCK_WRITE);

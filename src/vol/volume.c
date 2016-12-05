@@ -36,6 +36,8 @@
 #else
 # include <opr/lockstub.h>
 #endif
+#include <opr/ffs.h>
+#include <opr/jhash.h>
 
 #include <afs/afsint.h>
 
@@ -174,8 +176,6 @@ static int VCheckDetach(Volume * vp);
 static Volume * GetVolume(Error * ec, Error * client_ec, VolumeId volumeId,
                           Volume * hint, const struct timespec *ts);
 
-int LogLevel;			/* Vice loglevel--not defined as extern so that it will be
-				 * defined when not linked with vice, XXXX */
 ProgramType programType;	/* The type of program using the package */
 static VolumePackageOptions vol_opts;
 
@@ -195,9 +195,11 @@ pthread_t vol_glock_holder = 0;
  * an AVL or splay tree might work a lot better, but we'll just increase
  * the default hash table size for now
  */
-#define DEFAULT_VOLUME_HASH_SIZE 256   /* Must be a power of 2!! */
-#define DEFAULT_VOLUME_HASH_MASK (DEFAULT_VOLUME_HASH_SIZE-1)
-#define VOLUME_HASH(volumeId) (volumeId&(VolumeHashTable.Mask))
+#define DEFAULT_VOLUME_HASH_BITS 10
+#define DEFAULT_VOLUME_HASH_SIZE opr_jhash_size(DEFAULT_VOLUME_HASH_BITS)
+#define DEFAULT_VOLUME_HASH_MASK opr_jhash_mask(DEFAULT_VOLUME_HASH_BITS)
+#define VOLUME_HASH(volumeId) \
+    (opr_jhash_int(volumeId, 0) & VolumeHashTable.Mask)
 
 /*
  * turn volume hash chains into partially ordered lists.
@@ -236,24 +238,6 @@ VolumeHashTable_t VolumeHashTable = {
 
 static void VInitVolumeHash(void);
 
-
-#ifndef AFS_HAVE_FFS
-/* This macro is used where an ffs() call does not exist. Was in util/ffs.c */
-ffs(x)
-{
-    afs_int32 ffs_i;
-    afs_int32 ffs_tmp = x;
-    if (ffs_tmp == 0)
-	return (-1);
-    else
-	for (ffs_i = 1;; ffs_i++) {
-	    if (ffs_tmp & 1)
-		return (ffs_i);
-	    else
-		ffs_tmp >>= 1;
-	}
-}
-#endif /* !AFS_HAVE_FFS */
 
 #ifdef AFS_PTHREAD_ENV
 /**
@@ -1139,7 +1123,7 @@ VAttachVolumesByPartition(struct DiskPartition64 *diskP, int * nAttached, int * 
       (*(vp ? nAttached : nUnattached))++;
       if (error == VOFFLINE)
 	Log("Volume %d stays offline (/vice/offline/%s exists)\n", VolumeNumber(dp->d_name), dp->d_name);
-      else if (LogLevel >= 5) {
+      else if (GetLogLevel() >= 5) {
 	Log("Partition %s: attached volume %d (%s)\n",
 	    diskP->name, VolumeNumber(dp->d_name),
 	    dp->d_name);
@@ -1370,7 +1354,7 @@ VShutdown_r(void)
 	for (queue_Scan(&VolumeHashTable.Table[i],vp,np,Volume)) {
 	    code = VHold_r(vp);
 	    if (code == 0) {
-		if (LogLevel >= 5)
+		if (GetLogLevel() >= 5)
 		    Log("VShutdown:  Attempting to take volume %" AFS_VOLID_FMT " offline.\n",
 			afs_printable_VolumeId_lu(vp->hashid));
 
@@ -1858,7 +1842,7 @@ VShutdownVolume_r(Volume * vp)
 
     VCreateReservation_r(vp);
 
-    if (LogLevel >= 5) {
+    if (GetLogLevel() >= 5) {
 	Log("VShutdownVolume_r:  vid=%" AFS_VOLID_FMT ", device=%d, state=%u\n",
 	    afs_printable_VolumeId_lu(vp->hashid), vp->partition->device,
 	    (unsigned int) V_attachState(vp));
@@ -1886,7 +1870,7 @@ VShutdownVolume_r(Volume * vp)
     case VOL_STATE_ATTACHED:
 	code = VHold_r(vp);
 	if (!code) {
-	    if (LogLevel >= 5)
+	    if (GetLogLevel() >= 5)
 		Log("VShutdown:  Attempting to take volume %" AFS_VOLID_FMT " offline.\n",
 		    afs_printable_VolumeId_lu(vp->hashid));
 
@@ -2313,7 +2297,7 @@ VPreAttachVolumeByVp_r(Error * ec,
     VLRU_Init_Node_r(vp);
     VChangeState_r(vp, VOL_STATE_PREATTACHED);
 
-    if (LogLevel >= 5)
+    if (GetLogLevel() >= 5)
 	Log("VPreAttachVolumeByVp_r:  volume %" AFS_VOLID_FMT " pre-attached\n", afs_printable_VolumeId_lu(vp->hashid));
 
   done:
@@ -2592,7 +2576,7 @@ VAttachVolumeByName_r(Error * ec, char *partition, char *name, int mode)
 		goto done;
 	    }
 	}
-	if (LogLevel)
+	if (GetLogLevel() != 0)
 	  Log("VOnline:  volume %" AFS_VOLID_FMT " (%s) attached and online\n", afs_printable_VolumeId_lu(V_id(vp)),
 		V_name(vp));
     }
@@ -2742,7 +2726,7 @@ VAttachVolumeByVp_r(Error * ec, Volume * vp, int mode)
 	    goto done;
 	}
     }
-    if (LogLevel)
+    if (GetLogLevel() != 0)
 	Log("VOnline:  volume %" AFS_VOLID_FMT " (%s) attached and online\n",
 	    afs_printable_VolumeId_lu(V_id(vp)), V_name(vp));
   done:
@@ -3507,7 +3491,7 @@ attach2(Error * ec, VolumeId volumeId, char *path, struct DiskPartition64 *partp
 	V_checkoutMode(vp) = mode;
     }
 
-    AddVolumeToHashTable(vp, V_id(vp));
+    AddVolumeToHashTable(vp, vp->hashid);
 #ifdef AFS_DEMAND_ATTACH_FS
     if (VCanUnlockAttached() && (V_attachFlags(vp) & VOL_LOCKED)) {
 	VUnlockVolume(vp);
@@ -4247,7 +4231,7 @@ GetVolume(Error * ec, Error * client_ec, VolumeId volumeId, Volume * hint,
 	    VGET_CTR_INC(V6);
 	    /* Only log the error if it was a totally unexpected error.  Simply
 	     * a missing inode is likely to be caused by the volume being deleted */
-	    if (errno != ENXIO || LogLevel)
+	    if (errno != ENXIO || GetLogLevel() != 0)
 		Log("Volume %" AFS_VOLID_FMT ": couldn't reread volume header\n",
 		    afs_printable_VolumeId_lu(vp->hashid));
 #ifdef AFS_DEMAND_ATTACH_FS
@@ -4495,7 +4479,7 @@ VScanCalls_r(struct Volume *vp)
 #endif /* AFS_DEMAND_ATTACH_FS */
 
     for(queue_Scan(&vp->rx_call_list, cbv, ncbv, VCallByVol)) {
-	if (LogLevel > 0) {
+	if (GetLogLevel() != 0) {
 	    struct rx_peer *peer;
 	    char hoststr[16];
 	    peer = rx_PeerOf(rx_ConnectionOf(cbv->call));
@@ -5186,7 +5170,7 @@ VCheckOffline(Volume * vp)
 	VUpdateVolume_r(&error, vp, 0);
 	VCloseVolumeHandles_r(vp);
 
-	if (LogLevel) {
+	if (GetLogLevel() != 0) {
 	    if (V_offlineMessage(vp)[0]) {
 		Log("VOffline: Volume %lu (%s) is now offline (%s)\n",
 		    afs_printable_uint32_lu(V_id(vp)), V_name(vp),
@@ -5225,7 +5209,7 @@ VCheckOffline(Volume * vp)
 	V_inUse(vp) = 0;
 	VUpdateVolume_r(&error, vp, 0);
 	VCloseVolumeHandles_r(vp);
-	if (LogLevel) {
+	if (GetLogLevel() != 0) {
 	    if (V_offlineMessage(vp)[0]) {
 		Log("VOffline: Volume %lu (%s) is now offline (%s)\n",
 		    afs_printable_uint32_lu(V_id(vp)), V_name(vp),
@@ -5695,6 +5679,37 @@ VRequestSalvage_r(Error * ec, Volume * vp, int reason, int flags)
 	    VChangeState_r(vp, VOL_STATE_ERROR);
 	    *ec = VSALVAGE;
 	    code = 1;
+	}
+	if ((flags & VOL_SALVAGE_NO_OFFLINE)) {
+	    /* Here, we free the header for the volume, but make sure to only
+	     * do this if VOL_SALVAGE_NO_OFFLINE is specified. The reason for
+	     * this requires a bit of explanation.
+	     *
+	     * Normally, the volume header will be freed when the volume goes
+	     * goes offline. However, if VOL_SALVAGE_NO_OFFLINE has been
+	     * specified, the volume was in the process of being attached when
+	     * we discovered that it needed salvaging. Thus, the volume will
+	     * never go offline, since it never went fully online in the first
+	     * place. Specifically, we do not call VOfflineForSalvage_r above,
+	     * and we never get rid of the volume via VPutVolume_r; the volume
+	     * has not been initialized enough for those to work.
+	     *
+	     * So instead, explicitly free the volume header here. If we do not
+	     * do this, we are wasting a header that some other volume could be
+	     * using, since the header remains attached to the volume. Also if
+	     * we do not free the header here, we end up with a volume where
+	     * nUsers == 0, but the volume has a header that is not on the
+	     * header LRU. Some code expects that all nUsers == 0 volumes have
+	     * their header on the header LRU (or have no header).
+	     *
+	     * Also note that we must not free the volume header here if
+	     * VOL_SALVAGE_NO_OFFLINE is not set. Since, if
+	     * VOL_SALVAGE_NO_OFFLINE is not set, someone else may have a
+	     * reference to this volume, and they assume they can use the
+	     * volume's header. If we free the volume out from under them, they
+	     * can easily segfault.
+	     */
+	    FreeVolumeHeader(vp);
 	}
     }
     return code;
@@ -6404,7 +6419,7 @@ VAllocBitmapEntry_r(Error * ec, Volume * vp,
 	    index->bitmapOffset = (afs_uint32) (bp - index->bitmap);
 	    while (*bp == 0xff)
 		bp++;
-	    o = ffs(~*bp) - 1;	/* ffs is documented in BSTRING(3) */
+	    o = opr_ffs(~*bp) - 1;
 	    *bp |= (1 << o);
 	    ret = ((bp - index->bitmap) * 8 + o);
 #ifdef AFS_DEMAND_ATTACH_FS
@@ -6477,7 +6492,9 @@ VFreeBitMapEntry_r(Error * ec, Volume *vp, struct vnodeIndex *index,
 
  done:
 #ifdef AFS_DEMAND_ATTACH_FS
-    VCancelReservation_r(vp);
+    if (flags & VOL_FREE_BITMAP_WAIT) {
+	VCancelReservation_r(vp);
+    }
 #endif
     return; /* make the compiler happy for non-DAFS */
 }
@@ -7199,7 +7216,7 @@ VInitVLRU(void)
     /* setup the timing constants */
     VLRU_ComputeConstants();
 
-    /* XXX put inside LogLevel check? */
+    /* XXX put inside log level check? */
     Log("VLRU: starting scanner with the following configuration parameters:\n");
     Log("VLRU:  offlining volumes after minimum of %d seconds of inactivity\n", VLRU_offline_thresh);
     Log("VLRU:  running VLRU soft detach pass every %d seconds\n", VLRU_offline_interval);
@@ -8404,8 +8421,8 @@ VSetVolHashSize(int logsize)
     }
 
     if (!VInit) {
-        VolumeHashTable.Size = 1 << logsize;
-        VolumeHashTable.Mask = VolumeHashTable.Size - 1;
+        VolumeHashTable.Size = opr_jhash_size(logsize);
+        VolumeHashTable.Mask = opr_jhash_mask(logsize);
     } else {
 	/* we can't yet support runtime modification of this
 	 * parameter. we'll need a configuration rwlock to
@@ -8476,7 +8493,6 @@ AddVolumeToHashTable(Volume * vp, VolumeId hashid)
     head->len++;
     vp->hashid = hashid;
     queue_Append(head, vp);
-    vp->vnodeHashOffset = VolumeHashOffset_r();
 }
 
 /**

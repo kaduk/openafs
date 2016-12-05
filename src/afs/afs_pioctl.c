@@ -55,8 +55,9 @@ struct afs_pdata {
 static_inline int
 afs_pd_alloc(struct afs_pdata *apd, size_t size)
 {
-
-    if (size > AFS_LRALLOCSIZ)
+    /* Ensure that we give caller at least one trailing guard byte
+     * for the NUL terminator. */
+    if (size >= AFS_LRALLOCSIZ)
 	apd->ptr = osi_Alloc(size + 1);
     else
 	apd->ptr = osi_AllocLargeSpace(AFS_LRALLOCSIZ);
@@ -64,6 +65,13 @@ afs_pd_alloc(struct afs_pdata *apd, size_t size)
     if (apd->ptr == NULL)
 	return ENOMEM;
 
+    /* Clear it all now, including the guard byte. */
+    if (size >= AFS_LRALLOCSIZ)
+	memset(apd->ptr, 0, size + 1);
+    else
+	memset(apd->ptr, 0, AFS_LRALLOCSIZ);
+
+    /* Don't tell the caller about the guard byte. */
     apd->remaining = size;
 
     return 0;
@@ -75,7 +83,7 @@ afs_pd_free(struct afs_pdata *apd)
     if (apd->ptr == NULL)
 	return;
 
-    if (apd->remaining > AFS_LRALLOCSIZ)
+    if (apd->remaining >= AFS_LRALLOCSIZ)
 	osi_Free(apd->ptr, apd->remaining + 1);
     else
 	osi_FreeLargeSpace(apd->ptr);
@@ -1470,15 +1478,10 @@ DECL_PIOCTL(PSetAcl)
 	      SHARED_LOCK, NULL));
 
     /* now we've forgotten all of the access info */
-    ObtainWriteLock(&afs_xcbhash, 455);
-    avc->callback = 0;
-    afs_DequeueCallback(avc);
-    avc->f.states &= ~(CStatd | CUnique);
-    ReleaseWriteLock(&afs_xcbhash);
-    if (avc->f.fid.Fid.Vnode & 1 || (vType(avc) == VDIR))
-	osi_dnlc_purgedp(avc);
+    afs_StaleVCacheFlags(avc, AFS_STALEVC_CLEARCB, CUnique);
 
     /* SXW - Should we flush metadata here? */
+
     return code;
 }
 
@@ -2066,6 +2069,7 @@ DECL_PIOCTL(PSetVolumeStatus)
     AFS_STATCNT(PSetVolumeStatus);
     if (!avc)
 	return EINVAL;
+    memset(&storeStat, 0, sizeof(storeStat));
 
     tvp = afs_GetVolume(&avc->f.fid, areq, READ_LOCK);
     if (tvp) {
@@ -2158,15 +2162,9 @@ DECL_PIOCTL(PFlush)
     AFS_STATCNT(PFlush);
     if (!avc)
 	return EINVAL;
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonLock(&avc->pvnLock, avc);	/* Since afs_TryToSmush will do a pvn_vptrunc */
-#endif
     ObtainWriteLock(&avc->lock, 225);
     afs_ResetVCache(avc, *acred, 0);
     ReleaseWriteLock(&avc->lock);
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonUnlock(&avc->pvnLock, avc);
-#endif
     return 0;
 }
 
@@ -2213,7 +2211,7 @@ DECL_PIOCTL(PNewStatMount)
     }
     tdc = afs_GetDCache(avc, (afs_size_t) 0, areq, &offset, &len, 1);
     if (!tdc)
-	return ENOENT;
+	return EIO;
     Check_AtSys(avc, name, &sysState, areq);
     ObtainReadLock(&tdc->lock);
     do {
@@ -2233,10 +2231,10 @@ DECL_PIOCTL(PNewStatMount)
 	tvc = afs_GetVCache(&tfid, areq, NULL, NULL);
     }
     if (!tvc) {
-	code = ENOENT;
+	code = EIO;
 	goto out;
     }
-    if (tvc->mvstat != 1) {
+    if (tvc->mvstat != AFS_MVSTAT_MTPT) {
 	afs_PutVCache(tvc);
 	code = EINVAL;
 	goto out;
@@ -3019,13 +3017,7 @@ DECL_PIOCTL(PRemoveCallBack)
 		 (tc, rxconn, code, &avc->f.fid, areq,
 		  AFS_STATS_FS_RPCIDX_GIVEUPCALLBACKS, SHARED_LOCK, NULL));
 
-	ObtainWriteLock(&afs_xcbhash, 457);
-	afs_DequeueCallback(avc);
-	avc->callback = 0;
-	avc->f.states &= ~(CStatd | CUnique);
-	ReleaseWriteLock(&afs_xcbhash);
-	if (avc->f.fid.Fid.Vnode & 1 || (vType(avc) == VDIR))
-	    osi_dnlc_purgedp(avc);
+	afs_StaleVCacheFlags(avc, AFS_STALEVC_CLEARCB, CUnique);
     }
     ReleaseWriteLock(&avc->lock);
     return 0;
@@ -3276,7 +3268,7 @@ DECL_PIOCTL(PRemoveMount)
 
     tdc = afs_GetDCache(avc, (afs_size_t) 0, areq, &offset, &len, 1);	/* test for error below */
     if (!tdc)
-	return ENOENT;
+	return EIO;
     Check_AtSys(avc, name, &sysState, areq);
     ObtainReadLock(&tdc->lock);
     do {
@@ -3296,11 +3288,11 @@ DECL_PIOCTL(PRemoveMount)
 	tvc = afs_GetVCache(&tfid, areq, NULL, NULL);
     }
     if (!tvc) {
-	code = ENOENT;
+	code = EIO;
 	afs_PutDCache(tdc);
 	goto out;
     }
-    if (tvc->mvstat != 1) {
+    if (tvc->mvstat != AFS_MVSTAT_MTPT) {
 	afs_PutDCache(tdc);
 	afs_PutVCache(tvc);
 	code = EINVAL;
@@ -3508,15 +3500,9 @@ FlushVolumeData(struct VenusFid *afid, afs_ucred_t * acred)
 		AFS_FAST_HOLD(tvc);
 #endif
 		ReleaseReadLock(&afs_xvcache);
-#ifdef AFS_BOZONLOCK_ENV
-		afs_BozonLock(&tvc->pvnLock, tvc);	/* Since afs_TryToSmush will do a pvn_vptrunc */
-#endif
 		ObtainWriteLock(&tvc->lock, 232);
 		afs_ResetVCache(tvc, acred, 1);
 		ReleaseWriteLock(&tvc->lock);
-#ifdef AFS_BOZONLOCK_ENV
-		afs_BozonUnlock(&tvc->pvnLock, tvc);
-#endif
 #ifdef AFS_DARWIN80_ENV
 		vnode_put(AFSTOV(tvc));
 #endif
@@ -3562,14 +3548,16 @@ FlushVolumeData(struct VenusFid *afid, afs_ucred_t * acred)
     ReleaseWriteLock(&afs_xdcache);
 
     ObtainReadLock(&afs_xvolume);
-    for (i = 0; i < NVOLS; i++) {
+    for (i = all ? 0 : VHash(volume); i < NVOLS; i++) {
 	for (tv = afs_volumes[i]; tv; tv = tv->next) {
 	    if (all || tv->volume == volume) {
 		afs_ResetVolumeInfo(tv);
-		break;
+		if (!all)
+		    goto last;
 	    }
 	}
     }
+ last:
     ReleaseReadLock(&afs_xvolume);
 
     /* probably, a user is doing this, probably, because things are screwed up.
@@ -4601,7 +4589,7 @@ HandleClientContext(struct afs_ioctl *ablob, int *com,
     newcred->cr_groupset.gs_union.un_groups[0] = g0;
     newcred->cr_groupset.gs_union.un_groups[1] = g1;
 #elif defined(AFS_LINUX26_ENV)
-# ifdef AFS_LINUX26_ONEGROUP_ENV
+# ifdef AFS_PAG_ONEGROUP_ENV
     afs_set_cr_group_info(newcred, groups_alloc(1)); /* nothing sets this */
     l = (((g0-0x3f00) & 0x3fff) << 14) | ((g1-0x3f00) & 0x3fff);
     h = ((g0-0x3f00) >> 14);
@@ -4831,7 +4819,7 @@ DECL_PIOCTL(PFlushMount)
     }
     tdc = afs_GetDCache(avc, (afs_size_t) 0, areq, &offset, &len, 1);
     if (!tdc)
-	return ENOENT;
+	return EIO;
     Check_AtSys(avc, mount, &sysState, areq);
     ObtainReadLock(&tdc->lock);
     do {
@@ -4851,33 +4839,24 @@ DECL_PIOCTL(PFlushMount)
 	tvc = afs_GetVCache(&tfid, areq, NULL, NULL);
     }
     if (!tvc) {
-	code = ENOENT;
+	code = EIO;
 	goto out;
     }
-    if (tvc->mvstat != 1) {
+    if (tvc->mvstat != AFS_MVSTAT_MTPT) {
 	afs_PutVCache(tvc);
 	code = EINVAL;
 	goto out;
     }
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonLock(&tvc->pvnLock, tvc);	/* Since afs_TryToSmush will do a pvn_vptrunc */
-#endif
     ObtainWriteLock(&tvc->lock, 649);
-    ObtainWriteLock(&afs_xcbhash, 650);
-    afs_DequeueCallback(tvc);
-    tvc->f.states &= ~(CStatd | CDirty); /* next reference will re-stat cache entry */
-    ReleaseWriteLock(&afs_xcbhash);
+    /* next reference will re-stat cache entry */
+    afs_StaleVCacheFlags(tvc, 0, CDirty);
     /* now find the disk cache entries */
     afs_TryToSmush(tvc, *acred, 1);
-    osi_dnlc_purgedp(tvc);
     if (tvc->linkData && !(tvc->f.states & CCore)) {
 	afs_osi_Free(tvc->linkData, strlen(tvc->linkData) + 1);
 	tvc->linkData = NULL;
     }
     ReleaseWriteLock(&tvc->lock);
-#ifdef AFS_BOZONLOCK_ENV
-    afs_BozonUnlock(&tvc->pvnLock, tvc);
-#endif
     afs_PutVCache(tvc);
   out:
     if (sysState.allocked)
@@ -5076,8 +5055,7 @@ DECL_PIOCTL(PFsCmd)
 	    if (tc) {
 		RX_AFS_GUNLOCK();
 		code =
-		    RXAFS_FsCmd(rxconn, Fid, Inputs,
-					(struct FsCmdOutputs *)aout);
+		    RXAFS_FsCmd(rxconn, Fid, Inputs, Outputs);
 		RX_AFS_GLOCK();
 	    } else
 		code = -1;

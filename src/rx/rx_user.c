@@ -132,6 +132,7 @@ rxi_GetHostUDPSocket(u_int ahost, u_short port)
     taddr.sin_addr.s_addr = ahost;
     taddr.sin_family = AF_INET;
     taddr.sin_port = (u_short) port;
+    memset(&taddr.sin_zero, 0, sizeof(taddr.sin_zero));
 #ifdef STRUCT_SOCKADDR_HAS_SA_LEN
     taddr.sin_len = sizeof(struct sockaddr_in);
 #endif
@@ -436,7 +437,7 @@ fudge_netmask(afs_uint32 addr)
 
 
 
-#if !defined(AFS_AIX_ENV) && !defined(AFS_NT40_ENV) && !defined(AFS_LINUX20_ENV)
+#if !defined(AFS_AIX_ENV) && !defined(AFS_NT40_ENV) && !defined(AFS_LINUX20_ENV) && !defined(AFS_DARWIN160_ENV)
 int
 rxi_syscall(afs_uint32 a3, afs_uint32 a4, void *a5)
 {
@@ -563,7 +564,7 @@ rx_GetIFInfo(void)
 	}
 #endif /* SIOCGIFFLAGS */
 
-#if !defined(AFS_AIX_ENV)  && !defined(AFS_LINUX20_ENV)
+#if !defined(AFS_AIX_ENV) && !defined(AFS_LINUX20_ENV) && !defined(AFS_DARWIN160_ENV)
 	/* this won't run on an AIX system w/o a cache manager */
 	rxi_syscallp = rxi_syscall;
 #endif
@@ -724,6 +725,7 @@ rxi_InitPeerParams(struct rx_peer *pp)
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = pp->host;
         addr.sin_port = pp->port;
+        memset(&addr.sin_zero, 0, sizeof(addr.sin_zero));
         if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
             int mtu=0;
             socklen_t s = sizeof(mtu);

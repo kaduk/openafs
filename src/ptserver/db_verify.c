@@ -260,6 +260,13 @@ PrintEntryError(struct misc_data *misc, afs_int32 ea, struct prentry *e, int ind
     return 0;
 }
 
+int
+PrintContError(struct misc_data *misc, afs_int32 ea, struct contentry *c, int indent)
+{
+    pr_PrintContEntry(stderr, /*net order */ 0, ea, c, indent);
+    return 0;
+}
+
 afs_int32
 WalkHashTable(afs_int32 hashtable[],	/* hash table to walk */
 	      int hashType,		/* hash function to use */
@@ -385,7 +392,7 @@ WalkNextChain(char map[],		/* one byte per db entry */
     afs_int32 head;
     int bit;
     afs_int32 code;
-    struct prentry c;		/* continuation entry */
+    struct contentry c;		/* continuation entry */
     afs_int32 na;		/* next thread */
     int ni;
     afs_int32 eid = 0;
@@ -493,7 +500,7 @@ WalkNextChain(char map[],		/* one byte per db entry */
 		return PRDBBAD;
 	    if (na != sghead) {
 		fprintf(stderr, "last block: \n");
-		if (PrintEntryError(misc, na, &c, 4))
+		if (PrintContError(misc, na, &c, 4))
 		    return PRDBBAD;
 	    }
 	    return 0;
@@ -507,7 +514,7 @@ WalkNextChain(char map[],		/* one byte per db entry */
 	    fprintf(stderr, "Continuation entry reused\n");
 	    if (PrintEntryError(misc, ea, e, 2))
 		return PRDBBAD;
-	    if (PrintEntryError(misc, na, &c, 4))
+	    if (PrintContError(misc, na, &c, 4))
 		return PRDBBAD;
 	    noErrors = 0;
 	    break;
@@ -517,7 +524,7 @@ WalkNextChain(char map[],		/* one byte per db entry */
 	    fprintf(stderr, "Continuation id mismatch\n");
 	    if (PrintEntryError(misc, ea, e, 2))
 		return PRDBBAD;
-	    if (PrintEntryError(misc, na, &c, 4))
+	    if (PrintContError(misc, na, &c, 4))
 		return PRDBBAD;
 	    noErrors = 0;
 	    continue;
@@ -541,7 +548,7 @@ WalkNextChain(char map[],		/* one byte per db entry */
 			    "User can't be member of supergroup list\n");
 		    if (PrintEntryError(misc, ea, e, 2))
 			return PRDBBAD;
-		    if (PrintEntryError(misc, na, &c, 4))
+		    if (PrintContError(misc, na, &c, 4))
 			return PRDBBAD;
 		    noErrors = 0;
 		}
@@ -568,7 +575,7 @@ WalkNextChain(char map[],		/* one byte per db entry */
 		return PRDBBAD;
 	    if (na != head) {
 		fprintf(stderr, "last block: \n");
-		if (PrintEntryError(misc, na, &c, 4))
+		if (PrintContError(misc, na, &c, 4))
 		    return PRDBBAD;
 	    }
 	    return 0;
@@ -584,7 +591,7 @@ WalkNextChain(char map[],		/* one byte per db entry */
 		fprintf(stderr, "walking free list");
 	    else if (PrintEntryError(misc, ea, e, 2))
 		return PRDBBAD;
-	    if (PrintEntryError(misc, na, &c, 4))
+	    if (PrintContError(misc, na, &c, 4))
 		return PRDBBAD;
 	    noErrors = 0;
 	    break;
@@ -596,7 +603,7 @@ WalkNextChain(char map[],		/* one byte per db entry */
 		fprintf(stderr, "walking free list");
 	    else if (PrintEntryError(misc, ea, e, 2))
 		return PRDBBAD;
-	    if (PrintEntryError(misc, na, &c, 4))
+	    if (PrintContError(misc, na, &c, 4))
 		return PRDBBAD;
 	    noErrors = 0;
 	    continue;
@@ -626,7 +633,7 @@ WalkNextChain(char map[],		/* one byte per db entry */
 				"User can't be member of user in membership list\n");
 			if (PrintEntryError(misc, ea, e, 2))
 			    return PRDBBAD;
-			if (PrintEntryError(misc, na, &c, 4))
+			if (PrintContError(misc, na, &c, 4))
 			    return PRDBBAD;
 			noErrors = 0;
 		    }
@@ -636,7 +643,7 @@ WalkNextChain(char map[],		/* one byte per db entry */
 				"Bad user/group dicotomy in membership list\n");
 			if (PrintEntryError(misc, ea, e, 2))
 			    return PRDBBAD;
-			if (PrintEntryError(misc, na, &c, 4))
+			if (PrintContError(misc, na, &c, 4))
 			    return PRDBBAD;
 			noErrors = 0;
 		    }
@@ -698,7 +705,7 @@ WalkOwnedChain(char map[],		/* one byte per db entry */
 {
     afs_int32 head;
     afs_int32 code;
-    struct prentry c;		/* continuation entry */
+    struct prentry te;		/* next entry in owner chain */
     afs_int32 na;		/* next thread */
     int ni;
     afs_int32 eid = 0;
@@ -711,7 +718,7 @@ WalkOwnedChain(char map[],		/* one byte per db entry */
 	head = ntohl(cheader.orphan);
 
     length = 0;
-    for (na = head; na; na = ntohl(c.nextOwned)) {
+    for (na = head; na; na = ntohl(te.nextOwned)) {
 	code = ConvertDiskAddress(na, &ni);
 	if (code) {
 	    fprintf(stderr, "Bad owned list ptr %d", na);
@@ -721,23 +728,33 @@ WalkOwnedChain(char map[],		/* one byte per db entry */
 		return PRDBBAD;
 	    if (na != head) {
 		fprintf(stderr, "last block: \n");
-		if (PrintEntryError(misc, na, &c, 4))
+		if (PrintEntryError(misc, na, &te, 4))
 		    return PRDBBAD;
 	    }
 	    return 0;
 	}
-	code = pr_Read(na, (char *)&c, sizeof(c));
+	code = pr_Read(na, (char *)&te, sizeof(te));
 	if (code)
 	    return code;
 	length++;
 
+	if ((ntohl(te.flags) & PRTYPE) == PRCONT) {
+	    fprintf(stderr, "Continuation entry found on owner chain\n");
+	    if (e == 0)
+		fprintf(stderr, "walking orphan list");
+	    else if (PrintEntryError(misc, ea, e, 2))
+		return PRDBBAD;
+	    if (PrintEntryError(misc, na, &te, 4))
+		return PRDBBAD;
+	    break;
+	}
 	if (map[ni] & MAP_OWNED) {
 	    fprintf(stderr, "Entry on multiple owner chains\n");
 	    if (e == 0)
 		fprintf(stderr, "walking orphan list");
 	    else if (PrintEntryError(misc, ea, e, 2))
 		return PRDBBAD;
-	    if (PrintEntryError(misc, na, &c, 4))
+	    if (PrintEntryError(misc, na, &te, 4))
 		return PRDBBAD;
 	    break;
 	}
@@ -749,16 +766,16 @@ WalkOwnedChain(char map[],		/* one byte per db entry */
 		fprintf(stderr, "walking orphan list");
 	    else if (PrintEntryError(misc, ea, e, 2))
 		return PRDBBAD;
-	    if (PrintEntryError(misc, na, &c, 4))
+	    if (PrintEntryError(misc, na, &te, 4))
 		return PRDBBAD;
 	    continue;
 	}
 	if (e) {
-	    if (ntohl(c.owner) != eid) {
+	    if (ntohl(te.owner) != eid) {
 		fprintf(stderr, "Owner id mismatch\n");
 		goto abort;
 	    }
-	} else /* orphan */ if (c.owner) {
+	} else /* orphan */ if (te.owner) {
 	    fprintf(stderr, "Orphan group owner not zero\n");
 	    goto abort;
 	}
@@ -958,7 +975,8 @@ QuoteName(char *s)
 {
     char *qs;
     if (strpbrk(s, " \t")) {
-	asprintf(&qs, "\"%s\"", s);
+	if (asprintf(&qs, "\"%s\"", s) < 0)
+	    qs = "<<-OUT-OF-MEMORY->>";
     } else
 	qs = s;
     return qs;
@@ -1186,7 +1204,7 @@ DumpRecreate(char map[], struct misc_data *misc)
 		}
 		na = ntohl(e.next);
 		while (na) {
-		    struct prentry c;
+		    struct contentry c;
 		    code = pr_Read(na, (char *)&c, sizeof(c));
 		    if (code)
 			return code;
@@ -1431,7 +1449,7 @@ main(int argc, char *argv[])
 
     setlinebuf(stdout);
 
-    ts = cmd_CreateSyntax(NULL, WorkerBee, NULL, "PRDB check");
+    ts = cmd_CreateSyntax(NULL, WorkerBee, NULL, 0, "PRDB check");
     cmd_AddParm(ts, "-database", CMD_SINGLE, CMD_REQUIRED, "ptdb_file");
     cmd_AddParm(ts, "-uheader", CMD_FLAG, CMD_OPTIONAL,
 		"Display UBIK header");

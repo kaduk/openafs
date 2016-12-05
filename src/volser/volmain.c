@@ -14,6 +14,8 @@
 #include <afs/opr.h>
 #ifdef AFS_PTHREAD_ENV
 # include <opr/lock.h>
+# include <opr/softsig.h>
+# include <afs/procmgmt_softsig.h> /* must come after softsig */
 #endif
 
 #ifdef AFS_NT40_ENV
@@ -78,8 +80,10 @@ int DoPreserveVolumeStats = 0;
 int rxJumbograms = 0;	/* default is to not send and receive jumbograms. */
 int rxMaxMTU = -1;
 char *auditFileName = NULL;
-char *logFile = NULL;
+static struct logOptions logopts;
 char *configDir = NULL;
+
+enum vol_s2s_crypt doCrypt = VS2SC_NEVER;
 
 #define ADDRSPERSITE 16         /* Same global is in rx/rx_user.c */
 afs_uint32 SHostAddrs[ADDRSPERSITE];
@@ -148,14 +152,14 @@ BKGLoop(void *unused)
 	loop++;
 	if (loop == 10) {	/* reopen log every 5 minutes */
 	    loop = 0;
-	    ReOpenLog(AFSDIR_SERVER_VOLSERLOG_FILEPATH);
+	    ReOpenLog();
 	}
     }
 
     return NULL;
 }
 
-#ifdef AFS_NT40_ENV
+#if defined(AFS_NT40_ENV) || defined(AFS_DARWIN160_ENV)
 /* no volser_syscall */
 #elif defined(AFS_SUN511_ENV)
 int
@@ -234,10 +238,14 @@ enum optionsList {
     OPT_process,
     OPT_preserve_vol_stats,
     OPT_sync,
+#ifdef HAVE_SYSLOG
     OPT_syslog,
+#endif
     OPT_logfile,
     OPT_config,
-    OPT_restricted_query
+    OPT_restricted_query,
+    OPT_transarc_logs,
+    OPT_s2s_crypt
 };
 
 static int
@@ -249,8 +257,9 @@ ParseArgs(int argc, char **argv) {
     char *sleepSpec = NULL;
     char *sync_behavior = NULL;
     char *restricted_query_parameter = NULL;
+    char *s2s_crypt_behavior = NULL;
 
-    opts = cmd_CreateSyntax(NULL, NULL, NULL, NULL);
+    opts = cmd_CreateSyntax(NULL, NULL, NULL, 0, NULL);
     cmd_AddParmAtOffset(opts, OPT_log, "-log", CMD_FLAG, CMD_OPTIONAL,
 	   "log vos users");
     cmd_AddParmAtOffset(opts, OPT_rxbind, "-rxbind", CMD_FLAG, CMD_OPTIONAL,
@@ -281,10 +290,12 @@ ParseArgs(int argc, char **argv) {
 	    CMD_OPTIONAL, "enable RX RPC statistics");
     cmd_AddParmAtOffset(opts, OPT_preserve_vol_stats, "-preserve-vol-stats", CMD_FLAG,
 	    CMD_OPTIONAL, "preserve volume statistics");
-#if !defined(AFS_NT40_ENV)
+#ifdef HAVE_SYSLOG
     cmd_AddParmAtOffset(opts, OPT_syslog, "-syslog", CMD_SINGLE_OR_FLAG,
 	    CMD_OPTIONAL, "log to syslog");
 #endif
+    cmd_AddParmAtOffset(opts, OPT_transarc_logs, "-transarc-logs", CMD_FLAG,
+			CMD_OPTIONAL, "enable Transarc style logging");
     cmd_AddParmAtOffset(opts, OPT_sync, "-sync",
 	    CMD_SINGLE, CMD_OPTIONAL, "always | onclose | never");
     cmd_AddParmAtOffset(opts, OPT_logfile, "-logfile", CMD_SINGLE,
@@ -293,6 +304,8 @@ ParseArgs(int argc, char **argv) {
 	   CMD_OPTIONAL, "configuration location");
     cmd_AddParmAtOffset(opts, OPT_restricted_query, "-restricted_query",
 	    CMD_SINGLE, CMD_OPTIONAL, "anyuser | admin");
+    cmd_AddParmAtOffset(opts, OPT_s2s_crypt, "-s2scrypt",
+	    CMD_SINGLE, CMD_OPTIONAL, "always | inherit | never");
 
     code = cmd_Parse(argc, argv, &opts);
     if (code == CMD_HELP) {
@@ -305,7 +318,6 @@ ParseArgs(int argc, char **argv) {
     cmd_OptionAsFlag(opts, OPT_rxbind, &rxBind);
     cmd_OptionAsFlag(opts, OPT_dotted, &rxkadDisableDotCheck);
     cmd_OptionAsFlag(opts, OPT_preserve_vol_stats, &DoPreserveVolumeStats);
-    cmd_OptionAsInt(opts, OPT_debug, &LogLevel);
     if (cmd_OptionPresent(opts, OPT_peer))
 	rx_enablePeerRPCStats();
     if (cmd_OptionPresent(opts, OPT_process))
@@ -314,12 +326,36 @@ ParseArgs(int argc, char **argv) {
 	rxJumbograms = 0;
     if (cmd_OptionPresent(opts, OPT_jumbo))
 	rxJumbograms = 1;
-#ifndef AFS_NT40_ENV
+
+#ifdef HAVE_SYSLOG
     if (cmd_OptionPresent(opts, OPT_syslog)) {
-	serverLogSyslog = 1;
-	cmd_OptionAsInt(opts, OPT_syslog, &serverLogSyslogFacility);
-    }
+	if (cmd_OptionPresent(opts, OPT_logfile)) {
+	    fprintf(stderr, "Invalid options: -syslog and -logfile are exclusive.\n");
+	    return -1;
+	}
+	if (cmd_OptionPresent(opts, OPT_transarc_logs)) {
+	    fprintf(stderr, "Invalid options: -syslog and -transarc-logs are exclusive.\n");
+	    return -1;
+	}
+	logopts.lopt_dest = logDest_syslog;
+	logopts.lopt_facility = LOG_DAEMON;
+	logopts.lopt_tag = "volserver";
+	cmd_OptionAsInt(opts, OPT_syslog, &logopts.lopt_facility);
+    } else
 #endif
+    {
+	logopts.lopt_dest = logDest_file;
+	if (cmd_OptionPresent(opts, OPT_transarc_logs)) {
+	    logopts.lopt_rotateOnOpen = 1;
+	    logopts.lopt_rotateStyle = logRotate_old;
+	}
+	if (cmd_OptionPresent(opts, OPT_logfile))
+	    cmd_OptionAsString(opts, OPT_logfile, (char**)&logopts.lopt_filename);
+	else
+	    logopts.lopt_filename = AFSDIR_SERVER_VOLSERLOG_FILEPATH;
+    }
+    cmd_OptionAsInt(opts, OPT_debug, &logopts.lopt_logLevel);
+
     cmd_OptionAsInt(opts, OPT_rxmaxmtu, &rxMaxMTU);
     if (cmd_OptionAsInt(opts, OPT_udpsize, &optval) == 0) {
 	if (optval < rx_GetMinUdpBufSize()) {
@@ -353,7 +389,6 @@ ParseArgs(int argc, char **argv) {
 	    return -1;
 	}
     }
-    cmd_OptionAsString(opts, OPT_logfile, &logFile);
     cmd_OptionAsString(opts, OPT_config, &configDir);
     if (cmd_OptionAsString(opts, OPT_restricted_query,
 			   &restricted_query_parameter) == 0) {
@@ -367,6 +402,19 @@ ParseArgs(int argc, char **argv) {
 	    return -1;
 	}
 	free(restricted_query_parameter);
+    }
+    if (cmd_OptionAsString(opts, OPT_s2s_crypt, &s2s_crypt_behavior) == 0) {
+	if (strcmp(s2s_crypt_behavior, "always") == 0)
+	    doCrypt = VS2SC_ALWAYS;
+	else if (strcmp(s2s_crypt_behavior, "never") == 0)
+	    doCrypt = VS2SC_NEVER;
+	else if (strcmp(s2s_crypt_behavior, "inherit") == 0)
+	    doCrypt = VS2SC_INHERIT;
+	else {
+	    printf("invalid argument for -s2scrypt: %s\n", s2s_crypt_behavior);
+	    return -1;
+	}
+	free(s2s_crypt_behavior);
     }
 
     return 0;
@@ -413,7 +461,6 @@ main(int argc, char **argv)
     }
 
     configDir = strdup(AFSDIR_SERVER_ETC_DIRPATH);
-    logFile = strdup(AFSDIR_SERVER_VOLSERLOG_FILEPATH);
 
     if (ParseArgs(argc, argv)) {
 	exit(1);
@@ -443,9 +490,8 @@ main(int argc, char **argv)
 	exit(1);
     }
 #endif
-    /* Open VolserLog and map stdout, stderr into it; VInitVolumePackage2 can
-       log, so we need to do this here */
-    OpenLog(logFile);
+
+    OpenLog(&logopts);
 
     VOptDefaults(volumeServer, &opts);
     if (VInitVolumePackage2(volumeServer, &opts)) {
@@ -458,7 +504,7 @@ main(int argc, char **argv)
 #ifndef AFS_PTHREAD_ENV
     vol_PollProc = IOMGR_Poll;	/* tell vol pkg to poll io system periodically */
 #endif
-#ifndef AFS_NT40_ENV
+#if !defined( AFS_NT40_ENV ) && !defined(AFS_DARWIN160_ENV)
     rxi_syscallp = volser_syscall;
 #endif
     rx_nPackets = rxpackets;	/* set the max number of packets */
@@ -501,7 +547,12 @@ main(int argc, char **argv)
     rx_SetRxDeadTime(420);
     memset(busyFlags, 0, sizeof(busyFlags));
 
+#ifdef AFS_PTHREAD_ENV
+    opr_softsig_Init();
+    SetupLogSoftSignals();
+#else
     SetupLogSignals();
+#endif
 
     {
 #ifdef AFS_PTHREAD_ENV

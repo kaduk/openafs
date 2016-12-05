@@ -190,10 +190,12 @@ Vnodes with 0 inode pointers in RW volumes are now deleted.
 #include <pthread.h>
 #endif
 
+#define SALV_BUFFER_SIZE 1024
+
 #ifdef	AFS_OSF_ENV
 extern void *calloc();
 #endif
-static char *TimeStamp(time_t clock, int precision);
+static char *TimeStamp(char *buffer, size_t size, time_t clock, int precision);
 
 
 int debug;			/* -d flag */
@@ -205,16 +207,12 @@ int Parallel = 4;		/* -para X flag */
 int PartsPerDisk = 8;		/* Salvage up to 8 partitions on same disk sequentially */
 int forceR = 0;			/* -b flag */
 int ShowLog = 0;		/* -showlog flag */
+char *ShowLogFilename = NULL;    /* log file name for -showlog */
 int ShowSuid = 0;		/* -showsuid flag */
 int ShowMounts = 0;		/* -showmounts flag */
 int orphans = ORPH_IGNORE;	/* -orphans option */
 int Showmode = 0;
-
-
-#ifndef AFS_NT40_ENV
-int useSyslog = 0;		/* -syslog flag */
-int useSyslogFacility = LOG_DAEMON;	/* -syslogfacility option */
-#endif
+int ClientMode = 0;		/* running as salvager server client */
 
 #ifdef AFS_NT40_ENV
 int canfork = 0;
@@ -227,8 +225,6 @@ int canfork = 1;
 int OKToZap;			/* -o flag */
 int ForceSalvage;		/* If salvage should occur despite the DONT_SALVAGE flag
 				 * in the volume header */
-
-FILE *logFile = 0;	/* one of {/usr/afs/logs,/vice/file}/SalvageLog */
 
 #define ROOTINODE	2	/* Root inode of a 4.2 Unix file system
 				 * partition */
@@ -281,6 +277,8 @@ char *tmpdir = NULL;
 
 
 /* Forward declarations */
+static void QuietExit(int) AFS_NORETURN;
+static void SalvageShowLog(void);
 static int IsVnodeOrphaned(struct SalvInfo *salvinfo, VnodeId vnode);
 static int AskVolumeSummary(struct SalvInfo *salvinfo,
                             VolumeId singleVolumeNumber);
@@ -481,12 +479,10 @@ SalvageFileSysParallel(struct DiskPartition64 *partP)
     struct job *thisjob = 0;
     static int numjobs = 0;
     static int jobcount = 0;
-    char buf[1024];
     int wstatus;
     struct job *oldjob;
     int startjob;
     FILE *passLog;
-    char logFileName[256];
     int i, j, pid;
 
     if (partP) {
@@ -607,26 +603,26 @@ SalvageFileSysParallel(struct DiskPartition64 *partP)
 		numjobs++;
 	    } else {
 		int fd;
+		char *filename;
+		struct logOptions logopts;
 
-		ShowLog = 0;
+		memset(&logopts, 0, sizeof(logopts));
+		logopts.lopt_dest = logDest_file;
+
 		for (fd = 0; fd < 16; fd++)
 		    close(fd);
 		open(OS_DIRSEP, 0);
 		dup2(0, 1);
 		dup2(0, 2);
-#ifndef AFS_NT40_ENV
-		if (useSyslog) {
-		    openlog("salvager", LOG_PID, useSyslogFacility);
-		} else
-#endif
-		{
-		    snprintf(logFileName, sizeof logFileName, "%s.%d",
+
+		ShowLog = 0; /* Child processes do not display. */
+		if (asprintf(&filename, "%s.%d",
 			     AFSDIR_SERVER_SLVGLOG_FILEPATH,
-			     jobs[startjob]->jobnumb);
-		    logFile = afs_fopen(logFileName, "w");
+			     jobs[startjob]->jobnumb) >= 0) {
+		    logopts.lopt_filename = filename;
+		    OpenLog(&logopts);
+		    free(filename);
 		}
-		if (!logFile)
-		    logFile = stdout;
 
 		SalvageFileSys1(jobs[startjob]->partP, 0);
 		Exit(0);
@@ -635,24 +631,37 @@ SalvageFileSysParallel(struct DiskPartition64 *partP)
 	}
     }				/* while ( thisjob || (!partP && numjobs > 0) ) */
 
-    /* If waited for all jobs to complete, now collect log files and return */
-#ifndef AFS_NT40_ENV
-    if (!useSyslog)		/* if syslogging - no need to collect */
-#endif
+    /*
+     * If waited for all jobs to complete, now collect log files and return.
+     * No files can be collected when logging to the system log (syslog).
+     */
+    if (GetLogDest() == logDest_file) {
 	if (!partP) {
-	    for (i = 0; i < jobcount; i++) {
-		snprintf(logFileName, sizeof logFileName, "%s.%d",
-		         AFSDIR_SERVER_SLVGLOG_FILEPATH, i);
-		if ((passLog = afs_fopen(logFileName, "r"))) {
-		    while (fgets(buf, sizeof(buf), passLog)) {
-			fputs(buf, logFile);
+	    char *buf = calloc(1, SALV_BUFFER_SIZE);
+	    char *logFileName;
+
+	    if (buf == NULL) {
+		Log("out of memory");
+	    } else {
+		for (i = 0; i < jobcount; i++) {
+		    if (asprintf(&logFileName, "%s.%d",
+				 AFSDIR_SERVER_SLVGLOG_FILEPATH, i) < 0) {
+			Log("out of memory");
+			break;
 		    }
-		    fclose(passLog);
+		    if ((passLog = afs_fopen(logFileName, "r"))) {
+			while (fgets(buf, SALV_BUFFER_SIZE, passLog)) {
+			    WriteLogBuffer(buf, strlen(buf));
+			}
+			fclose(passLog);
+		    }
+		    (void)unlink(logFileName);
+		    free(logFileName);
 		}
-		(void)unlink(logFileName);
+		free(buf);
 	    }
-	    fflush(logFile);
 	}
+    }
     return;
 }
 
@@ -663,8 +672,7 @@ SalvageFileSys(struct DiskPartition64 *partP, VolumeId singleVolumeNumber)
     if (!canfork || debug || Fork() == 0) {
 	SalvageFileSys1(partP, singleVolumeNumber);
 	if (canfork && !debug) {
-	    ShowLog = 0;
-	    Exit(0);
+	    QuietExit(0);
 	}
     } else
 	Wait("SalvageFileSys");
@@ -1304,8 +1312,7 @@ GetInodeSummary(struct SalvInfo *salvinfo, FD_t inodeFile, VolumeId singleVolume
 	    goto error;
 	}
 	if (canfork && !debug) {
-	    ShowLog = 0;
-	    Exit(0);
+	    QuietExit(0);
 	}
     } else {
 	if (Wait("Inode summary") == -1) {
@@ -1801,10 +1808,11 @@ GetVolumeSummary(struct SalvInfo *salvinfo, VolumeId singleVolumeNumber)
     return 0;
 }
 
+#ifdef AFS_NAMEI_ENV
 /* Find the link table. This should be associated with the RW volume, even
  * if there is only an RO volume at this site.
  */
-Inode
+static Inode
 FindLinkHandle(struct InodeSummary *isp, int nVols,
 	       struct ViceInodeInfo *allInodes)
 {
@@ -1824,7 +1832,6 @@ FindLinkHandle(struct InodeSummary *isp, int nVols,
     return (Inode) - 1;
 }
 
-#ifdef AFS_NAMEI_ENV
 static int
 CheckDupLinktable(struct SalvInfo *salvinfo, struct InodeSummary *isp, struct ViceInodeInfo *ip)
 {
@@ -2038,7 +2045,7 @@ DoSalvageVolumeGroup(struct SalvInfo *salvinfo, struct InodeSummary *isp, int nV
 		for (i = 0; i < nVols; i++) {
 		    ip = allInodes + isp[i].index;
 		    for (j = isp[i].nSpecialInodes; j < isp[i].nInodes; j++) {
-			namei_SetLinkCount(fdP, ip[j].inodeNumber, 1, 1);
+			namei_SetLinkCount(fdP, ip[j].inodeNumber, 1, 0);
 			ip[j].linkCount = 1;
 		    }
 		}
@@ -2192,8 +2199,7 @@ DoSalvageVolumeGroup(struct SalvInfo *salvinfo, struct InodeSummary *isp, int nV
     IH_RELEASE(salvinfo->VGLinkH);
 
     if (canfork && !debug) {
-	ShowLog = 0;
-	Exit(0);
+	QuietExit(0);
     }
 }
 
@@ -2636,16 +2642,17 @@ SalvageHeader(struct SalvInfo *salvinfo, struct afs_inode_info *sp,
     if (sp->inodeType == VI_VOLINFO) {
 	salvinfo->VolInfo = header.volumeInfo;
 	if (check) {
-	    char update[25];
+	    char update[64];
+	    char buffer[64];
 
 	    if (salvinfo->VolInfo.updateDate) {
-		strcpy(update, TimeStamp(salvinfo->VolInfo.updateDate, 0));
+		strcpy(update, TimeStamp(buffer, sizeof(buffer), salvinfo->VolInfo.updateDate, 0));
 		if (!Showmode)
 		    Log("%s (%" AFS_VOLID_FMT ") %supdated %s\n", salvinfo->VolInfo.name,
 			afs_printable_VolumeId_lu(salvinfo->VolInfo.id),
 			(Testing ? "it would have been " : ""), update);
 	    } else {
-		strcpy(update, TimeStamp(salvinfo->VolInfo.creationDate, 0));
+		strcpy(update, TimeStamp(buffer, sizeof(buffer), salvinfo->VolInfo.creationDate, 0));
 		if (!Showmode)
 		    Log("%s (%" AFS_VOLID_FMT ") not updated (created %s)\n",
 			salvinfo->VolInfo.name, afs_printable_VolumeId_lu(salvinfo->VolInfo.id), update);
@@ -4763,12 +4770,9 @@ Fork(void)
     return f;
 }
 
-void
-Exit(int code)
+static void
+QuietExit(int code)
 {
-    if (ShowLog)
-	showlog();
-
 #ifdef AFS_DEMAND_ATTACH_FS
     if (programType == salvageServer) {
 	/* release all volume locks before closing down our SYNC channels.
@@ -4802,6 +4806,14 @@ Exit(int code)
 #endif
 }
 
+void
+Exit(int code)
+{
+    SalvageShowLog();
+    QuietExit(code);
+}
+
+
 int
 Wait(char *prog)
 {
@@ -4817,143 +4829,84 @@ Wait(char *prog)
 }
 
 static char *
-TimeStamp(time_t clock, int precision)
+TimeStamp(char *buffer, size_t size, time_t clock, int precision)
 {
     struct tm *lt;
-    static char timestamp[20];
+    size_t nbytes;
+
     lt = localtime(&clock);
     if (precision)
-	(void)strftime(timestamp, 20, "%m/%d/%Y %H:%M:%S", lt);
+	nbytes = strftime(buffer, size, "%m/%d/%Y %H:%M:%S", lt);
     else
-	(void)strftime(timestamp, 20, "%m/%d/%Y %H:%M", lt);
-    return timestamp;
+	nbytes = strftime(buffer, size, "%m/%d/%Y %H:%M", lt);
+    if (nbytes == 0)
+	memset(buffer, 0, size);
+    return buffer;
 }
 
-void
-CheckLogFile(char * log_path)
-{
-    char oldSlvgLog[AFSDIR_PATH_MAX];
-
-#ifndef AFS_NT40_ENV
-    if (useSyslog) {
-	ShowLog = 0;
-	return;
-    }
-#endif
-
-    strcpy(oldSlvgLog, log_path);
-    strcat(oldSlvgLog, ".old");
-    if (!logFile) {
-	rk_rename(log_path, oldSlvgLog);
-	logFile = afs_fopen(log_path, "a");
-
-	if (!logFile) {		/* still nothing, use stdout */
-	    logFile = stdout;
-	    ShowLog = 0;
-	}
-#ifndef AFS_NAMEI_ENV
-	AFS_DEBUG_IOPS_LOG(logFile);
-#endif
-    }
-}
-
-#ifndef AFS_NT40_ENV
-void
-TimeStampLogFile(char * log_path)
-{
-    char stampSlvgLog[AFSDIR_PATH_MAX];
-    struct tm *lt;
-    time_t now;
-
-    now = time(0);
-    lt = localtime(&now);
-    snprintf(stampSlvgLog, sizeof stampSlvgLog,
-	     "%s.%04d-%02d-%02d.%02d:%02d:%02d", log_path,
-	     lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday, lt->tm_hour,
-	     lt->tm_min, lt->tm_sec);
-
-    /* try to link the logfile to a timestamped filename */
-    /* if it fails, oh well, nothing we can do */
-    link(log_path, stampSlvgLog);
-}
-#endif
-
-void
-showlog(void)
+static void
+SalvageShowLog(void)
 {
     char line[256];
+    char *filename;
+    FILE *logFile;
 
-#ifndef AFS_NT40_ENV
-    if (useSyslog) {
-	printf("Can't show log since using syslog.\n");
-	fflush(stdout);
-	return;
+    if (ShowLog == 0 || ClientMode) {
+	return; /* nothing to do */
     }
-#endif
+    filename = strdup(GetLogFilename());
+    opr_Assert(filename != NULL);
+    CloseLog();
 
-    if (logFile) {
-	rewind(logFile);
-	fclose(logFile);
-    }
-
-    logFile = afs_fopen(AFSDIR_SERVER_SLVGLOG_FILEPATH, "r");
-
+    logFile = afs_fopen(filename, "r");
     if (!logFile)
-	printf("Can't read %s, exiting\n", AFSDIR_SERVER_SLVGLOG_FILEPATH);
+	printf("Can't read %s, exiting\n", ShowLogFilename);
     else {
-	rewind(logFile);
 	while (fgets(line, sizeof(line), logFile))
 	    printf("%s", line);
 	fflush(stdout);
+    }
+    free(filename);
+}
+
+static void
+vLog(const char *format, va_list args)
+{
+    if (!ClientMode) {
+	vFSLog(format, args);
+    } else {
+	struct timeval now;
+	char buffer[64];
+
+	gettimeofday(&now, NULL);
+	fprintf(stderr, "%s ", TimeStamp(buffer, sizeof(buffer), now.tv_sec, 1));
+	vfprintf(stderr, format, args);
+	fflush(stderr);
     }
 }
 
 void
 Log(const char *format, ...)
 {
-    struct timeval now;
-    char tmp[1024];
     va_list args;
 
     va_start(args, format);
-    vsnprintf(tmp, sizeof tmp, format, args);
+    vLog(format, args);
     va_end(args);
-#ifndef AFS_NT40_ENV
-    if (useSyslog) {
-	syslog(LOG_INFO, "%s", tmp);
-    } else
-#endif
-	if (logFile) {
-	    gettimeofday(&now, NULL);
-	    fprintf(logFile, "%s %s", TimeStamp(now.tv_sec, 1), tmp);
-	    fflush(logFile);
-	}
 }
 
 void
 Abort(const char *format, ...)
 {
     va_list args;
-    char tmp[1024];
 
     va_start(args, format);
-    vsnprintf(tmp, sizeof tmp, format, args);
+    vLog(format, args);
     va_end(args);
-#ifndef AFS_NT40_ENV
-    if (useSyslog) {
-	syslog(LOG_INFO, "%s", tmp);
-    } else
-#endif
-	if (logFile) {
-	    fprintf(logFile, "%s", tmp);
-	    fflush(logFile);
-	    if (ShowLog)
-		showlog();
-	}
-
+    SalvageShowLog();
     if (debug)
 	abort();
-    Exit(1);
+    QuietExit(1);
 }
 
 char *
@@ -5038,7 +4991,7 @@ int
 nt_SetupPartitionSalvage(void *datap, int len)
 {
     childJob_t *jobp = (childJob_t *) datap;
-    char logname[AFSDIR_PATH_MAX];
+    char *logname;
 
     if (len != sizeof(childJob_t))
 	return -1;
@@ -5047,11 +5000,11 @@ nt_SetupPartitionSalvage(void *datap, int len)
     myjob = *jobp;
 
     /* Open logFile */
-    (void)sprintf(logname, "%s.%d", AFSDIR_SERVER_SLVGLOG_FILEPATH,
-		  myjob.cj_number);
-    logFile = afs_fopen(logname, "w");
-    if (!logFile)
-	logFile = stdout;
+    if (asprintf(&logname, "%s.%d", AFSDIR_SERVER_SLVGLOG_FILEPATH,
+		 myjob.cj_number) < 0)
+	return -1;
+    OpenLog(logname);
+    free(logname);
 
     return 0;
 }

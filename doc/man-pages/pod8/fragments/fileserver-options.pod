@@ -28,7 +28,7 @@ and C<125>. The default value of C<0> produces only a few messages.
 
 =item B<-p> <I<number of processes>>
 
-Sets the number of threads (or LWPs) to run. Provide a positive integer. 
+Sets the number of threads to run. Provide a positive integer.
 The File Server creates and uses five threads for special purposes, 
 in addition to the number specified (but if this argument specifies 
 the maximum possible number, the File Server automatically uses five 
@@ -206,11 +206,6 @@ server machine. Combine this flag with any option except the B<-L> flag;
 omit both flags to set values suitable for a medium-sized file server
 machine.
 
-=item B<-k> <I<stack size>>
-
-Sets the LWP stack size in units of 1 kilobyte. Do not use this argument,
-and in particular do not specify a value less than the default of C<24>.
-
 =item B<-realm> <I<Kerberos realm name>>
 
 Defines the Kerberos realm name for the File Server to use. If this
@@ -269,6 +264,12 @@ default LOG_USER.
 =item B<-mrafslogs>
 
 Use MR-AFS (Multi-Resident) style logging.  This option is deprecated.
+
+=item B<-transarc-logs>
+
+Use Transarc style logging features. Rename the existing log file
+F</usr/afs/logs/FileLog> to F</usr/afs/logs/FileLog.old> when the fileserver is
+restarted.  This option is provided for compatibility with older versions.
 
 =item B<-saneacls>
 
@@ -336,8 +337,6 @@ Setting this option to C<0> means to interrupt clients immediately if a
 volume is waiting to go offline. Setting this option to C<-1> means to
 wait forever for client requests to finish. The default value is C<-1>.
 
-For the LWP fileserver, the only valid value for this option is C<-1>.
-
 =item B<-offline-shutdown-timeout> <I<timeout in seconds>>
 
 This option behaves similarly to B<-offline-timeout> but applies to
@@ -354,8 +353,6 @@ shutdown process.
 If B<-offline-timeout> is specified, the default value of
 B<-offline-shutdown-timeout> is the value specified for
 B<-offline-timeout>. Otherwise, the default value is C<-1>.
-
-For the LWP fileserver, the only valid value for this option is C<-1>.
 
 =item B<-sync> <always | onclose | none>
 
@@ -453,6 +450,14 @@ no other logging options are supplied, this will be F</usr/afs/logs/FileLog>.
 Note that this option is intended for debugging and testing purposes.
 Changing the location of the log file from the command line may result
 in undesirable interactions with tools such as B<bos>.
+
+=item B<-vhashsize <I<size>>
+
+The log(2) of the number of volume hash buckets.  Default is 8 (i.e., by
+default, there are 2^8 = 256 volume hash buckets). The minimum that can
+be specified is 6 (64 hash buckets). In OpenAFS 1.5.77 and earlier, the
+maximum that can be specified is 14 (16384 buckets). After 1.5.77, the
+maximum that can be specified is 28 (268435456 buckets).
 
 =item B<-config> <I<configuration directory>>
 

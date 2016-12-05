@@ -530,6 +530,7 @@ urecovery_Interact(void *dummy)
 	 * most current database, then go find the most current db.
 	 */
 	if (!(urecovery_state & UBIK_RECFOUNDDB)) {
+            int okcalls = 0;
 	    DBRELE(ubik_dbase);
 	    bestServer = (struct ubik_server *)0;
 	    bestDBVersion.epoch = 0;
@@ -547,6 +548,7 @@ urecovery_Interact(void *dummy)
 		code = DISK_GetVersion(ts->disk_rxcid, &ts->version);
 		UBIK_ADDR_UNLOCK;
 		if (code == 0) {
+                    okcalls++;
 		    /* perhaps this is the best version */
 		    if (vcmp(ts->version, bestDBVersion) > 0) {
 			/* new best version */
@@ -555,23 +557,35 @@ urecovery_Interact(void *dummy)
 		    }
 		}
 	    }
-	    /* take into consideration our version. Remember if we,
-	     * the sync site, have the best version. Also note that
-	     * we may need to send the best version out.
-	     */
+
 	    DBHOLD(ubik_dbase);
-	    if (vcmp(ubik_dbase->version, bestDBVersion) >= 0) {
-		bestDBVersion = ubik_dbase->version;
-		bestServer = (struct ubik_server *)0;
-		urecovery_state |= UBIK_RECHAVEDB;
-	    } else {
-		/* Clear the flag only when we know we have to retrieve
-		 * the db. Because urecovery_AllBetter() looks at it.
-		 */
-		urecovery_state &= ~UBIK_RECHAVEDB;
-	    }
-	    urecovery_state |= UBIK_RECFOUNDDB;
-	    urecovery_state &= ~UBIK_RECSENTDB;
+
+            if (okcalls + 1 >= ubik_quorum) {
+                /* If we've asked a majority of sites about their db version,
+                 * then we can say with confidence that we've found the best db
+                 * version. If we haven't contacted most sites (because
+                 * GetVersion failed or because we already know the server is
+                 * down), then we don't really know if we know about the best
+                 * db version. So we can only proceed in here if 'okcalls'
+                 * indicates we managed to contact a majority of sites. */
+
+                /* take into consideration our version. Remember if we,
+                 * the sync site, have the best version. Also note that
+                 * we may need to send the best version out.
+                 */
+                if (vcmp(ubik_dbase->version, bestDBVersion) >= 0) {
+                    bestDBVersion = ubik_dbase->version;
+                    bestServer = (struct ubik_server *)0;
+                    urecovery_state |= UBIK_RECHAVEDB;
+                } else {
+                    /* Clear the flag only when we know we have to retrieve
+                     * the db. Because urecovery_AllBetter() looks at it.
+                     */
+                    urecovery_state &= ~UBIK_RECHAVEDB;
+                }
+                urecovery_state |= UBIK_RECFOUNDDB;
+                urecovery_state &= ~UBIK_RECSENTDB;
+            }
 	}
 	if (!(urecovery_state & UBIK_RECFOUNDDB)) {
 	    DBRELE(ubik_dbase);
@@ -874,7 +888,7 @@ DoProbe(struct ubik_server *server)
 {
     struct rx_connection *conns[UBIK_MAX_INTERFACE_ADDR];
     struct rx_connection *connSuccess = 0;
-    int i, j, success_i = -1;
+    int i, nconns, success_i = -1;
     afs_uint32 addr;
     char buffer[32];
     char hoststr[16];
@@ -893,9 +907,10 @@ DoProbe(struct ubik_server *server)
 	}
     }
     UBIK_ADDR_UNLOCK;
-    opr_Assert(i);			/* at least one interface address for this server */
+    nconns = i;
+    opr_Assert(nconns);			/* at least one interface address for this server */
 
-    multi_Rx(conns, i) {
+    multi_Rx(conns, nconns) {
 	multi_DISK_Probe();
 	if (!multi_error) {	/* first success */
 	    success_i = multi_i;
@@ -928,9 +943,9 @@ DoProbe(struct ubik_server *server)
     }
 
     /* Destroy all connections except the one on which we succeeded */
-    for (j = 0; j < i; j++)
-	if (conns[j] != connSuccess)
-	    rx_DestroyConnection(conns[j]);
+    for (i = 0; i < nconns; i++)
+	if (conns[i] != connSuccess)
+	    rx_DestroyConnection(conns[i]);
 
     if (!connSuccess)
 	ubik_dprint("ubik:server %s still down\n",

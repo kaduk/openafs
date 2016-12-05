@@ -207,6 +207,7 @@ EvalVolumeSet2(struct bc_config *aconfig,
     *avols = (struct bc_volumeDump *)0;
     bulkentries.nbulkentries_len = 0;
     bulkentries.nbulkentries_val = 0;
+    memset(&attributes, 0, sizeof(attributes));
 
     /* For each of the volume set entries - collect the volumes that match it */
     for (tve = avs->ventries; tve; tve = tve->next) {
@@ -257,15 +258,15 @@ EvalVolumeSet2(struct bc_config *aconfig,
 		ei = entries[e].matchindex & 0xffff;
 		et = (entries[e].matchindex >> 16) & 0xffff;
 		switch (et) {
-		case ITSRWVOL:{
+		case VLSF_RWVOL:{
 			et = RWVOL;
 			break;
 		    }
-		case ITSBACKVOL:{
+		case VLSF_BACKVOL:{
 			et = BACKVOL;
 			break;
 		    }
-		case ITSROVOL:{
+		case VLSF_ROVOL:{
 			et = ROVOL;
 			break;
 		    }
@@ -502,8 +503,8 @@ EvalVolumeSet1(struct bc_config *aconfig,
 		/* If the RW name matches the volume set entry, take
 		 * it and exit. First choice is to use the RW volume.
 		 */
-		if (entry.serverFlags[srvpartpair] & ITSRWVOL) {
-		    if (entry.flags & RW_EXISTS) {
+		if (entry.serverFlags[srvpartpair] & VLSF_RWVOL) {
+		    if (entry.flags & VLF_RWEXISTS) {
 			sprintf(patt, "%s", entry.name);
 #ifdef HAVE_POSIX_REGEX
 			code = regexec(&re, patt, 0, NULL, 0);
@@ -522,7 +523,7 @@ EvalVolumeSet1(struct bc_config *aconfig,
 		    /* If the BK name matches the volume set entry, take
 		     * it and exit. Second choice is to use the BK volume.
 		     */
-		    if (entry.flags & BACK_EXISTS) {
+		    if (entry.flags & VLF_BACKEXISTS) {
 			sprintf(patt, "%s.backup", entry.name);
 #ifdef HAVE_POSIX_REGEX
 			code = regexec(&re, patt, 0, NULL, 0);
@@ -543,8 +544,8 @@ EvalVolumeSet1(struct bc_config *aconfig,
 		 * it, but continue searching. Further entries may be
 		 * RW or backup entries that will match.
 		 */
-		else if (!found && (entry.serverFlags[srvpartpair] & ITSROVOL)
-			 && (entry.flags & RO_EXISTS)) {
+		else if (!found && (entry.serverFlags[srvpartpair] & VLSF_ROVOL)
+			 && (entry.flags & VLF_ROEXISTS)) {
 		    sprintf(patt, "%s.readonly", entry.name);
 #ifdef HAVE_POSIX_REGEX
 		    code = regexec(&re, patt, 0, NULL, 0);

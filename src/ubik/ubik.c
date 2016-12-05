@@ -201,7 +201,7 @@ ContactQuorum_rcode(int okcalls, afs_int32 rcode)
     if (okcalls + 1 >= ubik_quorum)
 	return 0;
     else
-	return rcode;
+	return (rcode != 0) ? rcode : UNOQUORUM;
 }
 
 /*!
@@ -667,7 +667,11 @@ BeginTrans(struct ubik_dbase *dbase, afs_int32 transMode,
     if (transMode == UBIK_WRITETRANS) {
 	/* for a write trans, we have to keep track of the write tid counter too */
 	dbase->writeTidCounter = tt->tid.counter;
+    }
 
+    UBIK_VERSION_UNLOCK;
+
+    if (transMode == UBIK_WRITETRANS) {
 	/* next try to start transaction on appropriate number of machines */
 	code = ContactQuorum_NoArguments(DISK_Begin, tt, 0);
 	if (code) {
@@ -675,14 +679,12 @@ BeginTrans(struct ubik_dbase *dbase, afs_int32 transMode,
 	    udisk_abort(tt);
 	    ContactQuorum_NoArguments(DISK_Abort, tt, 0); /* force aborts to the others */
 	    udisk_end(tt);
-	    UBIK_VERSION_UNLOCK;
 	    DBRELE(dbase);
 	    return code;
 	}
     }
 
     *transPtr = tt;
-    UBIK_VERSION_UNLOCK;
     DBRELE(dbase);
     return 0;
 }

@@ -213,7 +213,7 @@ NameHash(char *volname)
 afs_int32
 IdHash(afs_uint32 volid)
 {
-    return ((abs(volid)) % HASHSIZE);
+    return (volid % HASHSIZE);
 }
 
 #define LEGALCHARS ".ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
@@ -353,9 +353,16 @@ readMH(afs_uint32 addr, int block, struct extentaddr *mhblockP)
 
     vldbread(addr, (char *)mhblockP, VL_ADDREXTBLK_SIZE);
 
+    /* Every mh block has the VLCONTBLOCK flag set in the header to
+     * indicate the entry is an 8192 byte extended block. The
+     * VLCONTBLOCK flag is always clear in regular vl entries. The
+     * vlserver depends on the VLCONTBLOCK flag to correctly traverse
+     * the vldb. The flags field is in network byte order. */
+    mhblockP->ex_hdrflags = ntohl(mhblockP->ex_hdrflags);
+
     if (block == 0) {
+        /* These header fields are only used in the first mh block. */
         mhblockP->ex_count = ntohl(mhblockP->ex_count);
-        mhblockP->ex_hdrflags = ntohl(mhblockP->ex_hdrflags);
         for (i = 0; i < VL_MAX_ADDREXTBLKS; i++) {
 	    mhblockP->ex_contaddrs[i] = ntohl(mhblockP->ex_contaddrs[i]);
         }
@@ -894,8 +901,8 @@ CheckIpAddrs(struct vlheader *header)
 	    readMH(mhinfo[i].addr, i, MHblock);
 	    if (MHblock->ex_hdrflags != VLCONTBLOCK) {
 	        log_error
-		    (VLDB_CHECK_ERROR,"address %u (offset 0x%0x): Multihomed Block 0: Not a multihomed block\n",
-		     header->SIT, OFFSET(header->SIT));
+		    (VLDB_CHECK_ERROR,"address %u (offset 0x%0x): Multihomed Block %d: Not a multihomed block\n",
+		     mhinfo[i].addr, OFFSET(mhinfo[i].addr), i);
 	    }
 
 	    rindex = mhinfo[i].addr / sizeof(vlentry);
@@ -1422,8 +1429,9 @@ WorkerBee(struct cmd_syndesc *as, void *arock)
 
     if (fix) {
 	/*
-	 * If we are fixing we will rebuild all the hash lists from the ground up
+	 * If we are fixing we will rebuild the free and hash lists from the ground up.
 	 */
+	header.vital_header.freePtr = 0;
 	memcpy(oldnamehash, header.VolnameHash, sizeof(oldnamehash));
 	memset(header.VolnameHash, 0, sizeof(header.VolnameHash));
 
@@ -1578,6 +1586,18 @@ WorkerBee(struct cmd_syndesc *as, void *arock)
 		}
 		writeMH(record[i].addr, block, MHblock);
 	    }
+	} else if (record[i].type & FR) {
+	    if (fix) {
+		readentry(record[i].addr, &vlentry, &type);
+		vlentry.nextIdHash[0] = header.vital_header.freePtr;
+		header.vital_header.freePtr = record[i].addr;
+		if ((record[i].type & FRC) == 0) {
+		    quiet_println
+			("FIX: Putting free entry on the free chain: addr=%lu (offset 0x%0x)\n",
+			 record[i].addr, OFFSET(record[i].addr));
+		}
+		writeentry(record[i].addr, &vlentry);
+	    }
 	}
     }
     if (fix) {
@@ -1598,7 +1618,7 @@ main(int argc, char **argv)
 
     setlinebuf(stdout);
 
-    ts = cmd_CreateSyntax(NULL, WorkerBee, NULL, "vldb check");
+    ts = cmd_CreateSyntax(NULL, WorkerBee, NULL, 0, "vldb check");
     cmd_AddParm(ts, "-database", CMD_SINGLE, CMD_REQUIRED, "vldb_file");
     cmd_AddParm(ts, "-uheader", CMD_FLAG, CMD_OPTIONAL,
 		"Display UBIK header");

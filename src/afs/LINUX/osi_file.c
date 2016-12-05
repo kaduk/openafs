@@ -183,7 +183,11 @@ osi_UFSTruncate(struct osi_file *afile, afs_int32 asize)
     newattrs.ia_ctime = CURRENT_TIME;
 
     /* avoid notify_change() since it wants to update dentry->d_parent */
+#ifdef HAVE_LINUX_SETATTR_PREPARE
+    code = setattr_prepare(file_dentry(afile->filp), &newattrs);
+#else
     code = inode_change_ok(inode, &newattrs);
+#endif
     if (!code)
 	code = afs_inode_setattr(afile, &newattrs);
     if (!code)
@@ -208,6 +212,9 @@ afs_osi_Read(struct osi_file *afile, int offset, void *aptr,
     struct iovec iov;
     afs_int32 code;
 
+    memset(&auio, 0, sizeof(auio));
+    memset(&iov, 0, sizeof(iov));
+
     AFS_STATCNT(osi_Read);
 
     /*
@@ -215,7 +222,7 @@ afs_osi_Read(struct osi_file *afile, int offset, void *aptr,
      * down. No point in crashing when we are already shutting down
      */
     if (!afile) {
-	if (!afs_shuttingdown)
+	if (afs_shuttingdown == AFS_RUNNING)
 	    osi_Panic("osi_Read called with null param");
 	else
 	    return -EIO;
@@ -249,10 +256,13 @@ afs_osi_Write(struct osi_file *afile, afs_int32 offset, void *aptr,
     struct iovec iov;
     afs_int32 code;
 
+    memset(&auio, 0, sizeof(auio));
+    memset(&iov, 0, sizeof(iov));
+
     AFS_STATCNT(osi_Write);
 
     if (!afile) {
-	if (!afs_shuttingdown)
+	if (afs_shuttingdown == AFS_RUNNING)
 	    osi_Panic("afs_osi_Write called with null param");
 	else
 	    return -EIO;
@@ -369,9 +379,9 @@ osi_rdwr(struct osi_file *osifile, struct uio *uiop, int rw)
 
 	pos = uiop->uio_offset;
 	if (rw == UIO_READ)
-	    code = filp->f_op->read(filp, iov->iov_base, count, &pos);
+	    code = afs_file_read(filp, iov->iov_base, count, &pos);
 	else
-	    code = filp->f_op->write(filp, iov->iov_base, count, &pos);
+	    code = afs_file_write(filp, iov->iov_base, count, &pos);
 
 	if (code < 0) {
 	    code = -code;

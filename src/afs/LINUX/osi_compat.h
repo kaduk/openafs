@@ -37,7 +37,21 @@ typedef struct vfs_path afs_linux_path_t;
 typedef struct path afs_linux_path_t;
 #endif
 
-#ifndef HAVE_LINUX_DO_SYNC_READ
+#if defined(STRUCT_DENTRY_HAS_D_U_D_ALIAS)
+# define d_alias d_u.d_alias
+#endif
+
+#if defined(STRUCT_FILE_HAS_F_PATH)
+# if !defined(f_dentry)
+#  define f_dentry f_path.dentry
+# endif
+#endif
+
+#if defined(HAVE_LINUX_LOCKS_LOCK_FILE_WAIT)
+# define flock_lock_file_wait locks_lock_file_wait
+#endif
+
+#if !defined(HAVE_LINUX_DO_SYNC_READ) && !defined(STRUCT_FILE_OPERATIONS_HAS_READ_ITER)
 static inline int
 do_sync_read(struct file *fp, char *buf, size_t count, loff_t *offp) {
     return generic_file_read(fp, buf, count, offp);
@@ -176,7 +190,9 @@ static inline struct key *
 afs_linux_key_alloc(struct key_type *type, const char *desc, afs_kuid_t uid,
 		    afs_kgid_t gid, key_perm_t perm, unsigned long flags)
 {
-# if defined(KEY_ALLOC_NEEDS_STRUCT_TASK)
+# if defined(KEY_ALLOC_BYPASS_RESTRICTION)
+    return key_alloc(type, desc, uid, gid, current_cred(), perm, flags, NULL);
+# elif defined(KEY_ALLOC_NEEDS_STRUCT_TASK)
     return key_alloc(type, desc, uid, gid, current, perm, flags);
 # elif defined(KEY_ALLOC_NEEDS_CRED)
     return key_alloc(type, desc, uid, gid, current_cred(), perm, flags);
@@ -260,7 +276,7 @@ afs_linux_cred_is_current(afs_ucred_t *cred)
 static inline loff_t
 page_offset(struct page *pp)
 {
-    return (((loff_t) pp->index) << PAGE_CACHE_SHIFT);
+    return (((loff_t) pp->index) << PAGE_SHIFT);
 }
 #endif
 
@@ -431,7 +447,9 @@ afs_init_sb_export_ops(struct super_block *sb) {
 
 static inline void
 afs_linux_lock_inode(struct inode *ip) {
-#ifdef STRUCT_INODE_HAS_I_MUTEX
+#if defined(HAVE_LINUX_INODE_LOCK)
+    inode_lock(ip);
+#elif defined(STRUCT_INODE_HAS_I_MUTEX)
     mutex_lock(&ip->i_mutex);
 #else
     down(&ip->i_sem);
@@ -440,7 +458,9 @@ afs_linux_lock_inode(struct inode *ip) {
 
 static inline void
 afs_linux_unlock_inode(struct inode *ip) {
-#ifdef STRUCT_INODE_HAS_I_MUTEX
+#if defined(HAVE_LINUX_INODE_LOCK)
+    inode_unlock(ip);
+#elif defined(STRUCT_INODE_HAS_I_MUTEX)
     mutex_unlock(&ip->i_mutex);
 #else
     up(&ip->i_sem);
@@ -483,23 +503,23 @@ afs_get_dentry_ref(struct nameidata *nd, struct vfsmount **mnt, struct dentry **
 #else
 afs_get_dentry_ref(afs_linux_path_t *path, struct vfsmount **mnt, struct dentry **dpp) {
 #endif
-#if defined(STRUCT_NAMEIDATA_HAS_PATH)
-# if defined(HAVE_LINUX_PATH_LOOKUP)
+#if defined(HAVE_LINUX_PATH_LOOKUP)
+# if defined(STRUCT_NAMEIDATA_HAS_PATH)
     *dpp = dget(nd->path.dentry);
     if (mnt)
 	*mnt = mntget(nd->path.mnt);
     path_put(&nd->path);
 # else
-    *dpp = dget(path->dentry);
-    if (mnt)
-	*mnt = mntget(path->mnt);
-    path_put(path);
-# endif
-#else
     *dpp = dget(nd->dentry);
     if (mnt)
 	*mnt = mntget(nd->mnt);
     path_release(nd);
+# endif
+#else
+    *dpp = dget(path->dentry);
+    if (mnt)
+	*mnt = mntget(path->mnt);
+    path_put(path);
 #endif
 }
 
@@ -607,6 +627,37 @@ afs_maybe_shrink_dcache(struct dentry *dp)
 #else
     if (afs_dentry_count(dp) > 1)
 	shrink_dcache_parent(dp);
+#endif
+}
+
+static inline int
+afs_d_invalidate(struct dentry *dp)
+{
+#if defined(D_INVALIDATE_IS_VOID)
+    d_invalidate(dp);
+    return 0;
+#else
+    return d_invalidate(dp);
+#endif
+}
+
+static inline int
+afs_file_read(struct file *filp, char __user *buf, size_t len, loff_t *pos)
+{
+#if defined(HAVE_LINUX___VFS_READ)
+    return __vfs_read(filp, buf, len, pos);
+#else
+    return filp->f_op->read(filp, buf, len, pos);
+#endif
+}
+
+static inline int
+afs_file_write(struct file *filp, char __user *buf, size_t len, loff_t *pos)
+{
+#if defined(HAVE_LINUX___VFS_READ)
+    return __vfs_write(filp, buf, len, pos);
+#else
+    return filp->f_op->write(filp, buf, len, pos);
 #endif
 }
 

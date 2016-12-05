@@ -6,7 +6,7 @@ RXDEBUG="-DRXDEBUG"
 SHLIB_SUFFIX="so"
 CCOBJ="\$(CC)"
 MT_CC="\$(CC)"
-XLIBS="${LIB_AFSDB} ${XBSA_XLIBS} ${LIB_libintl}"
+XLIBS="${LIB_AFSDB} ${LIB_libintl}"
 MT_LIBS='-lpthread ${XLIBS}'
 XCFLAGS=
 
@@ -201,7 +201,7 @@ case $AFS_SYSNAME in
 		XCFLAGS="-pipe"
 		;;
 
-	ia64_linux24|ia64_linux26)
+	ia64_linux26)
 		KERN_OPTMZ=-O2
 		MT_CFLAGS='-pthread -D_REENTRANT'
 		PAM_OPTMZ=-O2
@@ -223,7 +223,7 @@ case $AFS_SYSNAME in
 		SHLIB_LINKER="${CC} -shared"
 		;;
 
-	ppc64_linux24 | ppc64_linux26)
+	ppc64_linux26)
 		MT_CFLAGS='-pthread -D_REENTRANT'
 		PAM_OPTMZ=-O2
 		PAM_CFLAGS="-Dlinux -DLINUX_PAM -fPIC"
@@ -249,7 +249,7 @@ case $AFS_SYSNAME in
 		SHLIB_LINKER="${CC} -shared"
 		;;
 
-	i386_umlinux22 | i386_umlinux24 | i386_umlinux26)
+	i386_umlinux26)
 		MT_CFLAGS='-pthread -D_REENTRANT'
 		DBG=-g
 		LWP_DBG=-g
@@ -275,16 +275,6 @@ case $AFS_SYSNAME in
 		XCFLAGS=
 		;;
 
-	parisc_linux24)
-		KERN_OPTMZ=-O2
-		MT_CFLAGS='-pthread -D_REENTRANT'
-		PAM_OPTMZ=-O2
-		PAM_CFLAGS="-Dlinux -DLINUX_PAM -fPIC"
-		SHLIB_CFLAGS="-fPIC"
-		SHLIB_LDFLAGS="-shared -Xlinker -x"
-		SHLIB_LINKER="${CC} -shared"
-		;;
-
 	ppc_darwin_70)
 		CC="cc"
 		AFSD_LDFLAGS="-F/System/Library/PrivateFrameworks -framework DiskArbitration -framework SystemConfiguration -framework IOKit -framework CoreFoundation"
@@ -297,7 +287,7 @@ case $AFS_SYSNAME in
 		EXTRA_VLIBOBJS="fstab.o"
 		SHLIB_LINKER="${CC} \${ARCHFLAGS} -dynamiclib"
 		SHLIB_SUFFIX="dylib"
-		XLIBS="${LIB_AFSDB} ${XBSA_XLIBS} -framework CoreFoundation"
+		XLIBS="${LIB_AFSDB} -framework CoreFoundation"
 		;;
 
 	*_darwin_80)
@@ -314,7 +304,7 @@ case $AFS_SYSNAME in
 		SHLIB_LINKER="${CC} \${ARCHFLAGS} -dynamiclib"
 		SHLIB_SUFFIX="dylib"
 		RANLIB="ranlib -c"
-		XLIBS="${LIB_AFSDB} ${XBSA_XLIBS} -framework CoreFoundation"
+		XLIBS="${LIB_AFSDB} -framework CoreFoundation"
 		;;
 
 	*_darwin_90)
@@ -331,7 +321,7 @@ case $AFS_SYSNAME in
 		SHLIB_LINKER="${CC} \${ARCHFLAGS} -dynamiclib"
 		SHLIB_SUFFIX="dylib"
 		RANLIB="ranlib -c"
-		XLIBS="${LIB_AFSDB} ${XBSA_XLIBS} -framework CoreFoundation"
+		XLIBS="${LIB_AFSDB} -framework CoreFoundation"
 		;;
 
 	arm_darwin_100)
@@ -351,10 +341,10 @@ case $AFS_SYSNAME in
 		SHLIB_LINKER="${CC} -dynamiclib"
 		SHLIB_SUFFIX="dylib"
 		RANLIB="ranlib"
-		XLIBS="${LIB_AFSDB} ${XBSA_XLIBS} -framework CoreFoundation"
+		XLIBS="${LIB_AFSDB} -framework CoreFoundation"
 		;;
 
-	*_darwin_100 | *_darwin_110 | *_darwin_120 | *_darwin_130 )
+	*_darwin_100 | *_darwin_110 | *_darwin_120 | *_darwin_130 | *_darwin_140 | *_darwin_150 | *_darwin_160)
 		AFSD_LDFLAGS="-F/System/Library/PrivateFrameworks -framework DiskArbitration -framework SystemConfiguration -framework IOKit -framework CoreFoundation"
 		MT_CFLAGS="-D_REENTRANT"
 		MT_LIBS='${XLIBS}'
@@ -370,7 +360,7 @@ case $AFS_SYSNAME in
 		SHLIB_LINKER="${CC} \${ARCHFLAGS} -dynamiclib"
 		SHLIB_SUFFIX="dylib"
 		RANLIB="ranlib"
-		XLIBS="${LIB_AFSDB} ${XBSA_XLIBS} -framework CoreFoundation"
+		XLIBS="${LIB_AFSDB} -framework CoreFoundation"
 		;;
 
 	ppc_linux*)
@@ -422,7 +412,7 @@ case $AFS_SYSNAME in
 		AIX64="yes"
 		;;
 
-	s390_linux22|s390_linux24|s390_linux26)
+	s390_linux26)
 		LD="ld"
 		KERN_OPTMZ=-O2
 		MT_CFLAGS='-pthread -D_REENTRANT'
@@ -433,7 +423,7 @@ case $AFS_SYSNAME in
 		SHLIB_LINKER="${CC} -shared"
 		;;
 
-	s390x_linux24|s390x_linux26)
+	s390x_linux26)
 		CCOBJ="\$(CC) -fPIC"
 		LD="ld"
 		KERN_OPTMZ=-O2
@@ -643,7 +633,7 @@ else
 fi
 
 CFLAGS_NOERROR=
-CFLAGS_NOSTRICT=
+CFLAGS_NOSTRICT=-fno-strict-aliasing
 CFLAGS_NOUNUSED=
 CFLAGS_NOOLDSTYLE=
 XCFLAGS_NOCHECKING="$XCFLAGS"
@@ -656,10 +646,11 @@ if test "x$GCC" = "xyes"; then
     XCFLAGS="${XCFLAGS} -Wall -Wstrict-prototypes -Wold-style-definition -Werror -fdiagnostics-show-option -Wpointer-arith"
     if test "x$enable_checking" != "xall"; then
       CFLAGS_NOERROR="-Wno-error"
-      CFLAGS_NOSTRICT="-fno-strict-aliasing"
       CFLAGS_NOUNUSED="-Wno-unused"
       CFLAGS_NOOLDSTYLE="-Wno-old-style-definition"
       AC_DEFINE(IGNORE_SOME_GCC_WARNINGS, 1, [define to disable some gcc warnings in warnings-as-errors mode])
+    else
+      CFLAGS_NOSTRICT=
     fi
   fi
 else

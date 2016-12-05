@@ -42,21 +42,26 @@
  * AFS readdir vnodeop and bulk stat support.
  */
 
-/* BlobScan is supposed to ensure that the blob reference refers to a valid
-    directory entry.  It consults the allocation map in the page header
-    to determine whether a blob is actually in use or not.
-
-    More formally, BlobScan is supposed to return a new blob number which is just like
-    the input parameter, only it is advanced over header or free blobs.
-    
-    Note that BlobScan switches pages if necessary.  BlobScan may return
-    either 0 or an out-of-range blob number for end of file.
-
-    BlobScan is used by the Linux port in a separate file, so it should not
-    become static.
-*/
+/**
+ * Ensure that the blob reference refers to a valid directory entry.
+ * It consults the allocation map in the page header to determine
+ * whether a blob is actually in use or not.
+ *
+ * More formally, BlobScan is supposed to return a new blob number
+ * which is just like the input parameter, only it is advanced over
+ * header or free blobs.
+ *
+ * Note that BlobScan switches pages if necessary.  BlobScan may
+ * return either 0 for success or an error code.  Upon successful
+ * return, the new blob value is assigned to *ablobOut.  The new
+ * blob value (*ablobOut) is set to 0 when the end of the file has
+ * been reached.
+ *
+ * BlobScan is used by the Linux port in a separate file, so it should not
+ * become static.
+ */
 int
-BlobScan(struct dcache * afile, afs_int32 ablob)
+BlobScan(struct dcache * afile, afs_int32 ablob, int *ablobOut)
 {
     afs_int32 relativeBlob;
     afs_int32 pageBlob;
@@ -70,8 +75,12 @@ BlobScan(struct dcache * afile, afs_int32 ablob)
     while (1) {
 	pageBlob = ablob & ~(EPP - 1);	/* base blob in same page */
 	code = afs_dir_GetBlob(afile, pageBlob, &headerbuf);
+	if (code == ENOENT) {
+	    *ablobOut = 0; /* past the end of file */
+	    return 0;      /* not an error */
+	}
 	if (code)
-	    return 0;
+	    return code;
 	tpe = (struct PageHeader *)headerbuf.data;
 
 	relativeBlob = ablob - pageBlob;	/* relative to page's first blob */
@@ -92,8 +101,10 @@ BlobScan(struct dcache * afile, afs_int32 ablob)
 	/* now relativeBlob is the page-relative first allocated blob,
 	 * or EPP (if there are none in this page). */
 	DRelease(&headerbuf, 0);
-	if (i != EPP)
-	    return i + pageBlob;
+	if (i != EPP) {
+	    *ablobOut = i + pageBlob;
+	    return 0;
+	}
 	ablob = pageBlob + EPP;	/* go around again */
     }
     /* never get here */
@@ -249,7 +260,7 @@ afs_readdir_type(struct vcache *avc, struct DirEntry *ade)
     ObtainReadLock(&afs_xvcache);
     if ((tvc = afs_FindVCache(&tfid, 0, 0))) {
         ReleaseReadLock(&afs_xvcache);
-	if (tvc->mvstat) {
+	if (tvc->mvstat != AFS_MVSTAT_FILE) {
 	    afs_PutVCache(tvc);
 	    return DT_DIR;
 	} else if (((tvc->f.states) & (CStatd | CTruth))) {
@@ -262,7 +273,7 @@ afs_readdir_type(struct vcache *avc, struct DirEntry *ade)
 	    else if (vtype == VREG)
 		return DT_REG;
 	    /* Don't do this until we're sure it can't be a mtpt */
-	    /* if we're CStatd and CTruth and mvstat==0, it's a link */
+	    /* if we're CStatd and CTruth and mvstat==AFS_MVSTAT_FILE, it's a link */
 	    else if (vtype == VLNK)
 		return DT_LNK;
 	    /* what other types does AFS support? */
@@ -319,7 +330,7 @@ afs_readdir_move(struct DirEntry *de, struct vcache *vc, struct uio *auio,
 	if (!FidCmp(&afs_rootFid, &vc->f.fid)) {
 	    Volume = 0;
 	    Vnode  = 2;
-	} else if (vc->mvstat == 2) {
+	} else if (vc->mvstat == AFS_MVSTAT_ROOT) {
 	    tvp = afs_GetVolume(&vc->f.fid, 0, READ_LOCK);
 	    if (tvp) {
 		Volume = tvp->mtpoint.Fid.Volume;
@@ -337,19 +348,19 @@ afs_readdir_move(struct DirEntry *de, struct vcache *vc, struct uio *auio,
 	    /* We are the root of the AFS root, and thus our own parent */
 	    Volume = 0;
 	    Vnode  = 2;
-	} else if (vc->mvstat == 2) {
+	} else if (vc->mvstat == AFS_MVSTAT_ROOT) {
 	    /* We are a volume root, which means our parent is in another
 	     * volume.  Luckily, we should have his fid cached... */
-	    if (vc->mvid) {
-		if (!FidCmp(&afs_rootFid, vc->mvid)) {
+	    if (vc->mvid.parent) {
+		if (!FidCmp(&afs_rootFid, vc->mvid.parent)) {
 		    /* Parent directory is the root of the AFS root */
 		    Volume = 0;
 		    Vnode  = 2;
-		} else if (vc->mvid->Fid.Vnode == 1
-			   && vc->mvid->Fid.Unique == 1) {
+		} else if (vc->mvid.parent->Fid.Vnode == 1
+			   && vc->mvid.parent->Fid.Unique == 1) {
 		    /* XXX The above test is evil and probably breaks DFS */
 		    /* Parent directory is the target of a mount point */
-		    tvp = afs_GetVolume(vc->mvid, 0, READ_LOCK);
+		    tvp = afs_GetVolume(vc->mvid.parent, 0, READ_LOCK);
 		    if (tvp) {
 			Volume = tvp->mtpoint.Fid.Volume;
 			Vnode  = tvp->mtpoint.Fid.Vnode;
@@ -357,8 +368,8 @@ afs_readdir_move(struct DirEntry *de, struct vcache *vc, struct uio *auio,
 		    }
 		} else {
 		    /* Parent directory is not a volume root */
-		    Volume = vc->mvid->Fid.Volume;
-		    Vnode  = vc->mvid->Fid.Vnode;
+		    Volume = vc->mvid.parent->Fid.Volume;
+		    Vnode  = vc->mvid.parent->Fid.Vnode;
 		}
 	    }
 	} else if (de->fid.vnode == 1 && de->fid.vunique == 1) {
@@ -588,7 +599,7 @@ afs_readdir(OSI_VC_DECL(avc), struct uio *auio, afs_ucred_t *acred)
     struct DirBuffer oldEntry, nextEntry;
     struct DirEntry *ode = 0, *nde = 0;
     int o_slen = 0, n_slen = 0;
-    afs_uint32 us;
+    afs_int32 us;
     struct afs_fakestat_state fakestate;
 #if defined(AFS_SGI53_ENV)
     afs_int32 use64BitDirent, dirsiz;
@@ -667,7 +678,7 @@ afs_readdir(OSI_VC_DECL(avc), struct uio *auio, afs_ucred_t *acred)
     /* get a reference to the entire directory */
     tdc = afs_GetDCache(avc, (afs_size_t) 0, treq, &origOffset, &tlen, 1);
     if (!tdc) {
-	code = ENOENT;
+	code = EIO;
 	goto done;
     }
     ObtainReadLock(&avc->lock);
@@ -732,9 +743,9 @@ afs_readdir(OSI_VC_DECL(avc), struct uio *auio, afs_ucred_t *acred)
 	origOffset = AFS_UIO_OFFSET(auio);
 	/* scan for the next interesting entry scan for in-use blob otherwise up point at
 	 * this blob note that ode, if non-zero, also represents a held dir page */
-	us = BlobScan(tdc, (origOffset >> 5));
+	code = BlobScan(tdc, (origOffset >> 5), &us);
 
-	if (us)
+	if (code == 0 && us)
 	   code = afs_dir_GetVerifiedBlob(tdc, us, &nextEntry);
 
 	if (us == 0 || code != 0) {
@@ -910,7 +921,7 @@ afs_readdir(OSI_VC_DECL(avc), struct uio *auio, afs_ucred_t *acred)
 	DRelease(&oldEntry, 0);
 	oldEntry = nextEntry;
 	ode = nde;
-	AFS_UIO_SETOFFSET(auio, (afs_int32) ((us + afs_dir_NameBlobs(nde->name)) << 5));
+	AFS_UIO_SETOFFSET(auio, (us + afs_dir_NameBlobs(nde->name)) << 5);
     }
     
     DRelease(&oldEntry, 0);

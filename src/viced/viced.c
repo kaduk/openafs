@@ -46,6 +46,8 @@
 #include <lwp.h>
 #include <opr/lock.h>
 #include <opr/proc.h>
+#include <opr/softsig.h>
+#include <afs/procmgmt_softsig.h> /* must come after softsig.h */
 #include <afs/cmd.h>
 #include <afs/ptclient.h>
 #include <afs/afsint.h>
@@ -69,9 +71,7 @@
 #include <afs/audit.h>
 #include <afs/partition.h>
 #include <afs/dir.h>
-#ifndef AFS_NT40_ENV
-# include <afs/softsig.h>
-#endif
+#include <afs/afsutil.h>
 #include "viced_prototypes.h"
 #include "viced.h"
 #include "host.h"
@@ -83,18 +83,14 @@
 
 extern int etext;
 
-void *ShutDown(void *);
 static void ClearXStatValues(void);
 static void PrintCounters(void);
-static void ResetCheckDescriptors(void);
-static void ResetCheckSignal(void);
-static void *CheckSignal(void *);
 
 static afs_int32 Do_VLRegisterRPC(void);
 
 int eventlog = 0, rxlog = 0;
 FILE *debugFile;
-char *logFile = NULL;
+static struct logOptions logopts;
 
 pthread_mutex_t fsync_glock_mutex;
 pthread_cond_t fsync_cond;
@@ -120,7 +116,6 @@ int restartMode = RESTART_ORDINARY;
  */
 struct afs_PerfStats afs_perfstats;
 
-extern int LogLevel;
 extern int Statistics;
 
 int busyonrst = 1;
@@ -134,7 +129,6 @@ afs_int32 implicitAdminRights = PRSFS_LOOKUP;	/* The ADMINISTER right is
 						 * already implied */
 afs_int32 readonlyServer = 0;
 
-int stack = 24;
 int stackSize = 24000;
 int fiveminutes = 300;		/* 5 minutes.  Change this for debugging only */
 int CurrentConnections = 0;
@@ -242,10 +236,10 @@ static int fs_stateInit(void)
  */
 
 /* DEBUG HACK */
-static void *
-CheckDescriptors(void *unused)
-{
 #ifndef AFS_NT40_ENV
+void
+CheckDescriptors_Signal(int signo)
+{
     struct afs_stat status;
     int tsize = getdtablesize();
     int i;
@@ -259,28 +253,37 @@ CheckDescriptors(void *unused)
 	}
     }
     fflush(stdout);
-    ResetCheckDescriptors();
+}
 #endif
-    return 0;
-}				/*CheckDescriptors */
 
-
+/* Signal number for dumping debug info is platform dependent. */
+#if defined(AFS_HPUX_ENV)
+# define AFS_SIG_CHECK    SIGPOLL
+#elif defined(AFS_NT40_ENV)
+# define AFS_SIG_CHECK    SIGUSR2
+#else
+# define AFS_SIG_CHECK    SIGXCPU
+#endif
 void
 CheckSignal_Signal(int x)
 {
-    CheckSignal(NULL);
+    if (FS_registered > 0) {
+	/*
+	 * We have proper ip addresses; tell the vlserver what we got; the following
+	 * routine will do the proper reporting for us
+	 */
+	Do_VLRegisterRPC();
+    }
+    h_DumpHosts();
+    h_PrintClients();
+    DumpCallBackState();
+    PrintCounters();
 }
 
 void
 ShutDown_Signal(int x)
 {
-    ShutDown(NULL);
-}
-
-void
-CheckDescriptors_Signal(int x)
-{
-    CheckDescriptors(NULL);
+    ShutDownAndCore(DONTPANIC);
 }
 
 /* check whether caller is authorized to perform admin operations */
@@ -309,35 +312,7 @@ fs_IsLocalRealmMatch(void *rock, char *name, char *inst, char *cell)
     return islocal;
 }
 
-static void
-ResetCheckSignal(void)
-{
-    int signo;
-
-#if defined(AFS_HPUX_ENV)
-    signo = SIGPOLL;
-#elif defined(AFS_NT40_ENV)
-    signo = SIGUSR2;
-#else
-    signo = SIGXCPU;
-#endif
-
-#if !defined(AFS_NT40_ENV)
-    softsig_signal(signo, CheckSignal_Signal);
-#else
-    signal(signo, CheckSignal_Signal);
-#endif
-}
-
-static void
-ResetCheckDescriptors(void)
-{
-#ifndef AFS_NT40_ENV
-    softsig_signal(SIGTERM, CheckDescriptors_Signal);
-#endif
-}
-
-#ifndef AFS_NT40_ENV
+#if !defined(AFS_NT40_ENV) && !defined(AFS_DARWIN160_ENV)
 int
 viced_syscall(afs_uint32 a3, afs_uint32 a4, void *a5)
 {
@@ -366,18 +341,18 @@ char adminName[MAXADMINNAME];
 static void
 CheckAdminName(void)
 {
-    int fd = 0;
+    int fd = -1;
     struct afs_stat status;
 
     if ((afs_stat("/AdminName", &status)) ||	/* if file does not exist */
 	(status.st_size <= 0) ||	/* or it is too short */
 	(status.st_size >= (MAXADMINNAME)) ||	/* or it is too long */
-	!(fd = afs_open("/AdminName", O_RDONLY, 0))) {	/* or the open fails */
+	(fd = afs_open("/AdminName", O_RDONLY, 0)) < 0 || /* or open fails */
+	read(fd, adminName, status.st_size) != status.st_size) { /* or read */
+
 	strcpy(adminName, "System:Administrators");	/* use the default name */
-    } else {
-	(void)read(fd, adminName, status.st_size);	/* use name from the file */
     }
-    if (fd)
+    if (fd >= 0)
 	close(fd);		/* close fd if it was opened */
 
 }				/*CheckAdminName */
@@ -427,7 +402,7 @@ FiveMinuteCheckLWP(void *unused)
 #endif
 
 	/* close the log so it can be removed */
-	ReOpenLog(AFSDIR_SERVER_FILELOG_FILEPATH);	/* don't trunc, just append */
+	ReOpenLog();	/* don't trunc, just append */
 	ViceLog(2, ("Cleaning up timed out callbacks\n"));
 	if (CleanupTimedOutCallBacks())
 	    ViceLog(5, ("Timed out callbacks deleted\n"));
@@ -654,9 +629,9 @@ PrintCounters(void)
     ViceLog(0, ("Vice was last started at %s\n", tbuffer));
 
 #ifdef AFS_DEMAND_ATTACH_FS
-    if (LogLevel >= 125) {
+    if (GetLogLevel() >= 125) {
 	stats_flags = VOL_STATS_PER_CHAIN2;
-    } else if (LogLevel >= 25) {
+    } else if (GetLogLevel() >= 25) {
 	stats_flags = VOL_STATS_PER_CHAIN;
     }
     VPrintExtendedCacheStats(stats_flags);
@@ -686,26 +661,6 @@ PrintCounters(void)
     Statistics = 0;
 
 }				/*PrintCounters */
-
-
-
-static void *
-CheckSignal(void *unused)
-{
-    if (FS_registered > 0) {
-	/*
-	 * We have proper ip addresses; tell the vlserver what we got; the following
-	 * routine will do the proper reporting for us
-	 */
-	Do_VLRegisterRPC();
-    }
-    h_DumpHosts();
-    h_PrintClients();
-    DumpCallBackState();
-    PrintCounters();
-    ResetCheckSignal();
-    return 0;
-}				/*CheckSignal */
 
 static void *
 ShutdownWatchdogLWP(void *unused)
@@ -816,13 +771,6 @@ ShutDownAndCore(int dopanic)
 	osi_Panic("Panic requested\n");
 
     exit(0);
-}
-
-void *
-ShutDown(void *unused)
-{				/* backward compatibility */
-    ShutDownAndCore(DONTPANIC);
-    return 0;
 }
 
 static afs_int32
@@ -955,7 +903,6 @@ enum optionsList {
     OPT_vlruinterval,
     OPT_vlrumax,
     OPT_unsafe_nosalvage,
-    OPT_stack,
     OPT_cbwait,
     OPT_novbc,
     OPT_auditlog,
@@ -965,7 +912,9 @@ enum optionsList {
     OPT_logfile,
     OPT_mrafslogs,
     OPT_threads,
+#ifdef HAVE_SYSLOG
     OPT_syslog,
+#endif
     OPT_peer,
     OPT_process,
     OPT_nojumbo,
@@ -978,7 +927,8 @@ enum optionsList {
     OPT_udpsize,
     OPT_dotted,
     OPT_realm,
-    OPT_sync
+    OPT_sync,
+    OPT_transarc_logs
 };
 
 static int
@@ -998,7 +948,7 @@ ParseArgs(int argc, char *argv[])
     extern int aixlow_water;
 #endif
 
-    opts = cmd_CreateSyntax(NULL, NULL, NULL, NULL);
+    opts = cmd_CreateSyntax(NULL, NULL, NULL, 0, NULL);
 
     /* fileserver options */
     cmd_AddParmAtOffset(opts, OPT_large, "-L", CMD_FLAG,
@@ -1073,6 +1023,9 @@ ParseArgs(int argc, char *argv[])
     cmd_AddParmAtOffset(opts, OPT_vhandle_initial_cachesize,
 			"-vhandle-initial-cachesize", CMD_SINGLE,
 			CMD_OPTIONAL, "# fds reserved for cache IO");
+    cmd_AddParmAtOffset(opts, OPT_vhashsize, "-vhashsize",
+			CMD_SINGLE, CMD_OPTIONAL,
+			"log(2) of # of volume hash buckets");
 
 #ifdef AFS_DEMAND_ATTACH_FS
     /* dafs options */
@@ -1084,9 +1037,6 @@ ParseArgs(int argc, char *argv[])
 			"disable state restore during startup");
     cmd_AddParmAtOffset(opts, OPT_fs_state_verify, "-fs-state-verify",
 			CMD_SINGLE, CMD_OPTIONAL, "none|save|restore|both");
-    cmd_AddParmAtOffset(opts, OPT_vhashsize, "-vhashsize",
-			CMD_SINGLE, CMD_OPTIONAL,
-			"log(2) of # of volume hash buckets");
     cmd_AddParmAtOffset(opts, OPT_vlrudisable, "-vlrudisable",
 			CMD_FLAG, CMD_OPTIONAL, "disable VLRU functionality");
     cmd_AddParmAtOffset(opts, OPT_vlruthresh, "-vlruthresh",
@@ -1102,8 +1052,6 @@ ParseArgs(int argc, char *argv[])
 #endif
 
     /* unrecommend options - should perhaps be CMD_HIDE */
-    cmd_AddParmAtOffset(opts, OPT_stack, "-k", CMD_SINGLE, CMD_OPTIONAL,
-			"stack size");
     cmd_AddParmAtOffset(opts, OPT_cbwait, "-w", CMD_SINGLE, CMD_OPTIONAL,
 			"callback wait interval");
     cmd_AddParmAtOffset(opts, OPT_novbc, "-novbc", CMD_SINGLE, CMD_FLAG,
@@ -1118,9 +1066,11 @@ ParseArgs(int argc, char *argv[])
 			"debug level");
     cmd_AddParmAtOffset(opts, OPT_mrafslogs, "-mrafslogs", CMD_FLAG,
 			CMD_OPTIONAL, "enable MRAFS style logging");
+    cmd_AddParmAtOffset(opts, OPT_transarc_logs, "-transarc-logs", CMD_FLAG,
+			CMD_OPTIONAL, "enable Transarc style logging");
     cmd_AddParmAtOffset(opts, OPT_threads, "-p", CMD_SINGLE, CMD_OPTIONAL,
 		        "number of threads");
-#if !defined(AFS_NT40_ENV)
+#ifdef HAVE_SYSLOG
     cmd_AddParmAtOffset(opts, OPT_syslog, "-syslog", CMD_SINGLE_OR_FLAG,
 			CMD_OPTIONAL, "log to syslog");
 #endif
@@ -1301,6 +1251,13 @@ ParseArgs(int argc, char *argv[])
 	    return -1;
 	}
     }
+    if (cmd_OptionAsInt(opts, OPT_vhashsize, &optval) == 0) {
+	if (VSetVolHashSize(optval)) {
+	    fprintf(stderr, "specified -vhashsize (%d) is invalid or out "
+		            "of range\n", optval);
+	    return -1;
+	}
+    }
 
 #ifdef AFS_DEMAND_ATTACH_FS
     if (cmd_OptionPresent(opts, OPT_fs_state_dont_save))
@@ -1322,13 +1279,6 @@ ParseArgs(int argc, char *argv[])
 	    return -1;
 	}
     }
-    if (cmd_OptionAsInt(opts, OPT_vhashsize, &optval) == 0) {
-	if (VSetVolHashSize(optval)) {
-	    fprintf(stderr, "specified -vhashsize (%d) is invalid or out "
-		            "of range\n", optval);
-	    return -1;
-	}
-    }
     if (cmd_OptionPresent(opts, OPT_vlrudisable))
 	VLRU_SetOptions(VLRU_SET_ENABLED, 0);
     if (cmd_OptionAsInt(opts, OPT_vlruthresh, &optval) == 0)
@@ -1340,7 +1290,6 @@ ParseArgs(int argc, char *argv[])
     cmd_OptionAsFlag(opts, OPT_unsafe_nosalvage, &unsafe_attach);
 #endif /* AFS_DEMAND_ATTACH_FS */
 
-    cmd_OptionAsInt(opts, OPT_stack, &stack);
     cmd_OptionAsInt(opts, OPT_cbwait, &fiveminutes);
     cmd_OptionAsFlag(opts, OPT_novbc, &novbc);
 
@@ -1356,9 +1305,6 @@ ParseArgs(int argc, char *argv[])
 	optstring = NULL;
     }
 
-    cmd_OptionAsInt(opts, OPT_debug, &LogLevel);
-    cmd_OptionAsFlag(opts, OPT_mrafslogs, &mrafsStyleLogs);
-
     if (cmd_OptionAsInt(opts, OPT_threads, &lwps) == 0) {
 	lwps_max = max_fileserver_thread() - FILESERVER_HELPER_THREADS;
 	if (lwps > lwps_max)
@@ -1367,12 +1313,52 @@ ParseArgs(int argc, char *argv[])
 	    lwps = 6;
     }
 
-#ifndef AFS_NT40_ENV
+    /* Logging options. */
+#ifdef HAVE_SYSLOG
     if (cmd_OptionPresent(opts, OPT_syslog)) {
-	serverLogSyslog = 1;
-	cmd_OptionAsInt(opts, OPT_syslog, &serverLogSyslogFacility);
-    }
+	if (cmd_OptionPresent(opts, OPT_logfile)) {
+	    fprintf(stderr, "Invalid options: -syslog and -logfile are exclusive.\n");
+	    return -1;
+	}
+	if (cmd_OptionPresent(opts, OPT_transarc_logs)) {
+	    fprintf(stderr, "Invalid options: -syslog and -transarc-logs are exclusive.\n");
+	    return -1;
+	}
+	if (cmd_OptionPresent(opts, OPT_mrafslogs)) {
+	    fprintf(stderr, "Invalid options: -syslog and -mrafslogs are exclusive.\n");
+	    return -1;
+	}
+
+	logopts.lopt_dest = logDest_syslog;
+	logopts.lopt_facility = LOG_DAEMON;
+	logopts.lopt_tag = "fileserver";
+	cmd_OptionAsInt(opts, OPT_syslog, &logopts.lopt_facility);
+    } else
 #endif
+    {
+	logopts.lopt_dest = logDest_file;
+
+	if (cmd_OptionPresent(opts, OPT_transarc_logs)) {
+	    if (cmd_OptionPresent(opts, OPT_mrafslogs)) {
+		fprintf(stderr,
+			"Invalid options: -transarc-logs and -mrafslogs are exclusive.\n");
+		return -1;
+	    }
+	    logopts.lopt_rotateOnOpen = 1;
+	    logopts.lopt_rotateStyle = logRotate_old;
+	} else if (cmd_OptionPresent(opts, OPT_mrafslogs)) {
+	    logopts.lopt_rotateOnOpen = 1;
+	    logopts.lopt_rotateOnReset = 1;
+	    logopts.lopt_rotateStyle = logRotate_timestamp;
+	}
+
+	if (cmd_OptionPresent(opts, OPT_logfile))
+	    cmd_OptionAsString(opts, OPT_logfile, (char**)&logopts.lopt_filename);
+	else
+	    logopts.lopt_filename = AFSDIR_SERVER_FILELOG_FILEPATH;
+
+    }
+    cmd_OptionAsInt(opts, OPT_debug, &logopts.lopt_logLevel);
 
     if (cmd_OptionPresent(opts, OPT_peer))
 	rx_enablePeerRPCStats();
@@ -1424,7 +1410,6 @@ ParseArgs(int argc, char *argv[])
 	busy_threshold = 3 * rxpackets / 2;
     }
 
-    cmd_OptionAsString(opts, OPT_logfile, &logFile);
     cmd_OptionAsString(opts, OPT_config, &FS_configPath);
 
 
@@ -1865,7 +1850,7 @@ main(int argc, char *argv[])
     CheckParms();
 
     FS_configPath = strdup(AFSDIR_SERVER_ETC_DIRPATH);
-    logFile = strdup(AFSDIR_SERVER_FILELOG_FILEPATH);
+    memset(&logopts, 0, sizeof(logopts));
 
     if (ParseArgs(argc, argv)) {
 	exit(-1);
@@ -1890,26 +1875,20 @@ main(int argc, char *argv[])
     /* initialize audit user check */
     osi_audit_set_user_check(confDir, fs_IsLocalRealmMatch);
 
-    /* Open FileLog on stdout, stderr, fd 1 and fd2 (for perror), sigh. */
-#ifndef AFS_NT40_ENV
-    serverLogSyslogTag = "fileserver";
-#endif
-    OpenLog(logFile);
-    SetupLogSignals();
+    OpenLog(&logopts);
 
     LogCommandLine(argc, argv, "starting", "", "File server", FSLog);
     if (afsconf_GetLatestKey(confDir, NULL, NULL) == 0) {
 	LogDesWarning();
     }
 
-#if !defined(AFS_NT40_ENV)
     /* initialize the pthread soft signal handler thread */
-    softsig_init();
+    opr_softsig_Init();
+    SetupLogSoftSignals();
+    opr_softsig_Register(AFS_SIG_CHECK, CheckSignal_Signal);
+#ifndef AFS_NT40_ENV
+    opr_softsig_Register(SIGTERM, CheckDescriptors_Signal);
 #endif
-
-    /* install signal handlers for controlling the fileserver process */
-    ResetCheckSignal();		/* set CheckSignal_Signal() sig handler */
-    ResetCheckDescriptors();	/* set CheckDescriptors_Signal() sig handler */
 
 #if defined(AFS_SGI_ENV)
     /* give this guy a non-degrading priority so help busy servers */
@@ -1917,7 +1896,8 @@ main(int argc, char *argv[])
     if (SawLock)
 	plock(PROCLOCK);
 #elif !defined(AFS_NT40_ENV)
-    nice(-5);			/* TODO: */
+    if (nice(-5) < 0)
+	; /* don't care */
 #endif
     DInit(buffs);
 #ifdef AFS_DEMAND_ATTACH_FS
@@ -1983,7 +1963,7 @@ main(int argc, char *argv[])
     acl_Initialize(ACL_VERSION);
 
     /* initialize RX support */
-#ifndef AFS_NT40_ENV
+#if !defined(AFS_NT40_ENV) && !defined(AFS_DARWIN160_ENV)
     rxi_syscallp = viced_syscall;
 #endif
     rx_extraPackets = rxpackets;
@@ -2043,7 +2023,6 @@ main(int argc, char *argv[])
     rx_SetMinProcs(tservice, 3);
     rx_SetMaxProcs(tservice, lwps);
     rx_SetCheckReach(tservice, 1);
-    rx_SetServerIdleDeadErr(tservice, VNOSERVICE);
 
     tservice =
 	rx_NewService(0, RX_STATS_SERVICE_ID, "rpcstats", securityClasses,
@@ -2152,11 +2131,7 @@ main(int argc, char *argv[])
     /* Install handler to catch the shutdown signal;
      * bosserver assumes SIGQUIT shutdown
      */
-#if !defined(AFS_NT40_ENV)
-    softsig_signal(SIGQUIT, ShutDown_Signal);
-#else
-    (void)signal(SIGQUIT, ShutDown_Signal);
-#endif
+    opr_softsig_Register(SIGQUIT, ShutDown_Signal);
 
     if (VInitAttachVolumes(fileServer)) {
 	ViceLog(0,

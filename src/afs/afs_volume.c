@@ -166,8 +166,8 @@ afs_UFSGetVolSlot(afs_int32 volid, struct cell *tcell)
 	    lv = &afs_volumes[i];
 	    for (tv = *lv; tv; lv = &tv->next, tv = *lv) {
 		if (tv->refCount == 0) {	/* is this one available? */
-		    if (tv->accessTime < bestTime) {	/* best one available? */
-			bestTime = tv->accessTime;
+		    if (tv->setupTime < bestTime) {	/* best one available? */
+			bestTime = tv->setupTime;
 			bestLp = lv;
 			bestVp = tv;
 		    }
@@ -259,7 +259,7 @@ afs_UFSGetVolSlot(afs_int32 volid, struct cell *tcell)
 				 &staticFVolume, sizeof(struct fvolume));
 		osi_UFSClose(tfile);
 		if (code != sizeof(struct fvolume)) {
-		    afs_warn("afs_SetupVolume: error %d reading volumeinfo\n",
+		    afs_warn("afs_UFSGetVolSlot: error %d reading volumeinfo\n",
 			     (int)code);
 		}
 	    }
@@ -373,7 +373,7 @@ afs_SetupVolSlot(afs_int32 volid, struct cell *tcell)
     }
     tv->refCount++;
     tv->states &= ~VRecheck;	/* just checked it */
-    tv->accessTime = osi_Time();
+    tv->setupTime = osi_Time();
     ReleaseWriteLock(&afs_xvolume);
     return tv;
 }
@@ -409,6 +409,24 @@ afs_ResetVolumes(struct server *srvp, struct volume *tv)
     }
 }
 
+/*!
+ * Returns non-zero if the volume information is expired.
+ *
+ * Dynroot volumes are not setup from vldb queries, so never expire.
+ * Read-only volume expiry is tied to the volume callback.
+ *
+ * \param tv volume to check
+ * \param now current time
+ *
+ * \return non-zero if the volume should be reset
+ */
+static int
+IsExpired(struct volume *tv, afs_int32 now)
+{
+    return (tv->expireTime < (now + 10)) && (tv->states & VRO)
+	    && !afs_IsDynrootVolume(tv);
+}
+
 /**
  *   Reset volume name to volume id mapping cache.
  * @param flags
@@ -418,7 +436,7 @@ afs_CheckVolumeNames(int flags)
 {
     afs_int32 i, j;
     struct volume *tv;
-    unsigned int now;
+    afs_int32 now;
     struct vcache *tvc;
     afs_int32 *volumeID, *cellID, vsize, nvols;
 #ifdef AFS_DARWIN80_ENV
@@ -447,8 +465,7 @@ afs_CheckVolumeNames(int flags)
     for (i = 0; i < NVOLS; i++) {
 	for (tv = afs_volumes[i]; tv; tv = tv->next) {
 	    if (flags & AFS_VOLCHECK_EXPIRED) {
-		if (((tv->expireTime < (now + 10)) && (tv->states & VRO))
-		    || (flags & AFS_VOLCHECK_FORCE)) {
+		if (IsExpired(tv, now) || (flags & AFS_VOLCHECK_FORCE)) {
 		    afs_ResetVolumeInfo(tv);	/* also resets status */
 		    if (volumeID) {
 			volumeID[nvols] = tv->volume;
@@ -476,14 +493,14 @@ loop:
 	for (i = 0; i < VCSIZE; i++) {
 	    for (tvc = afs_vhashT[i]; tvc; tvc = tvc->hnext) {
 
-		/* if the volume of "mvid" of the vcache entry is among the
-		 * ones we found earlier, then we re-evaluate it.  Also, if the
-		 * force bit is set or we explicitly asked to reevaluate the
-		 * mt-pts, we clean the cmvalid bit */
+		/* if the volume of "mvid.target_root" of the vcache entry is
+		 * among the ones we found earlier, then we re-evaluate it.
+		 * Also, if the force bit is set or we explicitly asked to
+		 * reevaluate the mt-pts, we clean the cmvalid bit */
 
 		if ((flags & (AFS_VOLCHECK_FORCE | AFS_VOLCHECK_MTPTS))
-		    || (tvc->mvid
-			&& inVolList(tvc->mvid, nvols, volumeID, cellID)))
+		    || (tvc->mvid.target_root
+			&& inVolList(tvc->mvid.target_root, nvols, volumeID, cellID)))
 		    tvc->f.states &= ~CMValid;
 
 		/* If the volume that this file belongs to was reset earlier,
@@ -520,13 +537,8 @@ loop:
 #endif
 		    ReleaseReadLock(&afs_xvcache);
 
-		    ObtainWriteLock(&afs_xcbhash, 485);
 		    /* LOCKXXX: We aren't holding tvc write lock? */
-		    afs_DequeueCallback(tvc);
-		    tvc->f.states &= ~CStatd;
-		    ReleaseWriteLock(&afs_xcbhash);
-		    if (tvc->f.fid.Fid.Vnode & 1 || (vType(tvc) == VDIR))
-			osi_dnlc_purgedp(tvc);
+		    afs_StaleVCache(tvc);
 
 #ifdef AFS_DARWIN80_ENV
 		    vnode_put(AFSTOV(tvc));

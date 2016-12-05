@@ -47,7 +47,7 @@ afs_DisconCreateSymlink(struct vcache *avc, char *aname,
     tdc = afs_GetDCache(avc, 0, areq, &offset, &len, 0);
     if (!tdc) {
 	/* printf("afs_DisconCreateSymlink: can't get new dcache for symlink.\n"); */
-	return ENOENT;
+	return ENETDOWN;
     }
 
     len = strlen(aname);
@@ -94,6 +94,7 @@ afs_symlink(OSI_VC_DECL(adp), char *aname, struct vattr *attrs,
 
     OutFidStatus = osi_AllocSmallSpace(sizeof(struct AFSFetchStatus));
     OutDirStatus = osi_AllocSmallSpace(sizeof(struct AFSFetchStatus));
+    memset(&InStatus, 0, sizeof(InStatus));
 
     if ((code = afs_CreateReq(&treq, acred)))
 	goto done2;
@@ -199,11 +200,7 @@ afs_symlink(OSI_VC_DECL(adp), char *aname, struct vattr *attrs,
     ObtainWriteLock(&afs_xvcache, 40);
     if (code) {
 	if (code < 0) {
-	    ObtainWriteLock(&afs_xcbhash, 499);
-	    afs_DequeueCallback(adp);
-	    adp->f.states &= ~CStatd;
-	    ReleaseWriteLock(&afs_xcbhash);
-	    osi_dnlc_purgedp(adp);
+	    afs_StaleVCache(adp);
 	}
 	ReleaseWriteLock(&adp->lock);
 	ReleaseWriteLock(&afs_xvcache);
@@ -288,7 +285,7 @@ afs_symlink(OSI_VC_DECL(adp), char *aname, struct vattr *attrs,
     ReleaseWriteLock(&tvc->lock);
     ReleaseWriteLock(&afs_xvcache);
     if (tvcp)
-    	*tvcp = tvc;
+	*tvcp = tvc;
     else
 	afs_PutVCache(tvc);
     code = 0;
@@ -398,7 +395,7 @@ afs_UFSHandleLink(struct vcache *avc, struct vrequest *areq)
 	    ReleaseReadLock(&tdc->lock);
 	    afs_PutDCache(tdc);
 	    osi_FreeLargeSpace(rbuf);
-	    return ENOENT;
+	    return EIO;
 	}
 	code = afs_osi_Read(tfile, -1, rbuf, tlen);
 	osi_UFSClose(tfile);

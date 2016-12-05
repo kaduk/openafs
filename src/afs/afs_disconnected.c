@@ -264,7 +264,7 @@ afs_GetVnodeName(struct vcache *avc, struct VenusFid *afid, char *aname,
 	parent_vc = afs_FindVCache(&parent_fid, 0, 1);
 	ReleaseSharedLock(&afs_xvcache);
 	if (!parent_vc) {
-	    return ENOENT;
+	    return ENETDOWN;
 	}
 
 	shadow_fid.Cell = parent_vc->f.fid.Cell;
@@ -293,7 +293,7 @@ afs_GetVnodeName(struct vcache *avc, struct VenusFid *afid, char *aname,
 	    code = ENOENT;
     } else {
 	/* printf("Directory dcache not found!\n"); */
-        code = ENOENT;
+        code = ENETDOWN;
     }
 
     return code;
@@ -507,7 +507,7 @@ afs_GetParentVCache(struct vcache *avc, int deleted, struct VenusFid *afid,
 
     if (afs_GetParentDirFid(avc, afid)) {
 	/* printf("afs_GetParentVCache: Couldn't find parent dir's FID.\n"); */
-	return ENOENT;
+	return ENETDOWN;
     }
 
     code = afs_GetVnodeName(avc, afid, aname, deleted);
@@ -521,7 +521,7 @@ afs_GetParentVCache(struct vcache *avc, int deleted, struct VenusFid *afid,
     ReleaseSharedLock(&afs_xvcache);
     if (!*adp) {
 	/* printf("afs_GetParentVCache: Couldn't find parent dir's vcache\n"); */
-	code = ENOENT;
+	code = ENETDOWN;
 	goto end;
     }
 
@@ -593,7 +593,7 @@ afs_ProcessOpRename(struct vcache *avc, struct vrequest *areq)
 	/* Get parent dir's FID.*/
     	if (afs_GetParentDirFid(avc, &new_pdir_fid)) {
 	    /* printf("afs_ProcessOpRename: Couldn't find new parent dir FID.\n"); */
-	    code = ENOENT;
+	    code = ENETDOWN;
 	    goto done;
         }
     }
@@ -671,6 +671,7 @@ afs_ProcessOpCreate(struct vcache *avc, struct vrequest *areq,
     tname = afs_osi_Alloc(AFSNAMEMAX);
     if (!tname)
 	return ENOMEM;
+    memset(&InStatus, 0, sizeof(InStatus));
 
     code = afs_GetParentVCache(avc, 0, &pdir_fid, tname, &tdp);
     if (code)
@@ -687,7 +688,7 @@ afs_ProcessOpCreate(struct vcache *avc, struct vrequest *areq,
 
 	tdc = afs_GetDCache(avc, 0, areq, &offset, &tlen, 0);
 	if (!tdc) {
-	    code = ENOENT;
+	    code = ENETDOWN;
 	    goto end;
 	}
 
@@ -701,7 +702,8 @@ afs_ProcessOpCreate(struct vcache *avc, struct vrequest *areq,
 	ttargetName = afs_osi_Alloc(tlen);
 	if (!ttargetName) {
 	    afs_PutDCache(tdc);
-	    return ENOMEM;
+	    code = ENOMEM;
+	    goto end;
 	}
 	ObtainReadLock(&tdc->lock);
 	tfile = afs_CFileOpen(&tdc->f.inode);
@@ -1505,6 +1507,7 @@ afs_GenDisconStatus(struct vcache *adp, struct vcache *avc,
 		    struct VenusFid *afid, struct vattr *attrs,
 		    struct vrequest *areq, int file_type)
 {
+    afs_hyper_t zero;
     memcpy(&avc->f.fid, afid, sizeof(struct VenusFid));
     avc->f.m.Mode = attrs->va_mode;
     /* Used to do this:
@@ -1515,7 +1518,8 @@ afs_GenDisconStatus(struct vcache *adp, struct vcache *avc,
      */
     avc->f.m.Group = adp->f.m.Group;
     avc->f.m.Owner = adp->f.m.Owner;
-    hset64(avc->f.m.DataVersion, 0, 0);
+    hzero(zero);
+    afs_SetDataVersion(avc, &zero);
     avc->f.m.Length = attrs->va_size;
     avc->f.m.Date = osi_Time();
     switch(file_type) {
@@ -1535,7 +1539,7 @@ afs_GenDisconStatus(struct vcache *adp, struct vcache *avc,
 	vSetType(avc, VLNK);
 	avc->f.m.Mode |= S_IFLNK;
 	if ((avc->f.m.Mode & 0111) == 0)
-	    avc->mvstat = 1;
+	    avc->mvstat = AFS_MVSTAT_MTPT;
 	avc->f.parent.vnode = adp->f.fid.Fid.Vnode;
 	avc->f.parent.unique = adp->f.fid.Fid.Unique;
 	break;

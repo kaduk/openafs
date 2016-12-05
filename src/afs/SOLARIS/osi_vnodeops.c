@@ -823,7 +823,7 @@ afs_nfsrdwr(struct vcache *avc, struct uio *auio, enum uio_rw arw,
 	    afs_size_t toff, tlen;
 	    dcp = afs_GetDCache(avc, fileBase, &treq, &toff, &tlen, 2);
 	    if (!dcp) {
-		code = ENOENT;
+		code = EIO;
 		break;
 	    }
 	}
@@ -931,7 +931,7 @@ afs_nfsrdwr(struct vcache *avc, struct uio *auio, enum uio_rw arw,
 }
 
 int
-afs_map(struct vnode *vp, offset_t off, struct as *as, caddr_t *addr, u_int len, u_char prot, u_char maxprot, u_int flags, afs_ucred_t *cred)
+afs_map(struct vnode *vp, offset_t off, struct as *as, caddr_t *addr, size_t len, u_char prot, u_char maxprot, u_int flags, afs_ucred_t *cred)
 {
     struct segvn_crargs crargs;
     afs_int32 code;
@@ -987,7 +987,7 @@ afs_map(struct vnode *vp, offset_t off, struct as *as, caddr_t *addr, u_int len,
 	(void)as_unmap(as, *addr, len);	/* unmap old address space use */
     /* setup the create parameter block for the call */
     crargs.vp = AFSTOV(avc);
-    crargs.offset = (u_int) off;
+    crargs.offset = (u_offset_t)off;
     crargs.cred = cred;
     crargs.type = flags & MAP_TYPE;
     crargs.prot = prot;
@@ -1659,7 +1659,7 @@ int
 afs_inactive(struct vcache *avc, afs_ucred_t *acred)
 {
     struct vnode *vp = AFSTOV(avc);
-    if (afs_shuttingdown)
+    if (afs_shuttingdown != AFS_RUNNING)
 	return 0;
 
     /*
@@ -1685,11 +1685,11 @@ afs_inactive(struct vcache *avc, afs_ucred_t *acred)
      * Solaris calls VOP_OPEN on exec, but doesn't call VOP_CLOSE when
      * the executable exits.  So we clean up the open count here.
      *
-     * Only do this for mvstat 0 vnodes: when using fakestat, we can't
-     * lose the open count for volume roots (mvstat 2), even though they
+     * Only do this for AFS_MVSTAT_FILE vnodes: when using fakestat, we can't
+     * lose the open count for volume roots (AFS_MVSTAT_ROOT), even though they
      * will get VOP_INACTIVE'd when released by afs_PutFakeStat().
      */
-    if (avc->opens > 0 && avc->mvstat == 0 && !(avc->f.states & CCore))
+    if (avc->opens > 0 && avc->mvstat == AFS_MVSTAT_FILE && !(avc->f.states & CCore))
 	avc->opens = avc->execsOrWriters = 0;
 #endif
 

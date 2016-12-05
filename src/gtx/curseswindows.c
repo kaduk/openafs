@@ -571,15 +571,17 @@ gator_cursesgwin_drawchar(struct gwin *gwp, struct gwin_charparams *params)
 		mn, rn, params->c, cwp->wp, params->x, params->y, curses_y,
 		curses_x, (params->highlight ? ", using standout mode" : ""));
     wmove(cwp->wp, curses_y, curses_x);
-    if (params->highlight)
+    if (params->highlight) {
 	code=wstandout(cwp->wp);
         if (code)
 	    return (code);
+    }
     waddch(cwp->wp, params->c);
-    if (params->highlight)
+    if (params->highlight) {
 	code=wstandend(cwp->wp);
         if (code)
             return (code);
+    }
 
     return (0);
 
@@ -625,15 +627,17 @@ gator_cursesgwin_drawstring(struct gwin *gwp, struct gwin_strparams *params)
 		mn, rn, params->s, cwp->wp, params->x, params->y, curses_y,
 		curses_x, (params->highlight ? ", using standout mode" : ""));
     wmove(cwp->wp, curses_y, curses_x);
-    if (params->highlight)
+    if (params->highlight) {
 	code=wstandout(cwp->wp);
 	if (code)
 	    return (code);
+    }
     waddstr(cwp->wp, params->s);
-    if (params->highlight)
+    if (params->highlight) {
 	code=wstandend(cwp->wp);
 	if (code)
 	    return (code);
+    }
 
     return (code);
 
@@ -761,13 +765,7 @@ gator_cursesgwin_getdimensions(struct gwin *gwp, struct gwin_sizeparams *aparms)
     struct gator_cursesgwin *cwp;	/*Curses-specific data */
 
     cwp = (struct gator_cursesgwin *)(gwp->w_data);
-#if defined(AFS_NBSD_ENV) || defined(AFS_DARWIN100_ENV)
-    aparms->maxx = getmaxx(cwp->wp);
-    aparms->maxy = getmaxy(cwp->wp);
-#else
-    aparms->maxx = cwp->wp->_maxx;
-    aparms->maxy = cwp->wp->_maxy;
-#endif
+    getmaxyx(cwp->wp, aparms->maxy, aparms->maxx);
 
     return (0);
 

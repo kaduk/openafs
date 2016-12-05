@@ -21,18 +21,18 @@
   *	-blocks	    The number of blocks available in the workstation cache.
   *	-files	    The target number of files in the workstation cache (Default:
   *		    1000).
-  *	-rootvol	    The name of the root volume to use.
+  *	-rootvol    The name of the root volume to use.
   *	-stat	    The number of stat cache entries.
-  *	-hosts	    List of servers to check for volume location info FOR THE
+  *	-hosts	    [OBSOLETE] List of servers to check for volume location info FOR THE
   *		    HOME CELL.
   *     -memcache   Use an in-memory cache rather than disk.
-  *	-cachedir    The base directory for the workstation cache.
+  *	-cachedir   The base directory for the workstation cache.
   *	-mountdir   The directory on which the AFS is to be mounted.
-  *	-confdir    The configuration directory .
+  *	-confdir    The configuration directory.
   *	-nosettime  Don't keep checking the time to avoid drift (default).
-  *     -settime    Keep checking the time to avoid drift.
+  *     -settime    [IGNORED] Keep checking the time to avoid drift.
   *	-rxmaxmtu   Set the max mtu to help with VPN issues.
-  *	-verbose     Be chatty.
+  *	-verbose    Be chatty.
   *	-disable-dynamic-vcaches     Disable the use of -stat value as the starting size of
   *                          the size of the vcache/stat cache pool,
   *                          but increase that pool dynamically as needed.
@@ -44,13 +44,29 @@
   *                support daemon
   *     -chunksize [n]   2^n is the chunksize to be used.  0 is default.
   *     -dcache    The number of data cache entries.
+  *     -volumes    The number of volume entries.
   *     -biods     Number of bkg I/O daemons (AIX3.1 only)
   *	-prealloc  Number of preallocated "small" memory blocks
-  *	-logfile   [OBSOLETE] Place where to put the logfile (default in
+  *	-logfile    [IGNORED] Place where to put the logfile (default in
   *                <cache>/etc/AFSLog.
   *	-waitclose make close calls always synchronous (slows em down, tho)
   *	-files_per_subdir [n]	number of files per cache subdir. (def=2048)
   *	-shutdown  Shutdown afs daemons
+  *	-enable_peer_stats	Collect RPC statistics by peer.
+  *	-enable_process_stats	Collect RPC statistics for this process.
+  *	-mem_alloc_sleep [IGNORED] Sleep when allocating memory.
+  *	-afsdb	    Enable AFSDB support.
+  *	-dynroot	Enable dynroot support.
+  *	-dynroot-sparse	Enable dynroot support with minimal cell list.
+  *	-fakestat	Enable fake stat() for cross-cell mounts.
+  *	-fakestat-all	Enable fake stat() for all mounts.
+  *	-nomount    Do not mount /afs.
+  *	-backuptree Prefer backup volumes for mountpoints in backup volumes.
+  *	-rxbind	    Bind the rx socket.
+  *	-rxpck	    Value for rx_extraPackets.
+  *	-splitcache RW/RO ratio for cache.
+  *	-rxmaxfrags Max number of UDP fragments per rx packet.
+  *	-inumcalc  inode number calculation method; 0=compat, 1=MD5 digest
   *---------------------------------------------------------------------------*/
 
 #include <afsconfig.h>
@@ -261,6 +277,7 @@ static int enable_fakestat = 0;	/* enable fakestat support */
 static int enable_backuptree = 0;	/* enable backup tree support */
 static int enable_nomount = 0;	/* do not mount */
 static int enable_splitcache = 0;
+static char *inumcalc = NULL;        /* inode number calculation method */
 static int afsd_dynamic_vcaches = 0;	/* Enable dynamic-vcache support */
 int afsd_verbose = 0;		/*Are we being chatty? */
 int afsd_debug = 0;		/*Are we printing debugging info? */
@@ -344,6 +361,7 @@ enum optionsList {
     OPT_rxmaxmtu,
     OPT_dynrootsparse,
     OPT_rxmaxfrags,
+    OPT_inumcalc,
 };
 
 #ifdef MACOS_EVENT_HANDLING
@@ -1666,8 +1684,16 @@ rmtsysd_thread(void *rock)
 }
 #endif /* !UKERNEL */
 
-int
-mainproc(struct cmd_syndesc *as, void *arock)
+/**
+ * Check the command line and cacheinfo options.
+ *
+ * @param[in] as  parsed command line arguments
+ *
+ * @note Invokes the shutdown syscall and exits with 0 when
+ *       -shutdown is given.
+ */
+static int
+CheckOptions(struct cmd_syndesc *as)
 {
     afs_int32 code;		/*Result of fork() */
 #ifdef	AFS_SUN5_ENV
@@ -1876,6 +1902,9 @@ mainproc(struct cmd_syndesc *as, void *arock)
     }
 
     cmd_OptionAsInt(as, OPT_rxmaxfrags, &rxmaxfrags);
+    if (cmd_OptionPresent(as, OPT_inumcalc)) {
+	cmd_OptionAsString(as, OPT_inumcalc, &inumcalc);
+    }
 
     /* parse cacheinfo file if this is a diskcache */
     if (ParseCacheInfoFile()) {
@@ -2146,7 +2175,7 @@ afsd_run(void)
 	if (code > 0) {
 	    if (enable_rxbind)
 		code = code | 0x80000000;
-		afsd_syscall(AFSOP_ADVISEADDR, code, addrbuf, maskbuf, mtubuf);
+	    afsd_syscall(AFSOP_ADVISEADDR, code, addrbuf, maskbuf, mtubuf);
 	} else
 	    printf("ADVISEADDR: Error in specifying interface addresses:%s\n",
 		   reason);
@@ -2296,6 +2325,33 @@ afsd_run(void)
             printf("%s: Error seting rxmaxmtu\n", rn);
     }
 
+    if (inumcalc != NULL) {
+	if (strcmp(inumcalc, "compat") == 0) {
+	    if (afsd_verbose) {
+		printf("%s: Setting original inode number calculation method in kernel.\n",
+		       rn);
+	    }
+	    code = afsd_syscall(AFSOP_SET_INUMCALC, AFS_INUMCALC_COMPAT);
+	    if (code) {
+		printf("%s: Error setting inode calculation method: code=%d.\n",
+		       rn, code);
+	    }
+	} else if (strcmp(inumcalc, "md5") == 0) {
+	    if (afsd_verbose) {
+		printf("%s: Setting md5 digest inode number calculation in kernel.\n",
+		       rn);
+	    }
+	    code = afsd_syscall(AFSOP_SET_INUMCALC, AFS_INUMCALC_MD5);
+	    if (code) {
+		printf("%s: Error setting inode calculation method: code=%d.\n",
+		       rn, code);
+	    }
+	} else {
+	    printf("%s: Unknown value for -inumcalc: %s."
+		   "Using default inode calculation method.\n", rn, inumcalc);
+	}
+    }
+
     if (enable_dynroot) {
 	if (afsd_verbose)
 	    printf("%s: Enabling dynroot support in kernel%s.\n", rn,
@@ -2431,7 +2487,7 @@ afsd_run(void)
     if (afsd_debug)
 	printf("%s: Calling AFSOP_GO with cacheSetTime = %d\n", rn,
 	       0);
-	afsd_syscall(AFSOP_GO, 0);
+    afsd_syscall(AFSOP_GO, 0);
 
     /*
      * At this point, we have finished passing the kernel all the info
@@ -2463,14 +2519,16 @@ afsd_run(void)
     return 0;
 }
 
+#ifndef UKERNEL
 #include "AFS_component_version_number.c"
+#endif
 
 void
 afsd_init(void)
 {
     struct cmd_syndesc *ts;
 
-    ts = cmd_CreateSyntax(NULL, mainproc, NULL, "start AFS");
+    ts = cmd_CreateSyntax(NULL, NULL, NULL, 0, "start AFS");
 
     /* 0 - 10 */
     cmd_AddParmAtOffset(ts, OPT_blocks, "-blocks", CMD_SINGLE,
@@ -2540,7 +2598,7 @@ afsd_init(void)
 		        CMD_OPTIONAL, "Do not mount AFS");
     cmd_AddParmAtOffset(ts, OPT_backuptree, "-backuptree", CMD_FLAG,
 		        CMD_OPTIONAL,
-			"Prefer backup volumes for mointpoints in backup "
+			"Prefer backup volumes for mountpoints in backup "
 			"volumes");
     cmd_AddParmAtOffset(ts, OPT_rxbind, "-rxbind", CMD_FLAG,
 			CMD_OPTIONAL,
@@ -2564,12 +2622,28 @@ afsd_init(void)
 			CMD_OPTIONAL,
 			"Set the maximum number of UDP fragments Rx should "
 			"send/receive per Rx packet");
+    cmd_AddParmAtOffset(ts, OPT_inumcalc, "-inumcalc", CMD_SINGLE, CMD_OPTIONAL,
+			"Set inode number calculation method");
 }
 
+/**
+ * Parse and check the command line options.
+ *
+ * @note The -shutdown command is handled in CheckOptions().
+ */
 int
 afsd_parse(int argc, char **argv)
 {
-    return cmd_Dispatch(argc, argv);
+    struct cmd_syndesc *ts = NULL;
+    int code;
+
+    code = cmd_Parse(argc, argv, &ts);
+    if (code) {
+	return code;
+    }
+    code = CheckOptions(ts);
+    cmd_FreeOptions(&ts);
+    return code;
 }
 
 /**
@@ -2629,6 +2703,7 @@ afsd_syscall_populate(struct afsd_syscall_args *args, int syscall, va_list ap)
     case AFSOP_BUCKETPCT:
     case AFSOP_GO:
     case AFSOP_SET_RMTSYS_FLAG:
+    case AFSOP_SET_INUMCALC:
 	params[0] = CAST_SYSCALL_PARAM((va_arg(ap, int)));
 	break;
     case AFSOP_SET_THISCELL:

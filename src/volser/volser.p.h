@@ -104,7 +104,10 @@ extern struct volser_trans *QI_GlobalWriteTrans;
 				 * not created or not online */
 #define VVOLEXISTS	104	/* Volume already exists */
 #define VNOSERVICE	105	/* Volume is not in service (i.e. it's
-				 * is out of funds, is obsolete, or somesuch) */
+				 * is out of funds, is obsolete, or somesuch). This
+				 * error code is no longer used, but was previously
+				 * used by the OpenAFS fileserver to kill "idle" calls,
+				 * and OpenAFS clients may interpret it that way. */
 #define VOFFLINE	106	/* Volume is off line, for the reason
 				 * given in the offline message */
 #define VONLINE		107	/* Volume is already on line */
@@ -142,19 +145,6 @@ struct partList {		/*used by the backup system */
 #define	STDOUT	stdout
 
 #define ISNAMEVALID(name) (strlen(name) < (VOLSER_OLDMAXVOLNAME - 9))
-
-/* values for flags in struct nvldbEntry */
-#define RW_EXISTS 0x1000
-#define RO_EXISTS 0x2000
-#define BACK_EXISTS 0x4000
-
-/* values for serverFlags in struct nvldbEntry */
-#define NEW_REPSITE 0x01
-#define ITSROVOL    0x02
-#define ITSRWVOL    0x04
-#define ITSBACKVOL  0x08
-#define ITSRWREPL   0x10
-#define RO_DONTUSE  0x20
 
 #define PARTVALID 0x01
 #define CLONEVALID 0x02
@@ -196,4 +186,10 @@ extern afs_int32 vsu_ClientInit(const char *confDir, char *cellName,
 				int (*secproc)(struct rx_securityClass *,
 					       afs_int32),
 				struct ubik_client **uclientp);
+enum vol_s2s_crypt {
+    VS2SC_NEVER = 0,
+    VS2SC_INHERIT,
+    VS2SC_ALWAYS
+};
+
 #endif /* _VOLSER_ */

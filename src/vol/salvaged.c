@@ -110,7 +110,7 @@
 #include <pthread.h>
 #endif
 
-char *logFileName = NULL;
+extern int ClientMode;
 
 #if !defined(AFS_DEMAND_ATTACH_FS)
 #error "online salvager only supported for demand attach fileserver"
@@ -138,13 +138,13 @@ static pthread_cond_t worker_cv;
 static void * SalvageChildReaperThread(void *);
 static int DoSalvageVolume(struct SalvageQueueNode * node, int slot);
 
-static void SalvageServer(int argc, char **argv);
+static void SalvageServer(int argc, char **argv, struct logOptions *logopts);
 static void SalvageClient(VolumeId vid, char * pname);
 
 static int Reap_Child(char * prog, int * pid, int * status);
 
 static void * SalvageLogCleanupThread(void *);
-static int SalvageLogCleanup(int pid);
+static void SalvageLogCleanup(int pid);
 
 static void * SalvageLogScanningThread(void *);
 static void ScanLogs(struct rx_queue *log_watch_queue);
@@ -179,13 +179,12 @@ enum optionsList {
     OPT_blockreads,
     OPT_parallel,
     OPT_tmpdir,
-    OPT_showlog,
     OPT_orphans,
     OPT_syslog,
     OPT_syslogfacility,
-    OPT_datelogs,
     OPT_logfile,
-    OPT_client
+    OPT_client,
+    OPT_transarc_logs
 };
 
 static int
@@ -196,6 +195,9 @@ handleit(struct cmd_syndesc *opts, void *arock)
     VolumeId vid = 0;
     struct cmdline_rock *rock = (struct cmdline_rock *)arock;
     char *optstring = NULL;
+    struct logOptions logopts;
+
+    memset(&logopts, 0, sizeof(logopts));
 
 #ifdef AFS_SGI_VNODE_GLUE
     if (afs_init_kernel_config(-1) < 0) {
@@ -210,6 +212,7 @@ handleit(struct cmd_syndesc *opts, void *arock)
     cmd_OptionAsFlag(opts, OPT_inodes, &ListInodeOption);
     cmd_OptionAsFlag(opts, OPT_oktozap, &OKToZap);
     cmd_OptionAsFlag(opts, OPT_rootinodes, &ShowRootFiles);
+    cmd_OptionAsFlag(opts, OPT_salvagedirs, &RebuildDirs);
     cmd_OptionAsFlag(opts, OPT_blockreads, &forceR);
     if (cmd_OptionAsString(opts, OPT_parallel, &optstring) == 0) {
 	if (strncmp(optstring, "all", 3) == 0) {
@@ -243,7 +246,6 @@ handleit(struct cmd_syndesc *opts, void *arock)
 	free(optstring);
 	optstring = NULL;
     }
-    cmd_OptionAsFlag(opts, OPT_showlog, &ShowLog);
     if (cmd_OptionAsString(opts, OPT_orphans, &optstring) == 0) {
 	if (Testing)
 	    orphans = ORPH_IGNORE;
@@ -256,17 +258,34 @@ handleit(struct cmd_syndesc *opts, void *arock)
 	free(optstring);
 	optstring = NULL;
     }
-#ifndef AFS_NT40_ENV		/* ignore options on NT */
-    if (cmd_OptionPresent(opts, OPT_syslog)) {
-	useSyslog = 1;
-	ShowLog = 0;
-    }
-    cmd_OptionAsInt(opts, OPT_syslogfacility, &useSyslogFacility);
 
-    if (cmd_OptionPresent(opts, OPT_datelogs)) {
-	TimeStampLogFile((char *)AFSDIR_SERVER_SALSRVLOG_FILEPATH);
-    }
+#ifdef HAVE_SYSLOG
+    if (cmd_OptionPresent(opts, OPT_syslog)) {
+	if (cmd_OptionPresent(opts, OPT_logfile)) {
+	    fprintf(stderr, "Invalid options: -syslog and -logfile are exclusive.\n");
+	    return -1;
+	}
+	if (cmd_OptionPresent(opts, OPT_transarc_logs)) {
+	    fprintf(stderr, "Invalid options: -syslog and -transarc-logs are exclusive.\n");
+	    return -1;
+	}
+	logopts.lopt_dest = logDest_syslog;
+	logopts.lopt_facility = LOG_DAEMON;
+	logopts.lopt_tag = "salvageserver";
+	cmd_OptionAsInt(opts, OPT_syslogfacility, &logopts.lopt_facility);
+    } else
 #endif
+    {
+	logopts.lopt_dest = logDest_file;
+	if (cmd_OptionPresent(opts, OPT_transarc_logs)) {
+	    logopts.lopt_rotateOnOpen = 1;
+	    logopts.lopt_rotateStyle = logRotate_old;
+	}
+	if (cmd_OptionPresent(opts, OPT_logfile))
+	    cmd_OptionAsString(opts, OPT_logfile, (char**)&logopts.lopt_filename);
+	else
+	    logopts.lopt_filename = AFSDIR_SERVER_SALSRVLOG_FILEPATH;
+    }
 
     if (cmd_OptionPresent(opts, OPT_client)) {
 	if (cmd_OptionAsString(opts, OPT_partition, &optstring) == 0) {
@@ -287,11 +306,6 @@ handleit(struct cmd_syndesc *opts, void *arock)
 	    vid = (VolumeId)vid_l;
 	}
 
-	if (ShowLog) {
-	    printf("-showlog does not work with -client\n");
-	    exit(-1);
-	}
-
 	if (!seenpart || !seenvol) {
 	    printf("You must specify '-partition' and '-volumeid' with the '-client' option\n");
 	    exit(-1);
@@ -300,7 +314,7 @@ handleit(struct cmd_syndesc *opts, void *arock)
 	SalvageClient(vid, pname);
 
     } else {  /* salvageserver mode */
-	SalvageServer(rock->argc, rock->argv);
+	SalvageServer(rock->argc, rock->argv, &logopts);
     }
     return (0);
 }
@@ -379,9 +393,8 @@ main(int argc, char **argv)
     arock.argc = argc;
     arock.argv = argv;
 
-    logFileName = strdup(AFSDIR_SERVER_SALSRVLOG_FILEPATH);
 
-    ts = cmd_CreateSyntax("initcmd", handleit, &arock, "initialize the program");
+    ts = cmd_CreateSyntax("initcmd", handleit, &arock, 0, "initialize the program");
     cmd_AddParmAtOffset(ts, OPT_partition, "-partition", CMD_SINGLE,
 	    CMD_OPTIONAL, "Name of partition to salvage");
     cmd_AddParmAtOffset(ts, OPT_volumeid, "-volumeid", CMD_SINGLE, CMD_OPTIONAL,
@@ -404,18 +417,14 @@ main(int argc, char **argv)
 	    "# of max parallel partition salvaging");
     cmd_AddParmAtOffset(ts, OPT_tmpdir, "-tmpdir", CMD_SINGLE, CMD_OPTIONAL,
 	    "Name of dir to place tmp files ");
-    cmd_AddParmAtOffset(ts, OPT_showlog, "-showlog", CMD_FLAG, CMD_OPTIONAL,
-	    "Show log file upon completion");
     cmd_AddParmAtOffset(ts, OPT_orphans, "-orphans", CMD_SINGLE, CMD_OPTIONAL,
 	    "ignore | remove | attach");
 
-#if !defined(AFS_NT40_ENV)
+#ifdef HAVE_SYSLOG
     cmd_AddParmAtOffset(ts, OPT_syslog, "-syslog", CMD_FLAG, CMD_OPTIONAL,
 	    "Write salvage log to syslogs");
     cmd_AddParmAtOffset(ts, OPT_syslogfacility, "-syslogfacility", CMD_SINGLE,
 	    CMD_OPTIONAL, "Syslog facility number to use");
-    cmd_AddParmAtOffset(ts, OPT_datelogs, "-datelogs", CMD_FLAG, CMD_OPTIONAL,
-		"Include timestamp in logfile filename");
 #endif
 
     cmd_AddParmAtOffset(ts, OPT_client, "-client", CMD_FLAG, CMD_OPTIONAL,
@@ -423,6 +432,9 @@ main(int argc, char **argv)
 
     cmd_AddParmAtOffset(ts, OPT_logfile, "-logfile", CMD_SINGLE, CMD_OPTIONAL,
 	    "Location of log file ");
+
+    cmd_AddParmAtOffset(ts, OPT_transarc_logs, "-transarc-logs", CMD_FLAG,
+			CMD_OPTIONAL, "enable Transarc style logging");
 
     err = cmd_Dispatch(argc, argv);
     Exit(err);
@@ -437,6 +449,9 @@ SalvageClient(VolumeId vid, char * pname)
     SYNC_response res;
     SALVSYNC_response_hdr sres;
     VolumePackageOptions opts;
+
+    /* Send Log() messages to stderr in client mode. */
+    ClientMode = 1;
 
     VOptDefaults(volumeUtility, &opts);
     if (VInitVolumePackage2(volumeUtility, &opts)) {
@@ -489,7 +504,7 @@ SalvageClient(VolumeId vid, char * pname)
 static int * child_slot;
 
 static void
-SalvageServer(int argc, char **argv)
+SalvageServer(int argc, char **argv, struct logOptions *logopts)
 {
     int pid, ret;
     struct SalvageQueueNode * node;
@@ -501,18 +516,10 @@ SalvageServer(int argc, char **argv)
     /* All entries to the log will be appended.  Useful if there are
      * multiple salvagers appending to the log.
      */
+    OpenLog(logopts);
+    SetupLogSignals();
 
-    CheckLogFile(logFileName);
-#ifndef AFS_NT40_ENV
-#ifdef AFS_LINUX20_ENV
-    fcntl(fileno(logFile), F_SETFL, O_APPEND);	/* Isn't this redundant? */
-#else
-    fcntl(fileno(logFile), F_SETFL, FAPPEND);	/* Isn't this redundant? */
-#endif
-#endif
-    setlinebuf(logFile);
-
-    fprintf(logFile, "%s\n", cml_version_number);
+    Log("%s\n", cml_version_number);
     LogCommandLine(argc, argv, "Online Salvage Server",
 		   SalvageVersion, "Starting OpenAFS", Log);
     /* Get and hold a lock for the duration of the salvage to make sure
@@ -603,24 +610,29 @@ SalvageServer(int argc, char **argv)
 static int
 DoSalvageVolume(struct SalvageQueueNode * node, int slot)
 {
-    char childLog[AFSDIR_PATH_MAX];
+    char *filename = NULL;
+    struct logOptions logopts;
     struct DiskPartition64 * partP;
 
     /* do not allow further forking inside salvager */
     canfork = 0;
 
-    /* do not attempt to close parent's logFile handle as
-     * another thread may have held the lock on the FILE
-     * structure when fork was called! */
-
-    snprintf(childLog, sizeof(childLog), "%s.%d",
-	     AFSDIR_SERVER_SLVGLOG_FILEPATH, getpid());
-
-    logFile = afs_fopen(childLog, "a");
-    if (!logFile) {		/* still nothing, use stdout */
-	logFile = stdout;
-	ShowLog = 0;
+    /*
+     * Do not attempt to close parent's log file handle as
+     * another thread may have held the lock when fork was
+     * called!
+     */
+    memset(&logopts, 0, sizeof(logopts));
+    logopts.lopt_dest = logDest_file;
+    logopts.lopt_rotateStyle = logRotate_none;
+    if (asprintf(&filename, "%s.%d",
+		 AFSDIR_SERVER_SLVGLOG_FILEPATH, getpid()) < 0) {
+	fprintf(stderr, "out of memory\n");
+	return ENOMEM;
     }
+    logopts.lopt_filename = filename;
+    OpenLog(&logopts);
+    free(filename);
 
     if (node->command.sop.parent <= 0) {
 	Log("salvageServer: invalid volume id specified; salvage aborted\n");
@@ -642,7 +654,7 @@ DoSalvageVolume(struct SalvageQueueNode * node, int slot)
     /* Salvage individual volume; don't notify fs */
     SalvageFileSys1(partP, node->command.sop.parent);
 
-    fclose(logFile);
+    CloseLog();
     return 0;
 }
 
@@ -750,31 +762,40 @@ SalvageLogCleanupThread(void * arg)
 }
 
 #define LOG_XFER_BUF_SIZE 65536
-static int
+static void
 SalvageLogCleanup(int pid)
 {
     int pidlog, len;
-    char fn[AFSDIR_PATH_MAX];
-    static char buf[LOG_XFER_BUF_SIZE];
+    char *fn = NULL;
+    char *buf = NULL;
 
-    snprintf(fn, sizeof(fn), "%s.%d",
-	     AFSDIR_SERVER_SLVGLOG_FILEPATH, pid);
+    if (asprintf(&fn, "%s.%d", AFSDIR_SERVER_SLVGLOG_FILEPATH, pid) < 0) {
+	Log("Unable to write child log: out of memory\n");
+	goto done;
+    }
 
+    buf = calloc(1, LOG_XFER_BUF_SIZE);
+    if (buf == NULL) {
+	Log("Unable to write child log: out of memory\n");
+	goto done;
+    }
 
     pidlog = open(fn, O_RDONLY);
     unlink(fn);
     if (pidlog < 0)
-	return 1;
+	goto done;
 
     len = read(pidlog, buf, LOG_XFER_BUF_SIZE);
     while (len) {
-	fwrite(buf, len, 1, logFile);
+	WriteLogBuffer(buf, len);
 	len = read(pidlog, buf, LOG_XFER_BUF_SIZE);
     }
 
     close(pidlog);
 
-    return 0;
+ done:
+    free(fn);
+    free(buf);
 }
 
 /* wake up every five minutes to see if a non-child salvage has finished */
@@ -794,17 +815,15 @@ static void *
 SalvageLogScanningThread(void * arg)
 {
     struct rx_queue log_watch_queue;
+    char *prefix;
+    int prefix_len;
 
     queue_Init(&log_watch_queue);
 
-    {
+    prefix_len = asprintf(&prefix, "%s.", AFSDIR_SLVGLOG_FILE);
+    if (prefix_len >= 0) {
 	DIR *dp;
 	struct dirent *dirp;
-	char prefix[AFSDIR_PATH_MAX];
-	size_t prefix_len;
-
-	snprintf(prefix, sizeof(prefix), "%s.", AFSDIR_SLVGLOG_FILE);
-	prefix_len = strlen(prefix);
 
 	dp = opendir(AFSDIR_LOGS_DIR);
 	opr_Assert(dp);
@@ -846,7 +865,7 @@ SalvageLogScanningThread(void * arg)
 
 	    queue_Append(&log_watch_queue, cleanup);
 	}
-
+	free(prefix);
 	closedir(dp);
     }
 

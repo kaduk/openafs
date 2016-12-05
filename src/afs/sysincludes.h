@@ -52,7 +52,7 @@
 # include <sys/timeout.h>
 
 #elif defined(AFS_NBSD40_ENV)
-# ifdef AFS_NBSD50_ENV
+# if defined(AFS_NBSD50_ENV) && !defined(AFS_NBSD70_ENV)
 #  include <sys/simplelock.h>
 # endif
 # include <sys/errno.h>
@@ -165,9 +165,7 @@ struct xfs_inode_info {
 #  include <linux/mutex.h>
 # endif
 # include <linux/errno.h>
-# ifdef HAVE_LINUX_COMPLETION_H
-#  include <linux/completion.h>
-# endif
+# include <linux/completion.h>
 # if defined(HAVE_LINUX_EXPORTFS_H)
 #  include <linux/exportfs.h>
 # endif
