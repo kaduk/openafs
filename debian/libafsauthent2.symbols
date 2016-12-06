@@ -63,6 +63,7 @@ libafsauthent.so.2 libafsauthent2 #MINVER#
  pr_NameToId@Base 1.7.999
  pr_SNameToId@Base 1.7.999
  setpag@Base 1.7.999
+ string_PR_IDToName@Base 1.8.0~~bleeding20-1
  ubik_Call@Base 1.7.999
  ubik_CallIter@Base 1.7.999
  ubik_Call_New@Base 1.7.999

@@ -71,8 +71,6 @@ libafsrpc.so.2 libafsrpc2 #MINVER#
  rx_Init@Base 1.7.999
  rx_InitHost@Base 1.7.999
  rx_InterruptCall@Base 1.7.999
- rx_KeepAliveOff@Base 1.7.999
- rx_KeepAliveOn@Base 1.7.999
  rx_KeyCreate@Base 1.7.999
  rx_MyMaxSendSize@Base 1.7.999
  rx_NewCall@Base 1.7.999
@@ -93,7 +91,6 @@ libafsrpc.so.2 libafsrpc2 #MINVER#
  rx_ServerProc@Base 1.7.999
  rx_ServiceIdOf@Base 1.7.999
  rx_ServiceOf@Base 1.7.999
- rx_SetBusyChannelError@Base 1.7.999
  rx_SetConnDeadTime@Base 1.7.999
  rx_SetConnHardDeadTime@Base 1.7.999
  rx_SetConnIdleDeadTime@Base 1.7.999

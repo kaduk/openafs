@@ -1,7 +1,6 @@
-libkopenafs.so.1 libkopenafs1 #MINVER#
- KOPENAFS_1.0@KOPENAFS_1.0 1.5.69
- k_hasafs@KOPENAFS_1.0 1.5.69
- k_haspag@KOPENAFS_1.0 1.5.75
- k_pioctl@KOPENAFS_1.0 1.5.69
- k_setpag@KOPENAFS_1.0 1.5.69
- k_unlog@KOPENAFS_1.0 1.5.69
+libkopenafs.so.2 libkopenafs1 #MINVER#
+ k_hasafs@Base 1.8.0~~bleeding20-1
+ k_haspag@Base 1.8.0~~bleeding20-1
+ k_pioctl@Base 1.8.0~~bleeding20-1
+ k_setpag@Base 1.8.0~~bleeding20-1
+ k_unlog@Base 1.8.0~~bleeding20-1
