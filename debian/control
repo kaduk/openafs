@@ -101,7 +101,7 @@ Description: AFS distributed filesystem Kerberos 5 integration
  from a Kerberos keytab, and ka-forwarder, a utility to forward kaserver
  requests to a KDC using fakeka.
 
-Package: libkopenafs1
+Package: libkopenafs2
 Section: libs
 Architecture: alpha amd64 arm armel armhf i386 ia64 lpia powerpc ppc64 s390 s390x sparc
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -144,7 +144,7 @@ Priority: extra
 Architecture: alpha amd64 arm armel armhf i386 ia64 powerpc powerpcspe ppc64 s390 s390x sparc
 Depends: ${shlibs:Depends}, ${misc:Depends},
  libafsauthent2 (= ${binary:Version}), libafsrpc2 (= ${binary:Version}),
- libkopenafs1 (= ${binary:Version}),
+ libkopenafs2 (= ${binary:Version}),
 Suggests: openafs-doc
 Conflicts: arla-dev, liblwp-dev
 Description: AFS distributed filesystem development libraries
