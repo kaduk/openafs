@@ -23,6 +23,7 @@ debian/tmp/usr/share/man/man5/BosLog.5             usr/share/man/man5
 debian/tmp/usr/share/man/man5/FORCESALVAGE.5       usr/share/man/man5
 debian/tmp/usr/share/man/man5/FileLog.5            usr/share/man/man5
 debian/tmp/usr/share/man/man5/KeyFile.5            usr/share/man/man5
+debian/tmp/usr/share/man/man5/KeyFileExt.5         usr/share/man/man5
 debian/tmp/usr/share/man/man5/NoAuth.5             usr/share/man/man5
 debian/tmp/usr/share/man/man5/SALVAGE.fs.5         usr/share/man/man5
 debian/tmp/usr/share/man/man5/SalvageLog.5         usr/share/man/man5

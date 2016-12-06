@@ -160,8 +160,6 @@ override_dh_install-arch:
 	    debian/openafs-client/usr/bin/pagsh.openafs
 	mv debian/openafs-client/usr/share/man/man1/pagsh.1 \
 	    debian/openafs-client/usr/share/man/man1/pagsh.openafs.1
-	mv debian/openafs-client/usr/share/man/man1/klog.1 \
-	    debian/openafs-client/usr/share/man/man1/klog.afs.1
 	mv debian/openafs-client/usr/bin/up \
 	    debian/openafs-client/usr/bin/afs-up
 
