@@ -3,6 +3,7 @@ heimdal/hcrypto/evp.[ch]
 heimdal/hcrypto/aes.[ch]
 heimdal/hcrypto/sha.[ch]
 heimdal/hcrypto/evp-cc.h
+heimdal/hcrypto/rand-fortuna.c
 heimdal/hcrypto/rijndael-alg-fst.[ch]
 heimdal/hcrypto/hash.h
 heimdal/hcrypto/crypto-aes.c
