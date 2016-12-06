@@ -1,6 +1,6 @@
 libkopenafs.so.2 libkopenafs1 #MINVER#
- k_hasafs@Base 1.8.0~~bleeding20-1
- k_haspag@Base 1.8.0~~bleeding20-1
- k_pioctl@Base 1.8.0~~bleeding20-1
- k_setpag@Base 1.8.0~~bleeding20-1
- k_unlog@Base 1.8.0~~bleeding20-1
+ k_hasafs@Base 1.7.99
+ k_haspag@Base 1.7.99
+ k_pioctl@Base 1.7.99
+ k_setpag@Base 1.7.99
+ k_unlog@Base 1.7.99
