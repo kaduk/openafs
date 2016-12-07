@@ -13,7 +13,6 @@ heimdal/hcrypto/crypto-evp.c
 heimdal/hcrypto/crypto-keyblock.c
 heimdal/hcrypto/crypto-store-int.c
 heimdal/hcrypto/rand-fortuna.c
-heimdal/hcrypto/rand-timer.c
 heimdal/hcrypto/sha256.c
 heimdal/krb5/n-fold.c
 heimdal/krb5/crypto.[ch]
