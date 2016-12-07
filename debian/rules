@@ -64,7 +64,7 @@ DEBIAN  := $(shell dpkg-parsechangelog | grep ^Version: | cut -d' ' -f2)
 DEBVERS := $(shell echo '$(DEBIAN)' | cut -d- -f1)
 VERSION := $(shell echo '$(DEBVERS)' | sed -e 's/[+-].*//' -e 's/~//g')
 #TAG     := $(shell echo 'openafs-stable-$(VERSION)' | sed 's/\./_/g')
-TAG     := $(shell echo 'kaduk-bleeding26')
+TAG     := $(shell echo 'kaduk-bleeding27')
 #REPO    := git://git.openafs.org/openafs.git
 REPO    := .
 
