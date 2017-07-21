@@ -371,6 +371,11 @@ ubeacon_InitServerListCommon(afs_uint32 ame, struct afsconf_cell *info,
 	if (nServers == 1 && !amIClone) {
 	    beacon_globals.ubik_amSyncSite = 1;	/* let's start as sync site */
 	    beacon_globals.syncSiteUntil = 0x7fffffff;	/* and be it quite a while */
+	    DBHOLD(ubik_dbase);
+	    UBIK_VERSION_LOCK;
+	    version_globals.ubik_epochTime = FT_ApproxTime();
+	    UBIK_VERSION_UNLOCK;
+	    DBRELE(ubik_dbase);
 	}
     } else {
 	if (nServers == 1)	/* special case 1 server */
@@ -378,8 +383,14 @@ ubeacon_InitServerListCommon(afs_uint32 ame, struct afsconf_cell *info,
     }
 
     if (ubik_singleServer) {
-	if (!beacon_globals.ubik_amSyncSite)
+	if (!beacon_globals.ubik_amSyncSite) {
 	    ubik_dprint("Ubik: I am the sync site - 1 server\n");
+	    DBHOLD(ubik_dbase);
+	    UBIK_VERSION_LOCK;
+	    version_globals.ubik_epochTime = FT_ApproxTime();
+	    UBIK_VERSION_UNLOCK;
+	    DBRELE(ubik_dbase);
+	}
 	beacon_globals.ubik_amSyncSite = 1;
 	beacon_globals.syncSiteUntil = 0x7fffffff;	/* quite a while */
     }
@@ -574,11 +585,17 @@ ubeacon_Interact(void *dummy)
 	}
 
 	/* now decide if we have enough votes to become sync site.
-	 * Note that we can still get enough votes even if we didn't for ourself. */
+	 * Note that we can still get enough votes even if we didn't for ourself.
+	 * Hold the database lock in case we won and bump the epoch. */
+	DBHOLD(ubik_dbase);
 	if (yesVotes > nServers) {	/* yesVotes is bumped by 2 or 3 for each site */
 	    UBIK_BEACON_LOCK;
-	    if (!beacon_globals.ubik_amSyncSite)
+	    if (!beacon_globals.ubik_amSyncSite) {
 		ubik_dprint("Ubik: I am the sync site\n");
+		UBIK_VERSION_LOCK;
+		version_globals.ubik_epochTime = FT_ApproxTime();
+		UBIK_VERSION_UNLOCK;
+	    }
 	    beacon_globals.ubik_amSyncSite = 1;
 	    beacon_globals.syncSiteUntil = oldestYesVote + SMALLTIME;
 #ifndef AFS_PTHREAD_ENV
@@ -593,10 +610,9 @@ ubeacon_Interact(void *dummy)
 		ubik_dprint("Ubik: I am no longer the sync site\n");
 	    beacon_globals.ubik_amSyncSite = 0;
 	    UBIK_BEACON_UNLOCK;
-	    DBHOLD(ubik_dbase);
 	    urecovery_ResetState();	/* tell recovery we're no longer the sync site */
-	    DBRELE(ubik_dbase);
 	}
+	DBRELE(ubik_dbase);
 
     }				/* while loop */
     return NULL;
