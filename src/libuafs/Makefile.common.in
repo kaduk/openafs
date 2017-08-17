@@ -123,16 +123,6 @@ LT_objs = \
 	netrestrict.lo \
 	cellconfig.lo \
 	keys.lo \
-	context.lo \
-	copy.lo \
-	crypto-aes.lo \
-	crypto-evp.lo \
-	algs.lo \
-	random.lo \
-	data.lo \
-	keyblock.lo \
-	n-fold.lo \
-	store-int.lo \
 	realms.lo \
 	ktc.lo \
 	Krxstat.ss.lo \
@@ -168,9 +158,6 @@ TOP_SRC_FSINT = ${TOP_SRCDIR}/fsint
 TOP_SRC_RX = ${TOP_SRCDIR}/rx
 TOP_SRC_VNOPS = ${TOP_SRCDIR}/afs/VNOPS
 TOP_SRC_RXKAD = ${TOP_SRCDIR}/rxkad
-TOP_SRC_HEIMDAL = ${TOP_SRCDIR}/external/heimdal/krb5
-TOP_SRC_KRFC3961 = ${TOP_SRCDIR}/crypto/rfc3961/kernel
-TOP_SRC_RFC3961 = ${TOP_SRCDIR}/crypto/rfc3961
 
 MODULE_INCLUDE = -I. -I.. -I../nfs \
         -I${TOP_SRCDIR} \
@@ -463,26 +450,6 @@ cellconfig.lo: $(TOP_SRCDIR)/auth/cellconfig.c
 	$(LT_CCRULE) $(TOP_SRCDIR)/auth/cellconfig.c
 keys.lo: $(TOP_SRCDIR)/auth/keys.c
 	$(LT_CCRULE) $(TOP_SRCDIR)/auth/keys.c
-context.lo: $(TOP_SRC_RFC3961)/context.c
-	$(LT_CCRULE) $(TOP_SRC_RFC3961)/context.c
-copy.lo: $(TOP_SRC_RFC3961)/copy.c
-	$(LT_CCRULE) $(TOP_SRC_RFC3961)/copy.c
-crypto-aes.lo: $(TOP_SRC_RFC3961)/crypto-aes.c
-	$(LT_CCRULE) $(TOP_SRC_RFC3961)/crypto-aes.c
-crypto-evp.lo: $(TOP_SRC_RFC3961)/crypto-evp.c
-	$(LT_CCRULE) $(TOP_SRC_RFC3961)/crypto-evp.c
-data.lo: $(TOP_SRC_RFC3961)/data.c
-	$(LT_CCRULE) $(TOP_SRC_RFC3961)/data.c
-keyblock.lo: $(TOP_SRC_RFC3961)/keyblock.c
-	$(LT_CCRULE) $(TOP_SRC_RFC3961)/keyblock.c
-n-fold.lo: $(TOP_SRC_RFC3961)/n-fold.c
-	$(LT_CCRULE) $(TOP_SRC_RFC3961)/n-fold.c
-store-int.lo: $(TOP_SRC_RFC3961)/store-int.c
-	$(LT_CCRULE) $(TOP_SRC_RFC3961)/store-int.c
-algs.lo: $(TOP_SRC_RFC3961)/algs.c
-	$(LT_CCRULE) $(TOP_SRC_RFC3961)/algs.c
-random.lo: $(TOP_SRC_RFC3961)/random.c
-	$(LT_CCRULE) $(TOP_SRC_RFC3961)/random.c
 casestrcpy.lo: $(TOP_SRCDIR)/opr/casestrcpy.c
 	$(LT_CCRULE) $(TOP_SRCDIR)/opr/casestrcpy.c
 realms.lo: $(TOP_SRCDIR)/auth/realms.c
