@@ -1,4 +1,4 @@
-openafs (1.8.0~pre2-1) UNRELEASED; urgency=low
+openafs (1.8.0~pre2-1) experimental; urgency=low
 
   * Add versioned build-depends for renamed symbols in heimdal-multidev.
     (Closes: #848664)
@@ -16,7 +16,7 @@ openafs (1.8.0~pre2-1) UNRELEASED; urgency=low
     - Improve ubik safety for relabels and writes shortly after an election
     - Preserve volume stats during reclone and restore operations
 
- -- Benjamin Kaduk <kaduk@mit.edu>  Wed, 30 Aug 2017 19:45:54 -0500
+ -- Benjamin Kaduk <kaduk@mit.edu>  Wed, 30 Aug 2017 21:26:51 -0500
 
 openafs (1.8.0~pre1-5) experimental; urgency=medium
 
